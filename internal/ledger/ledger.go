@@ -48,14 +48,3 @@ func exists(ctx context.Context, q querier, query string, args ...any) (bool, er
 	err := q.QueryRowContext(ctx, query, args...).Scan(&ok)
 	return ok, err
 }
-
-// foldReplacer ramène les lettres accentuées du français à leur base.
-var foldReplacer = strings.NewReplacer(
-	"à", "a", "â", "a", "ä", "a", "ç", "c", "é", "e", "è", "e", "ê", "e", "ë", "e",
-	"î", "i", "ï", "i", "ô", "o", "ö", "o", "ù", "u", "û", "u", "ü", "u", "ÿ", "y",
-	"œ", "oe", "æ", "ae",
-)
-
-// sortKey rend les noms comparables dans l'ordre alphabétique français
-// (casse et accents ignorés) : « Épargne » se range avant « Loisirs ».
-func sortKey(s string) string { return foldReplacer.Replace(strings.ToLower(s)) }

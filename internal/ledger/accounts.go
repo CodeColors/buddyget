@@ -10,6 +10,7 @@ import (
 	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/platform/money"
+	"github.com/codecolors/buddyget/internal/platform/text"
 	"github.com/codecolors/buddyget/internal/platform/validation"
 )
 
@@ -131,7 +132,7 @@ func (s *Service) Accounts(ctx context.Context, on calendar.Date) ([]AccountBala
 			}
 			return -1
 		}
-		return strings.Compare(sortKey(a.Name), sortKey(b.Name))
+		return strings.Compare(text.Fold(a.Name), text.Fold(b.Name))
 	})
 	return out, rows.Err()
 }

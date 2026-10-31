@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/codecolors/buddyget/internal/platform/db"
+	"github.com/codecolors/buddyget/internal/platform/text"
 	"github.com/codecolors/buddyget/internal/platform/validation"
 )
 
@@ -107,15 +108,15 @@ func (s *Service) Categories(ctx context.Context) ([]Category, error) {
 	slices.SortFunc(out, func(a, b Category) int {
 		top := func(c Category) string {
 			if c.ParentID == 0 {
-				return sortKey(c.Name)
+				return text.Fold(c.Name)
 			}
-			return sortKey(c.ParentName)
+			return text.Fold(c.ParentName)
 		}
 		return cmp.Or(
 			cmp.Compare(slices.Index(CategoryKinds, a.Kind), slices.Index(CategoryKinds, b.Kind)),
 			strings.Compare(top(a), top(b)),
 			cmp.Compare(a.depth(), b.depth()),
-			strings.Compare(sortKey(a.Name), sortKey(b.Name)),
+			strings.Compare(text.Fold(a.Name), text.Fold(b.Name)),
 		)
 	})
 	return out, rows.Err()
