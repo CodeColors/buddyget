@@ -1,0 +1,102 @@
+{{define "content"}}
+{{- with .Data}}
+<section class="card form-card" aria-labelledby="titre">
+  <h1 id="titre">{{$.Title}}</h1>
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  {{- if not .Accounts}}
+  <p class="muted">Créez d'abord un compte pour y saisir des opérations.</p>
+  <a class="btn btn-primary" href="/comptes/nouveau">Créer un compte</a>
+  {{- else}}
+  <form class="form operation-form" method="post" action="{{if .ID}}/operations/{{.ID}}{{else}}/operations{{end}}">
+    <input type="hidden" name="back" value="{{.Back}}">
+    {{- if .TransferID}}
+    <input type="hidden" name="type" value="virement">
+    {{- else}}
+    <fieldset class="field">
+      <legend class="sr-only">Type d'opération</legend>
+      <div class="segmented">
+        <label><input type="radio" name="type" value="depense"{{if eq .Type "depense"}} checked{{end}}><span>Dépense</span></label>
+        <label><input type="radio" name="type" value="revenu"{{if eq .Type "revenu"}} checked{{end}}><span>Revenu</span></label>
+        {{- if not .ID}}
+        <label><input type="radio" name="type" value="virement"{{if eq .Type "virement"}} checked{{end}}><span>Virement</span></label>
+        {{- end}}
+      </div>
+    </fieldset>
+    {{- end}}
+
+    <div class="field-row">
+      <div class="field">
+        <label for="amount">Montant (€)</label>
+        <input id="amount" name="amount" value="{{.Amount}}" inputmode="decimal" autocomplete="off" placeholder="0,00" required{{if not .ID}} autofocus{{end}}>
+      </div>
+      <div class="field">
+        <label for="label">Libellé</label>
+        <input id="label" name="label" value="{{.Label}}" list="libelles" maxlength="200" autocomplete="off" required>
+        <datalist id="libelles">{{range .Labels}}<option value="{{.}}">{{end}}</datalist>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="date">Date</label>
+        <input id="date" name="date" type="date" value="{{.Date}}" required>
+      </div>
+      <div class="field">
+        <label for="account"><span class="if-not-transfer">Compte</span><span class="if-transfer">Depuis le compte</span></label>
+        <select id="account" name="account">
+          {{- range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.AccountID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field if-transfer">
+        <label for="to_account">Vers le compte</label>
+        <select id="to_account" name="to_account">
+          <option value="0">Choisir…</option>
+          {{- range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.ToAccountID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field if-not-transfer">
+        <label for="category">Catégorie</label>
+        <select id="category" name="category">
+          <option value="0">Sans catégorie</option>
+          {{- range .Categories}}
+          <optgroup label="{{.Kind.Label}}">
+            {{- range .Categories}}<option value="{{.ID}}"{{if eq .ID $.Data.CategoryID}} selected{{end}}>{{.FullName}}</option>{{end}}
+          </optgroup>
+          {{- end}}
+        </select>
+      </div>
+    </div>
+
+    <details class="more"{{if or .Note .Cleared}} open{{end}}>
+      <summary>Plus d'options</summary>
+      <div class="field">
+        <label for="note">Note</label>
+        <textarea id="note" name="note" rows="2" maxlength="1000">{{.Note}}</textarea>
+      </div>
+      {{- if not .TransferID}}
+      <label class="check if-not-transfer"><input type="checkbox" name="cleared" value="1"{{if .Cleared}} checked{{end}}> Opération pointée (vue sur le relevé)</label>
+      {{- end}}
+    </details>
+
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Enregistrer</button>
+      {{- if not .ID}}
+      <button class="btn" type="submit" name="next" value="nouvelle">Enregistrer et saisir une autre</button>
+      {{- end}}
+      <a class="btn" href="{{or .Back "/operations"}}">Annuler</a>
+    </div>
+  </form>
+  {{- end}}
+</section>
+{{- if .ID}}
+<section class="card danger-zone" aria-labelledby="suppression">
+  <h2 id="suppression">Suppression</h2>
+  {{- if .TransferID}}<p class="muted">Les deux opérations du virement sont supprimées.</p>{{end}}
+  <form method="post" action="/operations/{{.ID}}/supprimer" data-confirm="Supprimer {{if .TransferID}}ce virement{{else}}cette opération{{end}} ?">
+    <input type="hidden" name="back" value="{{.Back}}">
+    <button class="btn btn-danger" type="submit">Supprimer</button>
+  </form>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

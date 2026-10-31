@@ -19,6 +19,11 @@
 <link rel="stylesheet" href="{{asset "app.css"}}">
 <link rel="icon" href="{{asset "icon.svg"}}" type="image/svg+xml">
 <link rel="manifest" href="{{asset "manifest.webmanifest"}}">
+{{- if .User}}
+<meta name="htmx-config" content='{"historyCacheSize":0,"refreshOnHistoryMiss":true,"includeIndicatorStyles":false,"allowEval":false,"selfRequestsOnly":true}'>
+<script src="{{asset "htmx.min.js"}}" defer></script>
+<script src="{{asset "app.js"}}" defer></script>
+{{- end}}
 </head>
 <body>
 <a class="skip-link" href="#contenu">Aller au contenu</a>
@@ -58,15 +63,39 @@
 </header>
 {{- if .User}}
 <nav class="tabbar" aria-label="Navigation principale">
-  <a href="/"{{if eq .Path "/"}} aria-current="page"{{end}}>
+  <a href="/"{{if navActive .Path "/"}} aria-current="page"{{end}}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg>
     <span>Accueil</span>
   </a>
+  <a href="/operations"{{if navActive .Path "/operations"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>
+    <span>Opérations</span>
+  </a>
+  <a href="/comptes"{{if navActive .Path "/comptes"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4M4 7.5V17a2 2 0 0 0 2 2h14V9H6.5A2.5 2.5 0 0 1 4 7.5zM16 14h.01"/></svg>
+    <span>Comptes</span>
+  </a>
+  <a href="/categories"{{if navActive .Path "/categories"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5V4h8.5l9 9-8.5 8.5zM8 8h.01"/></svg>
+    <span>Catégories</span>
+  </a>
 </nav>
+{{- if not (navActive .Path "/operations/nouvelle")}}
+<a class="fab" href="/operations/nouvelle">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+  <span>Opération</span><span class="sr-only"> : nouvelle saisie</span>
+</a>
+{{- end}}
 {{- end}}
 <main id="contenu" class="{{if .User}}page{{else}}page page-centered{{end}}">
+{{- with .Flash}}
+<p class="flash" role="status">{{.}}</p>
+{{- end}}
 {{template "content" .}}
 </main>
 </body>
 </html>
 {{- end}}
+
+{{/* Pastille de couleur d'une catégorie (attribut SVG : compatible CSP). */}}
+{{define "dot"}}<svg class="dot" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="{{.}}"/></svg>{{end}}

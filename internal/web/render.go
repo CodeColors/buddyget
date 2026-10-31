@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
@@ -30,7 +31,8 @@ type view struct {
 	Path  string // chemin courant : lien actif, retour après changement de thème
 	Theme auth.Theme
 	User  *auth.User
-	Data  any // donnée propre à la page
+	Flash string // confirmation de l'action précédente
+	Data  any    // donnée propre à la page
 }
 
 // renderer associe chaque page (templates/pages/<nom>.html) à un jeu de
@@ -62,15 +64,16 @@ func newRenderer(funcs template.FuncMap) (*renderer, error) {
 	return r, nil
 }
 
-// render exécute la page dans un tampon avant d'écrire la réponse : une
-// erreur de gabarit ne produit jamais de page tronquée.
-func (r *renderer) render(w http.ResponseWriter, status int, page string, v view) error {
+// render exécute un bloc de la page (« layout » pour la page entière) dans
+// un tampon avant d'écrire la réponse : une erreur de gabarit ne produit
+// jamais de page tronquée.
+func (r *renderer) render(w http.ResponseWriter, status int, page, block string, v view) error {
 	t, ok := r.pages[page]
 	if !ok {
 		return fmt.Errorf("page %q inconnue", page)
 	}
 	var buf bytes.Buffer
-	if err := t.ExecuteTemplate(&buf, "layout", v); err != nil {
+	if err := t.ExecuteTemplate(&buf, block, v); err != nil {
 		return fmt.Errorf("page %q : %w", page, err)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -79,9 +82,11 @@ func (r *renderer) render(w http.ResponseWriter, status int, page string, v view
 	return err
 }
 
-// asset est un fichier statique gardé en mémoire avec son empreinte.
+// asset est un fichier statique gardé en mémoire avec son empreinte et,
+// quand c'est rentable, sa version compressée (calculée une seule fois).
 type asset struct {
 	body        []byte
+	gzipped     []byte
 	contentType string
 	version     string
 }
@@ -103,9 +108,32 @@ func loadAssets() (assets, error) {
 			return nil, err
 		}
 		sum := sha256.Sum256(body)
-		a[e.Name()] = asset{body: body, contentType: contentType(e.Name()), version: hex.EncodeToString(sum[:6])}
+		gz, err := gzipBytes(body)
+		if err != nil {
+			return nil, err
+		}
+		a[e.Name()] = asset{body: body, gzipped: gz, contentType: contentType(e.Name()), version: hex.EncodeToString(sum[:6])}
 	}
 	return a, nil
+}
+
+// gzipBytes compresse un contenu ; nil s'il n'y gagne pas au moins 10 %.
+func gzipBytes(body []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	zw, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := zw.Write(body); err != nil {
+		return nil, err
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	if buf.Len() > len(body)*9/10 {
+		return nil, nil
+	}
+	return buf.Bytes(), nil
 }
 
 func contentType(name string) string {
@@ -140,6 +168,14 @@ func (a assets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.Set("Cache-Control", "no-cache")
 	}
 	h.Set("Content-Type", f.contentType)
-	h.Set("ETag", `"`+f.version+`"`)
-	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(f.body))
+	body, etag := f.body, f.version
+	if f.gzipped != nil {
+		h.Set("Vary", "Accept-Encoding")
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			body, etag = f.gzipped, f.version+"-gz"
+			h.Set("Content-Encoding", "gzip")
+		}
+	}
+	h.Set("ETag", `"`+etag+`"`)
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(body))
 }

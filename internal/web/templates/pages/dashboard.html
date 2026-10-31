@@ -1,7 +1,30 @@
 {{define "content"}}
-<h1>Tableau de bord</h1>
-<section class="card" aria-labelledby="bienvenue">
-  <h2 id="bienvenue">Bonjour {{.User.Username}}</h2>
-  <p class="muted">Aucun compte bancaire n'est encore enregistré.</p>
+<h1>Bonjour {{.User.Username}}</h1>
+{{- with .Data}}
+{{- if .Active}}
+<section aria-labelledby="soldes">
+  <div class="section-head">
+    <h2 id="soldes">Soldes au {{.Today.Format}}</h2>
+    <p class="total">Total <strong>{{euros .Total}}</strong></p>
+  </div>
+  <ul class="tiles">
+    {{- range .Active}}
+    <li>
+      <a class="tile" href="/operations?compte={{.ID}}">
+        <span class="tile-label">{{.Name}}</span>
+        <span class="tile-meta">{{.Kind.Label}} · {{.Bank.Label}}</span>
+        <span class="tile-value amount{{if lt .Balance 0}} negative{{end}}">{{euros .Balance}}</span>
+      </a>
+    </li>
+    {{- end}}
+  </ul>
 </section>
+{{- else}}
+<section class="card empty">
+  <h2>Premiers pas</h2>
+  <p class="muted">Créez un compte (courant, épargne, espèces…) pour commencer à saisir vos opérations.</p>
+  <a class="btn btn-primary" href="/comptes/nouveau">Créer un compte</a>
+</section>
+{{- end}}
+{{- end}}
 {{end}}

@@ -1,0 +1,63 @@
+{{define "content"}}
+{{- with .Data}}
+<section class="card form-card" aria-labelledby="titre">
+  <h1 id="titre">{{$.Title}}</h1>
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form" method="post" action="{{if .ID}}/comptes/{{.ID}}{{else}}/comptes{{end}}">
+    <div class="field">
+      <label for="name">Nom du compte</label>
+      <input id="name" name="name" value="{{.Name}}" maxlength="60" required{{if not .ID}} autofocus{{end}}>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="kind">Type</label>
+        <select id="kind" name="kind">
+          {{- range .Kinds}}<option value="{{.}}"{{if eq . $.Data.Kind}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field">
+        <label for="bank">Banque</label>
+        <select id="bank" name="bank">
+          {{- range .Banks}}<option value="{{.}}"{{if eq . $.Data.Bank}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="iban">IBAN <span class="optional">(facultatif)</span></label>
+      <input id="iban" name="iban" value="{{.IBAN}}" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="iban-aide">
+      <p id="iban-aide" class="hint">Seuls le code pays, la clé et les 4 derniers caractères sont conservés.</p>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="opening_balance">Solde initial</label>
+        <input id="opening_balance" name="opening_balance" value="{{.OpeningBalance}}" autocomplete="off" required aria-describedby="solde-aide">
+      </div>
+      <div class="field">
+        <label for="opening_date">au</label>
+        <input id="opening_date" name="opening_date" type="date" value="{{.OpeningDate}}" required aria-describedby="solde-aide">
+      </div>
+    </div>
+    <p id="solde-aide" class="hint">Solde au début de ce jour : les opérations datées de ce jour ou après s'y ajoutent. Un signe moins indique un découvert.</p>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Enregistrer</button>
+      <a class="btn" href="/comptes">Annuler</a>
+    </div>
+  </form>
+</section>
+{{- if .ID}}
+<section class="card danger-zone" aria-labelledby="gestion">
+  <h2 id="gestion">Archivage et suppression</h2>
+  <p class="muted">Un compte archivé n'est plus proposé à la saisie mais garde son historique. Seul un compte sans opération peut être supprimé.</p>
+  <div class="actions">
+    <form method="post" action="/comptes/{{.ID}}/archiver">
+      <input type="hidden" name="archived" value="{{not .Archived}}">
+      <button class="btn" type="submit">{{if .Archived}}Réactiver le compte{{else}}Archiver le compte{{end}}</button>
+    </form>
+    <form method="post" action="/comptes/{{.ID}}/supprimer" data-confirm="Supprimer définitivement ce compte ?">
+      <button class="btn btn-danger" type="submit">Supprimer le compte</button>
+    </form>
+  </div>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

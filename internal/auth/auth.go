@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/codecolors/buddyget/internal/platform/db"
+	"github.com/codecolors/buddyget/internal/platform/validation"
 )
 
 // Limites de saisie des identifiants.
@@ -38,11 +39,6 @@ var (
 	ErrInvalidCredentials = errors.New("identifiant ou mot de passe incorrect")
 	ErrSetupDone          = errors.New("le premier compte existe déjà")
 )
-
-// InputError signale une saisie invalide ; son message s'affiche tel quel.
-type InputError string
-
-func (e InputError) Error() string { return string(e) }
 
 // ThrottledError indique que les tentatives de connexion sont suspendues.
 type ThrottledError struct{ RetryAfter time.Duration }
@@ -189,15 +185,15 @@ func validateCredentials(username, password string) (string, error) {
 	username = strings.TrimSpace(username)
 	switch n := utf8.RuneCountInString(username); {
 	case n == 0:
-		return "", InputError("Choisissez un identifiant.")
+		return "", validation.Error("Choisissez un identifiant.")
 	case n > UsernameMaxLen:
-		return "", InputError(fmt.Sprintf("L'identifiant ne doit pas dépasser %d caractères.", UsernameMaxLen))
+		return "", validation.Errorf("L'identifiant ne doit pas dépasser %d caractères.", UsernameMaxLen)
 	}
 	switch n := utf8.RuneCountInString(password); {
 	case n < PasswordMinLen:
-		return "", InputError(fmt.Sprintf("Le mot de passe doit contenir au moins %d caractères.", PasswordMinLen))
+		return "", validation.Errorf("Le mot de passe doit contenir au moins %d caractères.", PasswordMinLen)
 	case n > PasswordMaxLen:
-		return "", InputError(fmt.Sprintf("Le mot de passe ne doit pas dépasser %d caractères.", PasswordMaxLen))
+		return "", validation.Errorf("Le mot de passe ne doit pas dépasser %d caractères.", PasswordMaxLen)
 	}
 	return username, nil
 }

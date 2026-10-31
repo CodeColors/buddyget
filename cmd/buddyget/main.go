@@ -21,6 +21,7 @@ import (
 
 	"github.com/codecolors/buddyget/internal/auth"
 	"github.com/codecolors/buddyget/internal/config"
+	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/web"
 )
@@ -67,7 +68,7 @@ func run() error {
 		}
 	}()
 
-	handler, err := web.New(cfg, database, auth.NewService(database))
+	handler, err := web.New(cfg, database, auth.NewService(database), ledger.NewService(database))
 	if err != nil {
 		return err
 	}

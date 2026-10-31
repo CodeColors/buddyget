@@ -1,0 +1,155 @@
+{{define "content"}}
+{{- with .Data}}
+<h1>Opérations</h1>
+
+<form class="filters" method="get" action="/operations" role="search"
+      hx-get="/operations" hx-target="#resultats" hx-swap="outerHTML" hx-push-url="true"
+      hx-trigger="input changed delay:300ms, change, submit">
+  <label for="q" class="sr-only">Rechercher</label>
+  <input id="q" name="q" type="search" value="{{.Q.Get "q"}}" placeholder="Rechercher un libellé, une note…" autocomplete="off">
+  <details class="panel"{{if .FiltersOpen}} open{{end}}>
+    <summary>Filtres et tri</summary>
+    <div class="filter-grid">
+      <div class="field">
+        <label for="f-compte">Compte</label>
+        <select id="f-compte" name="compte">
+          <option value="">Tous</option>
+          {{- range .Accounts}}<option value="{{.ID}}"{{if eq (print .ID) ($.Data.Q.Get "compte")}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-categorie">Catégorie</label>
+        <select id="f-categorie" name="categorie">
+          <option value="">Toutes</option>
+          <option value="aucune"{{if eq ($.Data.Q.Get "categorie") "aucune"}} selected{{end}}>Sans catégorie</option>
+          {{- range .Categories}}
+          <optgroup label="{{.Kind.Label}}">
+            {{- range .Categories}}<option value="{{.ID}}"{{if eq (print .ID) ($.Data.Q.Get "categorie")}} selected{{end}}>{{.FullName}}</option>{{end}}
+          </optgroup>
+          {{- end}}
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-du">Du</label>
+        <input id="f-du" name="du" type="date" value="{{.Q.Get "du"}}">
+      </div>
+      <div class="field">
+        <label for="f-au">Au</label>
+        <input id="f-au" name="au" type="date" value="{{.Q.Get "au"}}">
+      </div>
+      <div class="field">
+        <label for="f-min">Montant min. (€)</label>
+        <input id="f-min" name="min" value="{{.Q.Get "min"}}" inputmode="decimal" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="f-max">Montant max. (€)</label>
+        <input id="f-max" name="max" value="{{.Q.Get "max"}}" inputmode="decimal" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="f-pointage">Pointage</label>
+        <select id="f-pointage" name="pointage">
+          <option value="">Toutes</option>
+          <option value="oui"{{if eq (.Q.Get "pointage") "oui"}} selected{{end}}>Pointées</option>
+          <option value="non"{{if eq (.Q.Get "pointage") "non"}} selected{{end}}>Non pointées</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-tri">Tri</label>
+        <select id="f-tri" name="tri">
+          <option value="">Plus récentes d'abord</option>
+          <option value="date"{{if eq (.Q.Get "tri") "date"}} selected{{end}}>Plus anciennes d'abord</option>
+          <option value="montant"{{if eq (.Q.Get "tri") "montant"}} selected{{end}}>Plus fortes dépenses</option>
+          <option value="montant-desc"{{if eq (.Q.Get "tri") "montant-desc"}} selected{{end}}>Plus fortes recettes</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn" type="submit">Appliquer</button>
+      <a class="btn" href="/operations">Réinitialiser</a>
+    </div>
+  </details>
+</form>
+
+<details class="panel">
+  <summary>Modifier par lot</summary>
+  <form id="lot" class="form" method="post" action="/operations/lot" data-confirm="Appliquer cette modification aux opérations choisies ?">
+    <fieldset class="field">
+      <legend>Opérations concernées</legend>
+      <label class="check"><input type="radio" name="portee" value="selection" checked> Les opérations cochées</label>
+      <label class="check"><input type="radio" name="portee" value="tout"> Tous les résultats de la recherche</label>
+    </fieldset>
+    <label class="check"><input type="checkbox" data-select-all="lot"> Cocher toute la page</label>
+    <div class="field-row">
+      <div class="field">
+        <label for="lot-categorie">Catégorie</label>
+        <select id="lot-categorie" name="categorie">
+          <option value="">Inchangée</option>
+          <option value="aucune">Sans catégorie</option>
+          {{- range .Categories}}
+          <optgroup label="{{.Kind.Label}}">
+            {{- range .Categories}}<option value="{{.ID}}">{{.FullName}}</option>{{end}}
+          </optgroup>
+          {{- end}}
+        </select>
+      </div>
+      <div class="field">
+        <label for="lot-compte">Compte</label>
+        <select id="lot-compte" name="compte">
+          <option value="">Inchangé</option>
+          {{- range .Accounts}}{{if not .Archived}}<option value="{{.ID}}">{{.Name}}</option>{{end}}{{end}}
+        </select>
+      </div>
+    </div>
+    <p class="hint">Les virements entre comptes ne sont jamais modifiés par lot.</p>
+    <div class="actions"><button class="btn btn-primary" type="submit">Appliquer</button></div>
+  </form>
+</details>
+{{- end}}
+{{template "results" .}}
+{{end}}
+
+{{define "results"}}
+{{- with .Data}}
+<div id="resultats" class="results">
+  <input type="hidden" name="filtre" value="{{.Filter}}" form="lot">
+  {{with .Problem}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <p class="summary" aria-live="polite">{{plural .Page.Count "opération" "opérations"}}{{if .Page.Count}} · total <strong class="amount{{if gt .Page.Sum 0}} positive{{end}}">{{eurosSigned .Page.Sum}}</strong>{{end}}</p>
+  {{- if .Page.Items}}
+  <ul class="tx-list" aria-label="Opérations">
+    {{- range .Page.Items}}
+    <li class="tx">
+      <label class="tx-check"><input type="checkbox" name="ids" value="{{.ID}}" form="lot"><span class="sr-only">Sélectionner « {{.Label}} »</span></label>
+      <a class="tx-link" href="/operations/{{.ID}}">
+        <span class="tx-label">{{.Label}}</span>
+        <span class="tx-cat">
+          {{- if .IsTransfer}}{{if lt .Amount 0}}Virement vers {{else}}Virement depuis {{end}}{{.CounterpartAccountName}}
+          {{- else if .CategoryName}}{{template "dot" .CategoryColor}}{{.CategoryName}}
+          {{- else}}Sans catégorie{{end -}}
+        </span>
+      </a>
+      <span class="tx-meta">
+        <span class="tx-date">{{.Date.Format}}{{if gt .Date $.Data.Today}} <span class="badge">À venir</span>{{end}}</span>
+        <span class="tx-account">{{.AccountName}}</span>
+      </span>
+      <span class="tx-amount">
+        <span class="amount{{if gt .Amount 0}} positive{{end}}">{{eurosSigned .Amount}}</span>
+        {{- if .Cleared}}<svg class="cleared" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4.5 4.5L19 7"/></svg><span class="sr-only">, pointée</span>{{end}}
+      </span>
+    </li>
+    {{- end}}
+  </ul>
+  {{- if or .PrevURL .NextURL}}
+  <nav class="pager" aria-label="Pages de résultats">
+    {{- with .PrevURL}}<a class="btn" href="{{.}}" hx-get="{{.}}" hx-target="#resultats" hx-swap="outerHTML" hx-push-url="true">Précédentes</a>{{end}}
+    <span>Page {{.PageNumber}}</span>
+    {{- with .NextURL}}<a class="btn" href="{{.}}" hx-get="{{.}}" hx-target="#resultats" hx-swap="outerHTML" hx-push-url="true">Suivantes</a>{{end}}
+  </nav>
+  {{- end}}
+  {{- else if .Searching}}
+  <p class="card empty muted">Aucune opération ne correspond à la recherche.</p>
+  {{- else}}
+  <p class="card empty muted">Aucune opération pour l'instant : le bouton « Opération » permet d'en saisir une.</p>
+  {{- end}}
+</div>
+{{- end}}
+{{end}}

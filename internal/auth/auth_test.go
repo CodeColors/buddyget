@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/codecolors/buddyget/internal/platform/db"
+	"github.com/codecolors/buddyget/internal/platform/validation"
 )
 
 const testPassword = "un mot de passe solide"
@@ -82,15 +83,19 @@ func TestCreateFirstUserValidation(t *testing.T) {
 		"mot de passe long":     {"alice", strings.Repeat("x", PasswordMaxLen+1)},
 	} {
 		t.Run(name, func(t *testing.T) {
-			var ie InputError
-			if _, err := s.CreateFirstUser(t.Context(), c.user, c.pw); !errors.As(err, &ie) {
-				t.Errorf("erreur = %v, attendu InputError", err)
+			if _, err := s.CreateFirstUser(t.Context(), c.user, c.pw); !isInputError(err) {
+				t.Errorf("erreur = %v, attendu une erreur de saisie", err)
 			}
 		})
 	}
 	if need, _ := s.NeedsSetup(t.Context()); !need {
 		t.Error("aucun compte ne doit avoir été créé")
 	}
+}
+
+func isInputError(err error) bool {
+	_, ok := validation.Message(err)
+	return ok
 }
 
 func TestAuthenticate(t *testing.T) {

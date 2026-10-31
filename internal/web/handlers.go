@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/codecolors/buddyget/internal/auth"
+	"github.com/codecolors/buddyget/internal/platform/validation"
 )
 
 // credentialsForm est la donnée des pages de connexion et de création du
@@ -81,12 +82,12 @@ func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	u, err := s.auth.CreateFirstUser(r.Context(), form.Username, password)
-	var inputErr auth.InputError
-	switch {
-	case errors.As(err, &inputErr):
-		form.Error = inputErr.Error()
+	if msg, ok := validation.Message(err); ok {
+		form.Error = msg
 		s.render(w, r, http.StatusUnprocessableEntity, "setup", "Création du compte", form)
 		return
+	}
+	switch {
 	case errors.Is(err, auth.ErrSetupDone):
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -160,10 +161,6 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	}
 	s.clearSessionCookie(w)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
-}
-
-func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, http.StatusOK, "dashboard", "Tableau de bord", nil)
 }
 
 func (s *Server) setTheme(w http.ResponseWriter, r *http.Request) {
