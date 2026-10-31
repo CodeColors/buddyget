@@ -351,6 +351,28 @@ test('récurrence détectée puis validée sur mobile', async () => {
   }, session);
 });
 
+test('prévisionnel sur mobile : horizon, échéance écartée, seuil', async () => {
+  await withPage(360, 'light', async (page) => {
+    await page.goto(`${BASE}/`);
+    await page.getByRole('navigation', { name: 'Navigation principale' }).getByRole('link', { name: 'Prévisionnel' }).click();
+    await page.getByRole('link', { name: '6 mois' }).click();
+    await page.waitForURL(/date=/);
+    await page.getByRole('img', { name: /Solde jour par jour/ }).waitFor();
+    const line = page.locator('.fc-line').filter({ hasText: 'SPOTIFY P1234' }).first();
+    await line.getByRole('button', { name: /^Écarter/ }).click();
+    await page.getByRole('status').filter({ hasText: 'Échéance écartée du prévisionnel.' }).waitFor();
+    assert.equal(await page.locator('.fc-line.is-excluded').count(), 1);
+
+    await page.getByText('Réglages du prévisionnel').click();
+    await page.getByLabel("Seuil d'alerte (€)").fill('5000');
+    await page.getByRole('button', { name: 'Enregistrer les réglages' }).click();
+    await page.getByRole('status').filter({ hasText: 'Réglages du prévisionnel enregistrés.' }).waitFor();
+    await page.getByText('Le solde passe sous le seuil').waitFor();
+    await checkLayout(page, 'prévisionnel', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'previsionnel-parcours-360-light.png'), fullPage: true });
+  }, session);
+});
+
 const SCREENS = [
   ['tableau-de-bord', '/'],
   ['operations', '/operations'],
@@ -361,6 +383,7 @@ const SCREENS = [
   ['historique-imports', '/import/historique'],
   ['regles', '/regles'],
   ['virements', '/operations/virements'],
+  ['previsionnel', '/previsionnel'],
   ['recurrences', '/recurrences'],
   ['recurrence-saisie', '/recurrences/nouvelle'],
   ['plus', '/plus'],
