@@ -25,9 +25,11 @@ import (
 	"github.com/codecolors/buddyget/internal/forecast"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
+	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/recurring"
 	"github.com/codecolors/buddyget/internal/savings"
+	"github.com/codecolors/buddyget/internal/scheduler"
 	"github.com/codecolors/buddyget/internal/web"
 )
 
@@ -101,6 +103,23 @@ func run() error {
 		return err
 	}
 	slog.Info("BuddyGet démarré", "version", version, "adresse", cfg.Addr(), "démarrage", time.Since(start).Round(time.Millisecond))
+
+	// Travaux quotidiens ; arrêtés, et attendus, avant la fermeture de la base.
+	jobsDone := make(chan struct{})
+	go func() {
+		defer close(jobsDone)
+		scheduler.Run(ctx, scheduler.Job{Name: "intérêts des années closes", Run: func(ctx context.Context, today calendar.Date) error {
+			n, err := savingsAccounts.CloseYears(ctx, today)
+			if n > 0 {
+				slog.Info("intérêts inscrits", "écritures", n)
+			}
+			return err
+		}})
+	}()
+	defer func() {
+		stop()
+		<-jobsDone
+	}()
 
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
