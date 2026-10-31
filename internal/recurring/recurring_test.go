@@ -204,3 +204,42 @@ func TestOccurrencesShifted(t *testing.T) {
 		t.Error("une récurrence terminée n'a plus d'échéance")
 	}
 }
+
+func TestTransferRule(t *testing.T) {
+	e := newEnv(t)
+	ctx := t.Context()
+	livret, err := e.ledger.CreateAccount(ctx, ledger.AccountInput{Name: "Livret", Kind: ledger.AccountSavings, Bank: ledger.BankSG, OpeningDate: "2024-01-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := RuleInput{Label: "Épargne", AccountID: e.account, ToAccountID: livret, Amount: -100_00, Period: calendar.Monthly,
+		Shift: calendar.NextBusinessDay, Start: "2026-11-05", Origin: Manual}
+	id, err := e.s.CreateRule(ctx, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := e.s.Rule(ctx, id); !r.IsTransfer() || r.ToAccountName != "Livret" || r.AccountName != "Courant" {
+		t.Errorf("versement programmé : %+v", r)
+	}
+	for _, bad := range []RuleInput{
+		{Label: "x", AccountID: e.account, ToAccountID: e.account, Amount: -1, Period: calendar.Monthly, Shift: calendar.NoShift, Start: "2026-11-05"},
+		{Label: "x", AccountID: e.account, ToAccountID: livret, Amount: 1, Period: calendar.Monthly, Shift: calendar.NoShift, Start: "2026-11-05"},
+		{Label: "x", AccountID: e.account, ToAccountID: 999, Amount: -1, Period: calendar.Monthly, Shift: calendar.NoShift, Start: "2026-11-05"},
+	} {
+		if err := e.s.UpdateRule(ctx, id, bad); !isInputError(err) {
+			t.Errorf("versement invalide accepté : %+v, %v", bad, err)
+		}
+	}
+	in.ToAccountID = 0
+	if err := e.s.UpdateRule(ctx, id, in); err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := e.s.Rule(ctx, id); r.IsTransfer() {
+		t.Error("redevenue une dépense, la récurrence n'a plus de compte destinataire")
+	}
+}
+
+func isInputError(err error) bool {
+	_, ok := validation.Message(err)
+	return ok
+}

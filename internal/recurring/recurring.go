@@ -37,6 +37,8 @@ type Rule struct {
 	Label         string
 	AccountID     int64
 	AccountName   string
+	ToAccountID   int64 // versement programmé : compte qui reçoit
+	ToAccountName string
 	Amount        int64
 	Estimated     bool
 	Period        calendar.Period
@@ -51,6 +53,9 @@ type Rule struct {
 	Active        bool
 	Signature     string // série d'opérations que la récurrence représente
 }
+
+// IsTransfer indique un versement programmé vers un autre compte du foyer.
+func (r Rule) IsTransfer() bool { return r.ToAccountID != 0 }
 
 // Occurrence est une échéance : sa date théorique, qui identifie
 // l'échéance, et sa date effective, reportée au jour ouvré voisin.
@@ -86,19 +91,22 @@ func (r Rule) Next(from calendar.Date) (Occurrence, bool) {
 	return Occurrence{}, false
 }
 
-// RuleInput est la saisie d'une récurrence ; Amount est signé.
+// RuleInput est la saisie d'une récurrence ; Amount est signé. Un
+// versement programmé (ToAccountID) a un montant négatif : celui qui quitte
+// AccountID.
 type RuleInput struct {
-	Label      string
-	AccountID  int64
-	Amount     int64
-	Estimated  bool
-	Period     calendar.Period
-	LastDay    bool
-	Shift      calendar.Shift
-	Start      calendar.Date
-	End        calendar.Date
-	CategoryID int64
-	Origin     Origin
+	Label       string
+	AccountID   int64
+	ToAccountID int64
+	Amount      int64
+	Estimated   bool
+	Period      calendar.Period
+	LastDay     bool
+	Shift       calendar.Shift
+	Start       calendar.Date
+	End         calendar.Date
+	CategoryID  int64
+	Origin      Origin
 	// Signature de la série détectée d'origine ; vide pour une saisie, elle
 	// est alors tirée du libellé. Fixée à la création, elle empêche la
 	// série d'être proposée de nouveau même si le libellé est modifié.
@@ -114,18 +122,19 @@ type Service struct {
 func NewService(d *db.DB) *Service { return &Service{db: d} }
 
 const ruleSelect = `
-	SELECT r.id, r.label, r.account_id, a.name, r.amount, r.estimated, r.period_count, r.period_unit, r.last_day,
+	SELECT r.id, r.label, r.account_id, a.name, coalesce(r.to_account_id, 0), coalesce(ta.name, ''), r.amount, r.estimated, r.period_count, r.period_unit, r.last_day,
 		r.business_day, r.start_date, coalesce(r.end_date, ''), coalesce(r.category_id, 0),
 		coalesce(CASE WHEN p.id IS NULL THEN c.name ELSE p.name || ' › ' || c.name END, ''), coalesce(c.color, ''),
 		r.origin, r.active, r.signature
 	FROM recurring_rules r
 	JOIN accounts a ON a.id = r.account_id
+	LEFT JOIN accounts ta ON ta.id = r.to_account_id
 	LEFT JOIN categories c ON c.id = r.category_id
 	LEFT JOIN categories p ON p.id = c.parent_id`
 
 func scanRule(row interface{ Scan(...any) error }) (Rule, error) {
 	var r Rule
-	err := row.Scan(&r.ID, &r.Label, &r.AccountID, &r.AccountName, &r.Amount, &r.Estimated, &r.Period.Count, &r.Period.Unit,
+	err := row.Scan(&r.ID, &r.Label, &r.AccountID, &r.AccountName, &r.ToAccountID, &r.ToAccountName, &r.Amount, &r.Estimated, &r.Period.Count, &r.Period.Unit,
 		&r.LastDay, &r.Shift, &r.Start, &r.End, &r.CategoryID, &r.CategoryName, &r.CategoryColor, &r.Origin, &r.Active, &r.Signature)
 	return r, err
 }
@@ -170,10 +179,10 @@ func (s *Service) CreateRule(ctx context.Context, in RuleInput) (int64, error) {
 		in.Signature = Signature(in.AccountID, in.Amount, in.Label)
 	}
 	res, err := s.db.W.ExecContext(ctx, `
-		INSERT INTO recurring_rules (label, account_id, amount, estimated, period_count, period_unit, last_day,
+		INSERT INTO recurring_rules (label, account_id, to_account_id, amount, estimated, period_count, period_unit, last_day,
 			business_day, start_date, end_date, category_id, origin, signature)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''), nullif(?, 0), ?, ?)`,
-		in.Label, in.AccountID, in.Amount, in.Estimated, in.Period.Count, in.Period.Unit, in.LastDay,
+		VALUES (?, ?, nullif(?, 0), ?, ?, ?, ?, ?, ?, ?, nullif(?, ''), nullif(?, 0), ?, ?)`,
+		in.Label, in.AccountID, in.ToAccountID, in.Amount, in.Estimated, in.Period.Count, in.Period.Unit, in.LastDay,
 		in.Shift, in.Start, in.End, in.CategoryID, in.Origin, in.Signature)
 	if err != nil {
 		return 0, err
@@ -189,10 +198,10 @@ func (s *Service) UpdateRule(ctx context.Context, id int64, in RuleInput) error 
 		return err
 	}
 	res, err := s.db.W.ExecContext(ctx, `
-		UPDATE recurring_rules SET label = ?, account_id = ?, amount = ?, estimated = ?, period_count = ?, period_unit = ?,
+		UPDATE recurring_rules SET label = ?, account_id = ?, to_account_id = nullif(?, 0), amount = ?, estimated = ?, period_count = ?, period_unit = ?,
 			last_day = ?, business_day = ?, start_date = ?, end_date = nullif(?, ''), category_id = nullif(?, 0)
 		WHERE id = ?`,
-		in.Label, in.AccountID, in.Amount, in.Estimated, in.Period.Count, in.Period.Unit, in.LastDay,
+		in.Label, in.AccountID, in.ToAccountID, in.Amount, in.Estimated, in.Period.Count, in.Period.Unit, in.LastDay,
 		in.Shift, in.Start, in.End, in.CategoryID, id)
 	return affectedOne(res, err)
 }
@@ -248,6 +257,20 @@ func (s *Service) validate(ctx context.Context, in RuleInput) (RuleInput, error)
 	}
 	if !ok {
 		return in, validation.Error("Choisissez un compte.")
+	}
+	if in.ToAccountID != 0 {
+		switch {
+		case in.ToAccountID == in.AccountID:
+			return in, validation.Error("Choisissez deux comptes différents.")
+		case in.Amount > 0:
+			return in, validation.Error("Un versement programmé débite le compte de départ : montant négatif.")
+		}
+		if err := s.db.R.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM accounts WHERE id = ?)`, in.ToAccountID).Scan(&ok); err != nil {
+			return in, err
+		}
+		if !ok {
+			return in, validation.Error("Choisissez le compte qui reçoit le versement.")
+		}
 	}
 	if in.CategoryID != 0 {
 		if err := s.db.R.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM categories WHERE id = ?)`, in.CategoryID).Scan(&ok); err != nil {
