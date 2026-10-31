@@ -53,6 +53,13 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
   abonnement modifié, échéance proche, import oublié, déblocage d'épargne),
   avec cloche dans l'en-tête ; notifications par e-mail ou ntfy/webhook,
   désactivées par défaut et discrètes
+- Saisie ultra-rapide : modèles en un clic, duplication, dictée vocale
+  quand le navigateur la propose ; étiquettes libres (filtre, lot, rapport) ;
+  photo ou PDF du ticket joint à l'opération, réduit automatiquement
+- Pointage d'un geste face au solde de la banque, jusqu'à ce que le reste à
+  pointer tombe à zéro
+- Abonnements (coût annuel, doublons, abonnements peut-être oubliés) et
+  rapports mensuel et annuel (catégories, taux d'épargne, commerçants)
 
 ## Avancement
 
@@ -66,7 +73,8 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
 | 6 | Prévisionnel : courbe, point bas, seuil, jours non ouvrés, dépenses variables, exclusion ponctuelle | ✅ |
 | 7 | Épargne : modèles, intérêts, disponible et bloqué, versements programmés, vue Épargne | ✅ |
 | 8 | Budgets par enveloppe, reste à vivre, alertes et notifications facultatives | ✅ |
-| 9 – 12 | Abonnements, rapports, scénarios, crédits, partage, exports, sauvegardes | à venir |
+| 9 | Abonnements, rapports, étiquettes, pièces jointes, saisie rapide, pointage | ✅ |
+| 10 – 12 | Scénarios, projets, crédits, partage, exports, sauvegardes | à venir |
 
 Le détail est dans [docs/PLAN.md](docs/PLAN.md) et le cahier des charges dans
 [docs/cahier-des-charges.md](docs/cahier-des-charges.md).
@@ -133,7 +141,7 @@ version en cours de développement.
 ### Sauvegarde
 
 Les données tiennent dans le dossier `/volume1/docker/buddyget` (fichier
-`buddyget.db`). Arrêtez le projet avant de copier ce dossier, par exemple avec
+`buddyget.db` et sous-dossier `attachments` des pièces jointes). Arrêtez le projet avant de copier ce dossier, par exemple avec
 **Hyper Backup**. La sauvegarde intégrée (chiffrée, planifiée) arrive au
 jalon 11.
 
@@ -179,7 +187,8 @@ Toutes les options sont des variables d'environnement facultatives.
 | `TZ` | UTC | fuseau des journaux (`Europe/Paris`) |
 | `BASE_URL` | — | adresse publique, ex. `https://budget.mondomaine.fr` ; en HTTPS, active les cookies `Secure` |
 | `TRUSTED_PROXIES` | — | adresses ou réseaux CIDR (séparés par des virgules) dont l'en-tête `X-Forwarded-For` est cru |
-| `MAX_UPLOAD_MB` | `10` | taille maximale d'un fichier importé (1 à 100) |
+| `MAX_UPLOAD_MB` | `10` | taille maximale d'un fichier déposé : relevé importé ou pièce jointe (1 à 100) |
+| `ATTACHMENTS_QUOTA_MB` | `1024` | place totale des pièces jointes (10 à 1 000 000) |
 | `GOMEMLIMIT` | `100MiB` (image) | plafond mémoire visé par le ramasse-miettes |
 
 Les journaux ne contiennent jamais de libellé ni de montant.

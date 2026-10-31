@@ -152,10 +152,28 @@ L'examen a lieu en arrière-plan après une modification (les demandes
 rapprochées n'en font qu'une) et chaque nuit : il ne ralentit aucune page.
 La cloche de l'en-tête ajoute un décompte indexé par page affichée.
 
+## Jalon 9 : 31/10/2026
+
+Même machine :
+
+| Opération | Durée | Mémoire allouée |
+|---|---|---|
+| Réduction d'une photo de 12 Mpx (4000 × 3000) à 1 600 px, JPEG q75 | 260 ms | 38 Mo |
+| Rapport annuel sur cinq ans d'historique (20 000 opérations) | 32 ms | 7 Mo |
+
+### Correction apportée pendant la mesure
+La première version de la réduction des images utilisait le noyau bilinéaire
+de `x/image/draw` : 180 Mo alloués par photo, à cause d'un tampon de
+flottants de la largeur cible par la hauteur source, intenable sous la
+limite de 128 Mo du conteneur. La moyenne de blocs suivie d'une
+interpolation sans tampon ramène l'allocation à 38 Mo (la photo décodée,
+l'image intermédiaire et le résultat) et le temps de 470 à 260 ms ; une
+seule image est traitée à la fois.
+
 ## Méthode
 
 ```bash
-go test -run '^$' -bench . -benchmem ./internal/ledger/ ./internal/importer/ ./internal/categorize/ ./internal/recurring/ ./internal/forecast/ ./internal/alerts/
+go test -run '^$' -bench . -benchmem ./internal/ledger/ ./internal/importer/ ./internal/categorize/ ./internal/recurring/ ./internal/forecast/ ./internal/alerts/ ./internal/reports/ ./internal/attachments/
 
 make build
 DATA_DIR=/tmp/bg PORT=8080 ./bin/buddyget &

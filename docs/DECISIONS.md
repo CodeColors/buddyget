@@ -368,12 +368,13 @@ supprimée ; seules les récurrences actives entreront dans le prévisionnel.
 ### Navigation à cinq onglets
 La barre d'onglets mobile compte cinq entrées (Accueil, Opérations,
 Prévisionnel, Importer, Plus) ; « Plus » mène à une page qui liste les
-écrans secondaires (budgets, épargne, récurrences, alertes, comptes,
-catégories, règles, virements, historique des imports). Le prévisionnel a
-pris au jalon 6 la place des récurrences, consultées moins souvent et
-accessibles depuis son écran. La tablette (768 à 1023 px) garde ces cinq
-entrées en haut de page ; à partir de 1024 px, toutes les rubriques
-s'affichent et « Plus » disparaît, sans leurs icônes jusqu'à 1279 px. Les
+écrans secondaires. Le prévisionnel a pris au jalon 6 la place des
+récurrences, consultées moins souvent et accessibles depuis son écran. La
+tablette (768 à 1023 px) garde ces cinq entrées en haut de page. À partir
+de 1024 px s'y ajoutent Budgets, Épargne et Rapports (sans icônes jusqu'à
+1279 px) ; « Plus » reste et mène aux autres écrans (récurrences,
+abonnements, comptes, catégories, règles, étiquettes, alertes, virements,
+historique des imports), dont le nombre a crû au jalon 9. Les
 alertes sont signalées par une cloche dans l'en-tête, à toutes les largeurs ;
 sous 400 px, le nom de l'application laisse la place aux actions de
 l'en-tête (le logo reste). Le tout en CSS, sans script.
@@ -589,3 +590,74 @@ les alertes sont marquées notifiées : activer un canal n'envoie pas
 l'historique. Un envoi en échec est retenté au passage suivant. Le mot de
 passe SMTP est stocké dans la base (sur le NAS), jamais réaffiché ni
 journalisé.
+
+## Saisie, pointage, abonnements et rapports (jalon 9)
+
+### Étiquettes
+Libres, en complément des catégories, dans le grand livre : saisies
+séparées par des virgules (doublons écartés, casse et accents ignorés),
+filtre de la liste, ajout et retrait par lot sur une sélection ou une
+recherche (mécanisme d'édition par lot unique), rapport par étiquette.
+Renommage et retrait global depuis la page Étiquettes ; une étiquette qui
+ne sert plus disparaît. Comme pour la catégorie, les virements entre
+comptes n'en portent pas.
+
+### Saisie ultra-rapide
+- Modèles de saisie : créés depuis une opération existante (« Enregistrer
+  comme modèle »), proposés en tête de la saisie ; un clic crée l'opération
+  du jour.
+- Dupliquer une opération, ou la dernière saisie (ni importée, ni écriture
+  d'intérêts) : le formulaire est prérempli, daté du jour.
+- Dictée : l'API de reconnaissance vocale du navigateur, seulement si elle
+  existe (le bouton reste caché sinon), en demandant le traitement sur
+  l'appareil quand le navigateur le propose. BuddyGet n'envoie rien et
+  n'impose aucun service ; le navigateur reste maître de son moteur. « Courses
+  23 euros 50 » remplit le montant (23,50) et le libellé (Courses).
+
+### Pointage : un seul mécanisme de vérification
+La page de rapprochement d'un compte devient la vue de pointage : solde de
+la banque à une date, solde pointé, reste à pointer, et la liste des
+opérations non pointées du solde initial à cette date. Pointer une
+opération (case, ou balayage vers la droite sur mobile) l'envoie par HTMX ;
+la réponse remplace la ligne et, hors de la ligne, les soldes. Sans script,
+chaque case est un bouton de formulaire classique. Quand le reste à pointer
+tombe à zéro, les comptes concordent avec le relevé.
+
+### Pièces jointes
+- Photo (JPEG, PNG, WebP, GIF) ou PDF ; type reconnu au contenu, non à
+  l'extension. Taille limitée par `MAX_UPLOAD_MB` (le même réglage que
+  l'import), place totale par `ATTACHMENTS_QUOTA_MB` (1 Go par défaut).
+- Images redressées selon leur orientation EXIF, réduites à 1 600 px de
+  large et recompressées en JPEG (qualité 75). Les noyaux d'interpolation
+  de `x/image/draw` allouent un tampon de flottants de la largeur cible par
+  la hauteur source (180 Mo pour une photo de 12 Mpx) : la réduction se
+  fait donc par moyenne de blocs (facteur entier, lecture YCbCr sans
+  allocation), puis interpolation bilinéaire sans tampon, 38 Mo en tout.
+  Une seule image est réduite à la fois ; au-delà de 40 Mpx, refus.
+- Fichiers dans `DATA_DIR/attachments`, sous un nom aléatoire, écrits par
+  fichier temporaire puis renommage. Les PDF se téléchargent (la visionneuse
+  du navigateur ne s'accommode pas de la politique de sécurité), les images
+  s'affichent. Les fichiers d'opérations supprimées (ou d'imports annulés)
+  sont effacés par la tâche quotidienne.
+
+### Abonnements
+Une case « C'est un abonnement » sur une récurrence ; la vue Abonnements
+filtre les récurrences actives ainsi marquées (pas de seconde détection) :
+coût mensuel équivalent et annuel, prochain prélèvement, et deux indices à
+vérifier soi-même :
+- doublon possible : même commerçant (un mot significatif commun dans le
+  libellé, hors mentions bancaires) ou même catégorie et montant à 10 % ;
+- peut-être oublié : abonnement catégorisé, ouvert depuis plus de 90 jours,
+  sans aucune autre dépense de sa catégorie sur cette période (une salle de
+  sport sans aucune autre dépense de sport, par exemple).
+
+### Rapports
+Mensuel et annuel, comparés à la période précédente. La catégorie décide :
+dépense, revenu, ou ni l'un ni l'autre (catégorie « virement », comme
+l'épargne) ; sans catégorie, le signe. Les remboursements viennent en
+déduction de leur catégorie ; les virements internes sont exclus. Taux
+d'épargne = (revenus − dépenses) / revenus. Principaux commerçants :
+libellés regroupés sans les mots à chiffres (dates, références) ni les
+mentions bancaires (CB, PRLV…). L'annuel ajoute les mois, dépenses face aux
+revenus mensuels moyens. La comparaison budget / réel reste la tendance de
+l'écran Budgets (lien depuis le rapport). Les exports arrivent au jalon 11.

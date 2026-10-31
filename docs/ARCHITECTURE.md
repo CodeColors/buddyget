@@ -33,8 +33,8 @@ internal/
 │   └── validation/    erreur de saisie commune (message destiné à l'utilisateur)
 ├── auth/              comptes, argon2id, limitation des tentatives, sessions, thème
 ├── ledger/            grand livre : comptes, catégories, opérations, virements,
-│                      recherche (Filter), édition par lot, rapprochement,
-│                      détection des virements internes
+│                      recherche (Filter), édition par lot, étiquettes, modèles
+│                      de saisie, rapprochement et pointage, virements internes
 ├── categorize/        règles de catégorisation : moteur, application rétroactive
 ├── recurring/         récurrences : règles, échéances (date théorique et effective),
 │                      détection avec score
@@ -44,6 +44,8 @@ internal/
 ├── savings/           épargne : modèles, réglages, intérêts (quinzaine, simple,
 │                      composé), disponible/bloqué, inscription des intérêts
 ├── budget/            enveloppes mensuelles : report, consommé, tendance
+├── reports/           rapports mensuel et annuel
+├── attachments/       pièces jointes : réduction des images, PDF, quota
 ├── alerts/            alertes : examen (7 types), acquittement, notifications
 │                      SMTP et webhook
 ├── scheduler/         tâche quotidienne unique (un minuteur réarmé chaque jour)
@@ -57,7 +59,7 @@ e2e/                   tests Playwright (développement et CI uniquement)
 testdata/              relevés d'exemple (synthétiques, voir testdata/README.md)
 ```
 
-Les packages métier suivants (`goals`, `loans`, `reports`…) s'ajoutent jalon par jalon sur ce
+Les packages métier suivants (`goals`, `loans`, `household`…) s'ajoutent jalon par jalon sur ce
 modèle : un service par domaine, appelé par les handlers.
 
 ## Chemin d'une requête
@@ -102,7 +104,7 @@ peuvent pas créer deux premiers comptes.
 | `import_drafts`, `import_lines` | imports en cours : fichier déposé, correspondance, lignes interprétées, catégorie suggérée et sélection |
 | `category_rules` | règles : motif, « contient » ou expression régulière, catégorie, priorité |
 | `transfer_dismissals` | paires écartées de la détection des virements internes |
-| `recurring_rules` | récurrences : libellé, compte (et compte destinataire d'un versement programmé), montant (fixe ou estimé), périodicité, report au jour ouvré, première et dernière échéance, catégorie, origine, active, signature de la série |
+| `recurring_rules` | récurrences : libellé, compte (et compte destinataire d'un versement programmé), montant (fixe ou estimé), périodicité, report au jour ouvré, première et dernière échéance, catégorie, origine, active, abonnement, signature de la série |
 | `recurring_dismissals` | séries rejetées à la détection |
 | `forecast_exclusions` | échéances écartées du prévisionnel (récurrence, date théorique) |
 | `forecast_settings` | réglages du prévisionnel (une ligne) : seuil, solde pointé, moyenne des dépenses variables |
@@ -111,6 +113,9 @@ peuvent pas créer deux premiers comptes.
 | `alerts` | alertes : type, clé de la situation, titre, détail, lien, date, acquittement, notification |
 | `alert_settings` | réglage de chaque type d'alerte : activé, paramètre |
 | `notification_settings` | canaux sortants (une ligne) : SMTP, webhook, rythme, discrétion |
+| `tags`, `transaction_tags` | étiquettes et leurs opérations |
+| `attachments` | pièces jointes : opération, nom d'origine, nature (image ou PDF), taille, fichier |
+| `quick_templates` | modèles de saisie : nom, compte, libellé, montant, catégorie |
 
 Une opération importée porte `import_id` (annulation) et `import_hash`
 (empreinte unique par compte, garde-fou contre les doublons). Une écriture
@@ -131,7 +136,7 @@ table des opérations.
 | `/categories`, `/categories/nouvelle`, `/categories/{id}` | catégories et sous-catégories |
 | `/import` | étape 1 : dépôt du fichier et choix du compte, imports en cours |
 | `/import/{jeton}`, `/import/{jeton}/colonnes` | étape 2 : choix des colonnes si besoin, aperçu et sélection, validation |
-| `/comptes/{id}/rapprochement` | étape 3 : solde de la banque, écart, opérations non pointées |
+| `/comptes/{id}/rapprochement` | étape 3 de l'import, et vue de pointage : solde de la banque, solde pointé, reste à pointer, opérations à pointer (`POST /operations/{id}/pointer`, HTMX) |
 | `/import/historique` | imports validés, annulation |
 | `/regles`, `/regles/nouvelle`, `/regles/{id}` | règles de catégorisation, application aux opérations sans catégorie |
 | `/operations/virements` | virements internes possibles : relier ou écarter |
@@ -141,7 +146,12 @@ table des opérations.
 | `/epargne` | épargne : total, disponible et bloqué, intérêts, évolution, versements programmés, projection (`?date=`) ; inscription des intérêts d'une année close (`POST /epargne/{id}/interets`) |
 | `/budgets`, `/budgets/nouveau`, `/budgets/{catégorie}` | enveloppes du mois (`?mois=AAAA-MM`), tendance sur 12 mois, saisie et suppression |
 | `/alertes`, `/alertes/reglages` | alertes à lire et acquittement ; types d'alerte, canaux sortants, notification d'essai |
-| `/plus` | écrans secondaires (mobile et tablette) |
+| `/operations/nouvelle?dupliquer=` | saisie préremplie d'après une opération ou la dernière saisie ; modèles (`POST /operations/{id}/modele`, `POST /modeles/{id}/utiliser`) |
+| `/operations/{id}/pieces`, `/pieces/{id}` | pièces jointes : envoi, affichage ou téléchargement, suppression |
+| `/etiquettes` | étiquettes : nombre d'opérations, renommage, retrait |
+| `/abonnements` | abonnements : coûts mensuel et annuel, doublons possibles, abonnements peut-être oubliés |
+| `/rapports` | rapport mensuel (`?mois=AAAA-MM`) ou annuel (`?annee=AAAA`) |
+| `/plus` | écrans secondaires |
 
 ### Chemin d'un import
 
