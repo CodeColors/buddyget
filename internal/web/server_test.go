@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/codecolors/buddyget/internal/auth"
+	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
 	"github.com/codecolors/buddyget/internal/forecast"
@@ -42,11 +43,11 @@ func newTestEnv(t *testing.T) *testEnv {
 	svc := auth.NewService(d)
 	dataDir := t.TempDir()
 	accounts, rules, recurrences := ledger.NewService(d), categorize.NewService(d), recurring.NewService(d)
-	savingsAccounts := savings.NewService(d, accounts)
+	savingsAccounts, budgets := savings.NewService(d, accounts), budget.NewService(d, accounts)
 	h, err := New(config.Config{MaxUploadMB: 1}, d, Services{
 		Auth: svc, Ledger: accounts, Rules: rules,
 		Importer: importer.NewService(d, dataDir, 1<<20, rules), Recurring: recurrences,
-		Savings: savingsAccounts, Forecast: forecast.NewService(d, accounts, recurrences, savingsAccounts),
+		Savings: savingsAccounts, Forecast: forecast.NewService(d, accounts, recurrences, savingsAccounts, budgets),
 	})
 	if err != nil {
 		t.Fatal(err)

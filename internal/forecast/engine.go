@@ -46,6 +46,7 @@ type Event struct {
 	AccountID   int64
 	AccountName string
 	Estimated   bool // montant estimé (récurrence à montant variable)
+	Transfer    bool // virement avec un compte du foyer hors du prévisionnel
 	// Échéance d'une récurrence : la règle et la date théorique, qui
 	// identifient l'échéance pour l'écarter ponctuellement.
 	RuleID   int64

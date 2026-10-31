@@ -20,6 +20,7 @@ import (
 	_ "time/tzdata" // base des fuseaux embarquée : l'image scratch n'en a pas (TZ)
 
 	"github.com/codecolors/buddyget/internal/auth"
+	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
 	"github.com/codecolors/buddyget/internal/forecast"
@@ -76,7 +77,7 @@ func run() error {
 	}()
 
 	accounts, rules, recurrences := ledger.NewService(database), categorize.NewService(database), recurring.NewService(database)
-	savingsAccounts := savings.NewService(database, accounts)
+	savingsAccounts, budgets := savings.NewService(database, accounts), budget.NewService(database, accounts)
 	handler, err := web.New(cfg, database, web.Services{
 		Auth:      auth.NewService(database),
 		Ledger:    accounts,
@@ -84,7 +85,7 @@ func run() error {
 		Importer:  importer.NewService(database, cfg.DataDir, cfg.MaxUploadBytes(), rules),
 		Recurring: recurrences,
 		Savings:   savingsAccounts,
-		Forecast:  forecast.NewService(database, accounts, recurrences, savingsAccounts),
+		Forecast:  forecast.NewService(database, accounts, recurrences, savingsAccounts, budgets),
 	})
 	if err != nil {
 		return err

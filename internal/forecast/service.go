@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/db"
@@ -43,11 +44,13 @@ type Query struct {
 	Target    calendar.Date
 }
 
-// CategoryAverage est la dépense variable mensuelle moyenne d'une catégorie.
+// CategoryAverage est la dépense variable mensuelle estimée d'une
+// catégorie : sa moyenne, ou le plafond de son enveloppe (Budget).
 type CategoryAverage struct {
 	Name    string // vide : sans catégorie
 	Color   string
 	Monthly int64
+	Budget  bool
 }
 
 // Report est un prévisionnel prêt à afficher.
@@ -59,6 +62,7 @@ type Report struct {
 	// que demandé quand l'historique est plus court, 0 sans estimation.
 	AverageMonths int
 	Categories    []CategoryAverage // des plus fortes dépenses aux plus faibles
+	Budgeted      bool              // des enveloppes remplacent la moyenne
 }
 
 // VariableMonthly renvoie l'estimation mensuelle des dépenses variables.
@@ -76,11 +80,12 @@ type Service struct {
 	ledger    *ledger.Service
 	recurring *recurring.Service
 	savings   *savings.Service
+	budgets   *budget.Service
 }
 
 // NewService crée le service du prévisionnel.
-func NewService(d *db.DB, l *ledger.Service, r *recurring.Service, sv *savings.Service) *Service {
-	return &Service{db: d, ledger: l, recurring: r, savings: sv}
+func NewService(d *db.DB, l *ledger.Service, r *recurring.Service, sv *savings.Service, b *budget.Service) *Service {
+	return &Service{db: d, ledger: l, recurring: r, savings: sv, budgets: b}
 }
 
 // MaxTarget renvoie la date cible la plus lointaine admise.
@@ -169,7 +174,7 @@ func (s *Service) Forecast(ctx context.Context, q Query, today calendar.Date) (R
 	if err := s.interest(ctx, &in, names); err != nil {
 		return r, err
 	}
-	if in.Variable, err = s.variable(ctx, &r, rules, names, today); err != nil {
+	if in.Variable, err = s.variable(ctx, &r, q, rules, names, today); err != nil {
 		return r, err
 	}
 	r.Result = Compute(in)
@@ -267,7 +272,7 @@ func (s *Service) occurrences(ctx context.Context, in *Input, rules []recurring.
 // seul pour une dépense ou un revenu ; pour un versement programmé, le débit
 // et le crédit, sauf s'ils s'annulent (deux comptes couverts).
 func legs(rule recurring.Rule, names map[int64]string) []Event {
-	base := Event{Label: rule.Label, Kind: Recurring, Estimated: rule.Estimated, RuleID: rule.ID}
+	base := Event{Label: rule.Label, Kind: Recurring, Estimated: rule.Estimated, RuleID: rule.ID, Transfer: rule.IsTransfer()}
 	var out []Event
 	from, fromOK := names[rule.AccountID]
 	to, toOK := names[rule.ToAccountID]
@@ -296,7 +301,7 @@ func (s *Service) planned(ctx context.Context, in *Input, names map[int64]string
 	}
 	rows, err := s.db.R.QueryContext(ctx, `
 		WITH covered (id) AS (SELECT value FROM json_each(?))
-		SELECT t.account_id, t.date, t.label, t.amount FROM transactions t
+		SELECT t.account_id, t.date, t.label, t.amount, t.transfer_id IS NOT NULL FROM transactions t
 		WHERE t.account_id IN covered AND t.date > ? AND t.date <= ?
 			AND NOT EXISTS (SELECT 1 FROM transactions o
 				WHERE o.transfer_id = t.transfer_id AND o.id <> t.id AND o.account_id IN covered)`,
@@ -308,7 +313,7 @@ func (s *Service) planned(ctx context.Context, in *Input, names map[int64]string
 	for rows.Next() {
 		e := Event{Kind: Planned}
 		var account int64
-		if err := rows.Scan(&account, &e.Date, &e.Label, &e.Amount); err != nil {
+		if err := rows.Scan(&account, &e.Date, &e.Label, &e.Amount, &e.Transfer); err != nil {
 			return err
 		}
 		e.AccountID, e.AccountName = account, names[account]
@@ -349,10 +354,12 @@ func (s *Service) interest(ctx context.Context, in *Input, names map[int64]strin
 	return nil
 }
 
-// variable estime les dépenses variables mensuelles : moyenne, par
-// catégorie, des dépenses des derniers mois complets, hors virements
-// internes et hors opérations d'une série couverte par une récurrence.
-func (s *Service) variable(ctx context.Context, r *Report, rules []recurring.Rule, names map[int64]string, today calendar.Date) (int64, error) {
+// variable estime les dépenses variables mensuelles, par catégorie : le
+// plafond de son enveloppe quand le prévisionnel couvre les comptes courants
+// et qu'elle en a une, sinon la moyenne des dépenses des derniers mois
+// complets, hors virements internes et hors opérations d'une série couverte
+// par une récurrence.
+func (s *Service) variable(ctx context.Context, r *Report, q Query, rules []recurring.Rule, names map[int64]string, today calendar.Date) (int64, error) {
 	if r.Settings.AverageMonths == 0 {
 		return 0, nil
 	}
@@ -361,12 +368,29 @@ func (s *Service) variable(ctx context.Context, r *Report, rules []recurring.Rul
 		return strings.Compare(string(a.OpeningDate), string(b.OpeningDate))
 	}).OpeningDate
 	from, to, months := averageWindow(today, r.Settings.AverageMonths, first)
-	if r.AverageMonths = months; months == 0 {
-		return 0, nil
+	r.AverageMonths = months
+	sums := map[int64]int64{}
+	if months > 0 {
+		var err error
+		if sums, err = s.spending(ctx, rules, names, from, to); err != nil {
+			return 0, err
+		}
 	}
+	var budgets []budget.Budget
+	if q.AccountID == 0 && !q.Savings {
+		var err error
+		if budgets, err = s.budgets.Budgets(ctx); err != nil {
+			return 0, err
+		}
+	}
+	return s.estimate(ctx, r, sums, months, budgets)
+}
+
+// spending totalise par catégorie les dépenses variables d'une période.
+func (s *Service) spending(ctx context.Context, rules []recurring.Rule, names map[int64]string, from, to calendar.Date) (map[int64]int64, error) {
 	ids, err := accountList(names)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	recurrent := map[string]bool{}
 	for _, rule := range rules {
@@ -377,7 +401,7 @@ func (s *Service) variable(ctx context.Context, r *Report, rules []recurring.Rul
 		WHERE account_id IN (SELECT value FROM json_each(?)) AND transfer_id IS NULL AND amount < 0 AND date >= ? AND date <= ?`,
 		ids, from, to)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
 	sums := map[int64]int64{}
@@ -385,21 +409,19 @@ func (s *Service) variable(ctx context.Context, r *Report, rules []recurring.Rul
 		var account, amount, category int64
 		var label string
 		if err := rows.Scan(&account, &label, &amount, &category); err != nil {
-			return 0, err
+			return nil, err
 		}
 		if !recurrent[recurring.Signature(account, amount, label)] {
 			sums[category] += amount
 		}
 	}
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-	return s.averages(ctx, r, sums, months)
+	return sums, rows.Err()
 }
 
-// averages ramène les dépenses de chaque catégorie à une moyenne mensuelle
-// et renvoie leur total.
-func (s *Service) averages(ctx context.Context, r *Report, sums map[int64]int64, months int) (int64, error) {
+// estimate ramène les dépenses de chaque catégorie à une moyenne mensuelle,
+// remplacée par le plafond de l'enveloppe qui la couvre (la sienne, sinon
+// celle de sa catégorie parente), et renvoie le total.
+func (s *Service) estimate(ctx context.Context, r *Report, sums map[int64]int64, months int, budgets []budget.Budget) (int64, error) {
 	cats, err := s.ledger.Categories(ctx)
 	if err != nil {
 		return 0, err
@@ -408,9 +430,19 @@ func (s *Service) averages(ctx context.Context, r *Report, sums map[int64]int64,
 	for _, c := range cats {
 		byID[c.ID] = c
 	}
+	budgeted := make(map[int64]bool, len(budgets))
+	for _, b := range budgets {
+		budgeted[b.CategoryID] = true
+		r.Categories = append(r.Categories, CategoryAverage{Name: b.CategoryName, Color: b.CategoryColor, Monthly: -b.Amount, Budget: true})
+	}
+	r.Budgeted = len(budgets) > 0
 	for id, sum := range sums {
+		c, ok := byID[id]
+		if budgeted[id] || ok && budgeted[c.ParentID] {
+			continue
+		}
 		avg := CategoryAverage{Monthly: int64(math.Round(float64(sum) / float64(months)))}
-		if c, ok := byID[id]; ok {
+		if ok {
 			avg.Name, avg.Color = c.FullName(), c.Color
 		}
 		r.Categories = append(r.Categories, avg)

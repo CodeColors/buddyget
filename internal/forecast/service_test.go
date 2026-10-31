@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/db"
@@ -23,6 +24,7 @@ type env struct {
 	ledger    *ledger.Service
 	recurring *recurring.Service
 	savings   *savings.Service
+	budgets   *budget.Service
 }
 
 func newEnv(t testing.TB) *env {
@@ -33,8 +35,8 @@ func newEnv(t testing.TB) *env {
 	}
 	t.Cleanup(func() { _ = d.Close() })
 	l, r := ledger.NewService(d), recurring.NewService(d)
-	sv := savings.NewService(d, l)
-	return &env{t: t, db: d, s: NewService(d, l, r, sv), ledger: l, recurring: r, savings: sv}
+	sv, b := savings.NewService(d, l), budget.NewService(d, l)
+	return &env{t: t, db: d, s: NewService(d, l, r, sv, b), ledger: l, recurring: r, savings: sv, budgets: b}
 }
 
 func (e *env) account(name string, kind ledger.AccountKind, opening int64) int64 {
@@ -176,7 +178,7 @@ func TestForecastGathersEverything(t *testing.T) {
 	}
 	// Moyenne de juillet à septembre : courses 300 €, restaurant 60/3 € ;
 	// EDF relève d'une récurrence, octobre n'est pas terminé.
-	wantCats := []CategoryAverage{{"Alimentation › Courses", "#43a047", -300_00}, {"Alimentation › Restaurants", "#43a047", -20_00}}
+	wantCats := []CategoryAverage{{Name: "Alimentation › Courses", Color: "#43a047", Monthly: -300_00}, {Name: "Alimentation › Restaurants", Color: "#43a047", Monthly: -20_00}}
 	if r.AverageMonths != 3 || !slices.Equal(r.Categories, wantCats) {
 		t.Errorf("dépenses variables sur %d mois : %+v", r.AverageMonths, r.Categories)
 	}
@@ -348,5 +350,51 @@ func TestTransferLegs(t *testing.T) {
 	}
 	if l := legs(recurring.Rule{AccountID: 1, Amount: -5_00}, map[int64]string{2: "Livret"}); len(l) != 0 {
 		t.Errorf("compte non couvert : %+v", l)
+	}
+}
+
+func TestForecastUsesBudgets(t *testing.T) {
+	e, ids := household(t)
+	if err := e.budgets.Save(t.Context(), budget.Input{CategoryID: e.category("Alimentation"), Amount: 250_00}, today); err != nil {
+		t.Fatal(err)
+	}
+	// L'enveloppe Alimentation couvre courses et restaurants.
+	r := e.forecast(Query{Target: "2026-12-31"})
+	want := []CategoryAverage{{Name: "Alimentation", Color: "#43a047", Monthly: -250_00, Budget: true}}
+	if !r.Budgeted || !slices.Equal(r.Categories, want) || r.Totals.Variable != -500_00 {
+		t.Errorf("enveloppes : %+v, variables %d", r.Categories, r.Totals.Variable)
+	}
+	// Un seul compte : la moyenne de ce compte, pas les enveloppes du foyer.
+	if r = e.forecast(Query{AccountID: ids["courant"], Target: "2026-12-31"}); r.Budgeted || len(r.Categories) != 2 {
+		t.Errorf("compte seul : %+v", r.Categories)
+	}
+}
+
+func TestOutlook(t *testing.T) {
+	e, ids := household(t)
+	ctx := t.Context()
+	for _, tr := range []ledger.TransferInput{
+		{FromAccountID: ids["courant"], ToAccountID: ids["joint"], Date: "2026-10-03", Label: "Entre comptes courants", Amount: 500_00},
+		{FromAccountID: ids["courant"], ToAccountID: ids["livret"], Date: "2026-10-04", Label: "Vers le livret", Amount: 50_00},
+	} {
+		if _, err := e.ledger.CreateTransfer(ctx, tr); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.rule(recurring.RuleInput{Label: "Épargne", AccountID: ids["courant"], ToAccountID: ids["livret"], Amount: -150_00,
+		Period: calendar.Monthly, Start: "2026-10-30"})
+	e.tx(ledger.TransactionInput{AccountID: ids["courant"], Date: "2026-10-30", Label: "Dentiste", Amount: -40_00})
+	e.tx(ledger.TransactionInput{AccountID: ids["courant"], Date: "2026-10-31", Label: "Remboursement", Amount: 25_00})
+
+	o, ok, err := e.s.Outlook(ctx, "2026-10-29")
+	// Reçu : le salaire ; fait : courses 300 €, EDF 80 €, 50 € vers le
+	// livret (le virement entre comptes courants ne compte pas) ; à venir :
+	// dentiste 40 €, versement de 150 €, remboursement de 25 €.
+	want := Outlook{Month: "2026-10-01", Received: 2000_00, Expected: 25_00, Upcoming: -40_00, Savings: -200_00, Spent: -380_00}
+	if err != nil || !ok || o != want || o.Left() != 1405_00 {
+		t.Errorf("reste à vivre : %+v (%d), %v", o, o.Left(), err)
+	}
+	if _, ok, err := newEnv(t).s.Outlook(ctx, today); ok || err != nil {
+		t.Errorf("sans compte courant : %v, %v", ok, err)
 	}
 }
