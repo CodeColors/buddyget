@@ -66,6 +66,13 @@ func TestFormat(t *testing.T) {
 	if FormatInput(-123456) != "1234,56" || FormatInput(5) != "0,05" {
 		t.Error("FormatInput")
 	}
+	for in, want := range map[int64]string{
+		0: "0\u00a0€", 49: "0\u00a0€", -49: "0\u00a0€", 50: "1\u00a0€", -150: "\u22122\u00a0€", 123456: "1\u202f235\u00a0€",
+	} {
+		if got := FormatEuros(in); got != want {
+			t.Errorf("FormatEuros(%d) = %q, attendu %q", in, got, want)
+		}
+	}
 }
 
 func TestRoundTrip(t *testing.T) {

@@ -116,25 +116,47 @@ func FormatInput(cents int64) string {
 	return format(cents, "")
 }
 
-func format(cents int64, group string) string {
-	sign := ""
-	u := uint64(cents) //nolint:gosec // G115 : valeur absolue calculée ci-dessous.
-	if cents < 0 {
-		sign = minus
-		u = -u
+// FormatEuros arrondit à l'euro le plus proche : « 1 235 € » (graduations
+// des graphiques).
+func FormatEuros(cents int64) string {
+	sign, u := split(cents)
+	if u = (u + 50) / 100; u == 0 {
+		sign = ""
 	}
-	digits := strconv.FormatUint(u/100, 10)
 	var b strings.Builder
 	b.WriteString(sign)
+	writeGrouped(&b, u, thinSpace)
+	return b.String() + nbsp + "€"
+}
+
+func format(cents int64, group string) string {
+	sign, u := split(cents)
+	var b strings.Builder
+	b.WriteString(sign)
+	writeGrouped(&b, u/100, group)
+	b.WriteByte(',')
+	c := u % 100
+	b.WriteByte(byte('0' + c/10))
+	b.WriteByte(byte('0' + c%10))
+	return b.String()
+}
+
+// split sépare le signe et la valeur absolue d'un montant.
+func split(cents int64) (sign string, abs uint64) {
+	abs = uint64(cents) //nolint:gosec // G115 : valeur absolue calculée ci-dessous.
+	if cents < 0 {
+		return minus, -abs
+	}
+	return "", abs
+}
+
+// writeGrouped écrit un entier par groupes de trois chiffres.
+func writeGrouped(b *strings.Builder, n uint64, group string) {
+	digits := strconv.FormatUint(n, 10)
 	for i, d := range digits {
 		if i > 0 && (len(digits)-i)%3 == 0 {
 			b.WriteString(group)
 		}
 		b.WriteRune(d)
 	}
-	b.WriteByte(',')
-	c := u % 100
-	b.WriteByte(byte('0' + c/10))
-	b.WriteByte(byte('0' + c%10))
-	return b.String()
 }

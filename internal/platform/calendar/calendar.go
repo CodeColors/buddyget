@@ -3,6 +3,7 @@
 package calendar
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/codecolors/buddyget/internal/platform/validation"
@@ -51,3 +52,18 @@ func (d Date) AddDays(n int) Date { return FromTime(d.Time().AddDate(0, 0, n)) }
 func (d Date) DaysUntil(other Date) int {
 	return int(other.Time().Sub(d.Time()).Hours() / 24)
 }
+
+var months = [...]string{"janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"}
+
+// Abréviations usuelles (Imprimerie nationale) ; les mois courts restent
+// entiers.
+var monthsShort = [...]string{"janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."}
+
+// MonthLabel renvoie le mois et l'année : « novembre 2026 ».
+func (d Date) MonthLabel() string {
+	t := d.Time()
+	return months[t.Month()-1] + " " + strconv.Itoa(t.Year())
+}
+
+// MonthShort renvoie le mois abrégé : « nov. ».
+func (d Date) MonthShort() string { return monthsShort[d.Time().Month()-1] }
