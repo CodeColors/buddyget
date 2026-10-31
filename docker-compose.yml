@@ -1,0 +1,21 @@
+# BuddyGet sur Synology (Container Manager > Projet). Voir README.md.
+services:
+  buddyget:
+    image: ghcr.io/codecolors/buddyget:latest
+    container_name: buddyget
+    restart: unless-stopped
+    # UID:GID du propriétaire du dossier de données sur le NAS.
+    user: "1026:100"
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: Europe/Paris
+      LOG_LEVEL: info
+      # Adresse publique derrière le reverse proxy DSM (active les cookies Secure) :
+      # BASE_URL: https://budget.mondomaine.fr
+      # Réseau Docker du reverse proxy, pour connaître l'IP réelle des clients :
+      # TRUSTED_PROXIES: 172.16.0.0/12
+    volumes:
+      - /volume1/docker/buddyget:/data
+    mem_limit: 128m
+    cpus: 0.5
