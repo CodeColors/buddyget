@@ -20,12 +20,17 @@ type Reconciliation struct {
 	BankBalance    int64
 	BankDate       calendar.Date
 	Computed       int64 // solde calculé au soir de BankDate
-	Uncleared      int   // opérations non pointées jusqu'à BankDate
+	Cleared        int64 // solde des seules opérations pointées au soir de BankDate
+	Uncleared      int   // opérations non pointées, du solde initial à BankDate
 }
 
 // Gap renvoie l'écart entre la banque et BuddyGet : positif quand la banque
 // affiche davantage.
 func (r Reconciliation) Gap() int64 { return r.BankBalance - r.Computed }
+
+// ClearedGap renvoie l'écart entre la banque et le solde pointé : il tombe
+// à zéro quand toutes les opérations vues sur le relevé sont pointées.
+func (r Reconciliation) ClearedGap() int64 { return r.BankBalance - r.Cleared }
 
 // SetBankBalance enregistre le solde relevé sur le site de la banque.
 func (s *Service) SetBankBalance(ctx context.Context, accountID, balance int64, on calendar.Date) error {
@@ -60,10 +65,11 @@ func (s *Service) Reconciliation(ctx context.Context, accountID int64) (Reconcil
 	}
 	r.HasBankBalance, r.BankBalance, r.BankDate = true, bank.Int64, calendar.Date(bankDate.String)
 	err = s.db.R.QueryRowContext(ctx, `
-		SELECT ? + coalesce(sum(amount) FILTER (WHERE date >= ?), 0), count(*) FILTER (WHERE cleared = 0)
-		FROM transactions WHERE account_id = ? AND date <= ?`,
+		SELECT ?1 + coalesce(sum(amount) FILTER (WHERE date >= ?2), 0), count(*) FILTER (WHERE cleared = 0 AND date >= ?2),
+			?1 + coalesce(sum(amount) FILTER (WHERE date >= ?2 AND cleared), 0)
+		FROM transactions WHERE account_id = ?3 AND date <= ?4`,
 		a.OpeningBalance, a.OpeningDate, accountID, r.BankDate,
-	).Scan(&r.Computed, &r.Uncleared)
+	).Scan(&r.Computed, &r.Uncleared, &r.Cleared)
 	return r, err
 }
 

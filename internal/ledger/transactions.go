@@ -34,6 +34,7 @@ type Transaction struct {
 	CounterpartAccountID   int64
 	CounterpartAccountName string
 	InterestYear           int // écriture d'intérêts : l'année rémunérée
+	Tags                   []string
 }
 
 // IsTransfer indique une jambe de virement entre comptes du foyer.
@@ -51,6 +52,7 @@ type TransactionInput struct {
 	// InterestYear marque une écriture d'intérêts d'épargne et l'année
 	// qu'elle rémunère (une seule par compte) ; 0 pour une opération ordinaire.
 	InterestYear int
+	Tags         []string // remplacent les étiquettes de l'opération
 }
 
 // TransferInput est la saisie d'un virement ; Amount est positif et quitte
@@ -71,7 +73,9 @@ const transactionSelect = `
 		coalesce(t.category_id, 0),
 		coalesce(CASE WHEN p.id IS NULL THEN c.name ELSE p.name || ' › ' || c.name END, ''),
 		coalesce(c.color, ''), t.note, t.cleared, coalesce(t.transfer_id, 0),
-		coalesce(o.account_id, 0), coalesce(oa.name, ''), coalesce(t.interest_year, 0)
+		coalesce(o.account_id, 0), coalesce(oa.name, ''), coalesce(t.interest_year, 0),
+		coalesce((SELECT group_concat(g.name, char(31)) FROM transaction_tags tt JOIN tags g ON g.id = tt.tag_id
+			WHERE tt.transaction_id = t.id), '')
 	FROM transactions t
 	JOIN accounts a ON a.id = t.account_id
 	LEFT JOIN categories c ON c.id = t.category_id
@@ -81,9 +85,11 @@ const transactionSelect = `
 
 func scanTransaction(row interface{ Scan(...any) error }) (Transaction, error) {
 	var t Transaction
+	var tags string
 	err := row.Scan(&t.ID, &t.AccountID, &t.AccountName, &t.Date, &t.Label, &t.Amount,
 		&t.CategoryID, &t.CategoryName, &t.CategoryColor, &t.Note, &t.Cleared, &t.TransferID,
-		&t.CounterpartAccountID, &t.CounterpartAccountName, &t.InterestYear)
+		&t.CounterpartAccountID, &t.CounterpartAccountName, &t.InterestYear, &tags)
+	t.Tags = splitTags(tags)
 	return t, err
 }
 
@@ -114,8 +120,10 @@ func (s *Service) CreateTransaction(ctx context.Context, in TransactionInput) (i
 		if err != nil {
 			return err
 		}
-		id, err = res.LastInsertId()
-		return err
+		if id, err = res.LastInsertId(); err != nil {
+			return err
+		}
+		return setTags(ctx, tx, id, in.Tags)
 	})
 	return id, err
 }
@@ -145,8 +153,28 @@ func (s *Service) UpdateTransaction(ctx context.Context, id int64, in Transactio
 				interest_year = CASE WHEN account_id = ? THEN interest_year END
 			WHERE id = ?`,
 			in.AccountID, in.Date, in.Label, in.Amount, in.CategoryID, in.Note, in.Cleared, in.AccountID, id)
-		return err
+		if err != nil {
+			return err
+		}
+		return setTags(ctx, tx, id, in.Tags)
 	})
+}
+
+// SetCleared pointe ou dépointe une opération.
+func (s *Service) SetCleared(ctx context.Context, id int64, cleared bool) error {
+	res, err := s.db.W.ExecContext(ctx, `UPDATE transactions SET cleared = ? WHERE id = ?`, cleared, id)
+	return affectedOne(res, err)
+}
+
+// LastEntered renvoie la dernière opération saisie à la main (ni importée,
+// ni écriture d'intérêts) ; faux s'il n'y en a pas.
+func (s *Service) LastEntered(ctx context.Context) (Transaction, bool, error) {
+	t, err := scanTransaction(s.db.R.QueryRowContext(ctx, transactionSelect+`
+		WHERE t.id = (SELECT max(id) FROM transactions WHERE import_id IS NULL AND interest_year IS NULL)`))
+	if errors.Is(err, sql.ErrNoRows) {
+		return t, false, nil
+	}
+	return t, err == nil, err
 }
 
 // CreateTransfer enregistre un virement : une sortie sur le compte source et

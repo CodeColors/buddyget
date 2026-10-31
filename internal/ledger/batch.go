@@ -19,8 +19,10 @@ type Selection struct {
 // BatchChange décrit les modifications d'un lot.
 type BatchChange struct {
 	SetCategory bool
-	CategoryID  int64 // 0 : retirer la catégorie
-	AccountID   int64 // 0 : compte inchangé
+	CategoryID  int64  // 0 : retirer la catégorie
+	AccountID   int64  // 0 : compte inchangé
+	AddTag      string // étiquette ajoutée
+	RemoveTag   string // étiquette retirée
 }
 
 // BatchResult rend compte d'une édition par lot. Les jambes de virement ne
@@ -32,7 +34,14 @@ type BatchResult struct {
 
 // BatchUpdate applique les modifications à la sélection, en une transaction.
 func (s *Service) BatchUpdate(ctx context.Context, sel Selection, ch BatchChange) (BatchResult, error) {
-	if !ch.SetCategory && ch.AccountID == 0 {
+	var err error
+	if ch.AddTag, err = singleTag(ch.AddTag); err != nil {
+		return BatchResult{}, err
+	}
+	if ch.RemoveTag, err = singleTag(ch.RemoveTag); err != nil {
+		return BatchResult{}, err
+	}
+	if !ch.SetCategory && ch.AccountID == 0 && ch.AddTag == "" && ch.RemoveTag == "" {
 		return BatchResult{}, validation.Error("Choisissez une modification à appliquer.")
 	}
 	selected, selArgs, err := sel.sql()
@@ -62,6 +71,11 @@ func (s *Service) BatchUpdate(ctx context.Context, sel Selection, ch BatchChange
 			return err
 		}
 
+		if err := tx.QueryRowContext(ctx,
+			`SELECT count(*) FROM transactions WHERE transfer_id IS NULL AND id IN (`+selected+`)`, selArgs...,
+		).Scan(&res.Updated); err != nil {
+			return err
+		}
 		var sets []string
 		var args []any
 		if ch.SetCategory {
@@ -72,17 +86,53 @@ func (s *Service) BatchUpdate(ctx context.Context, sel Selection, ch BatchChange
 			sets = append(sets, `account_id = ?`)
 			args = append(args, ch.AccountID)
 		}
-		update := `UPDATE transactions SET ` + strings.Join(sets, ", ") + //nolint:gosec // G202 : fragments constants, valeurs en paramètres.
-			` WHERE transfer_id IS NULL AND id IN (` + selected + `)`
-		r, err := tx.ExecContext(ctx, update, append(args, selArgs...)...)
+		if len(sets) > 0 {
+			update := `UPDATE transactions SET ` + strings.Join(sets, ", ") + //nolint:gosec // G202 : fragments constants, valeurs en paramètres.
+				` WHERE transfer_id IS NULL AND id IN (` + selected + `)`
+			if _, err := tx.ExecContext(ctx, update, append(args, selArgs...)...); err != nil {
+				return err
+			}
+		}
+		return batchTags(ctx, tx, ch, selected, selArgs)
+	})
+	return res, err
+}
+
+// batchTags ajoute ou retire une étiquette aux opérations simples
+// sélectionnées.
+func batchTags(ctx context.Context, tx *sql.Tx, ch BatchChange, selected string, selArgs []any) error {
+	if ch.AddTag != "" {
+		id, err := tagID(ctx, tx, ch.AddTag)
 		if err != nil {
 			return err
 		}
-		n, err := r.RowsAffected()
-		res.Updated = int(n)
-		return err
-	})
-	return res, err
+		// Sous-requête constante, valeurs en paramètres.
+		insert := `INSERT OR IGNORE INTO transaction_tags (transaction_id, tag_id) SELECT id, ? FROM transactions WHERE transfer_id IS NULL AND id IN (` + selected + `)` //nolint:gosec // G202
+		if _, err := tx.ExecContext(ctx, insert, append([]any{id}, selArgs...)...); err != nil {
+			return err
+		}
+	}
+	if ch.RemoveTag != "" {
+		remove := `DELETE FROM transaction_tags WHERE tag_id = (SELECT id FROM tags WHERE name = ?) AND transaction_id IN (` + selected + `)` //nolint:gosec // G202
+		if _, err := tx.ExecContext(ctx, remove, append([]any{ch.RemoveTag}, selArgs...)...); err != nil {
+			return err
+		}
+	}
+	return purgeTags(ctx, tx)
+}
+
+// singleTag nettoie une étiquette saisie seule (vide : aucune).
+func singleTag(s string) (string, error) {
+	names, err := ParseTags(s)
+	switch {
+	case err != nil:
+		return "", err
+	case len(names) > 1:
+		return "", validation.Error("Indiquez une seule étiquette.")
+	case len(names) == 1:
+		return names[0], nil
+	}
+	return "", nil
 }
 
 // sql renvoie la sous-requête des identifiants sélectionnés.

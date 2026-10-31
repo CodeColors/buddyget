@@ -42,6 +42,7 @@ type Filter struct {
 	// MinAmount et MaxAmount bornent la valeur absolue ; 0 = sans borne.
 	MinAmount, MaxAmount int64
 	Cleared              Cleared
+	Tag                  string // nom d'une étiquette (casse ignorée)
 	Sort                 Sort
 }
 
@@ -136,6 +137,9 @@ func (f Filter) where() (string, []any) {
 		add(`t.cleared = 1`)
 	case ClearedNo:
 		add(`t.cleared = 0`)
+	}
+	if f.Tag != "" {
+		add(`t.id IN (SELECT tt.transaction_id FROM transaction_tags tt JOIN tags g ON g.id = tt.tag_id WHERE g.name = ?)`, f.Tag)
 	}
 	if len(conds) == 0 {
 		return "", nil
