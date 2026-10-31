@@ -34,9 +34,40 @@ une connexion : le tampon de travail d'argon2id (19 Mio) devenait inutile,
 mais aucune allocation ne déclenchait de ramasse-miettes au repos. Il est
 désormais rendu au système dès la fin du calcul (voir `DECISIONS.md`).
 
+## Jalon 2 : 31/10/2026
+
+Même machine. Benchmarks `go test -bench . ./internal/ledger/` sur
+**20 000 opérations** (environ cinq ans d'un foyer actif) :
+
+| Opération | Durée | Mémoire allouée |
+|---|---|---|
+| Liste sans critère (page de 50 + nombre + total) | 1,7 ms | 54 Ko |
+| Recherche plein texte « cafe gare » (préfixes, sans accents) | 9,1 ms | 55 Ko |
+| Filtre période + montant minimal | 1,3 ms | 55 Ko |
+| Soldes de tous les comptes (index couvrant) | 2,3 ms | 2 Ko |
+
+Binaire (avec HTMX et la base des fuseaux) et serveur :
+
+| Mesure | Résultat | Cible |
+|---|---|---|
+| Taille du binaire | 15,1 Mo | image < 50 Mo |
+| Démarrage | 27 ms | < 3 s |
+| RAM au repos après redémarrage (RSS) | 17,5 Mo | < 64 Mo (objectif 30) |
+| RAM après 200 saisies et la visite de chaque écran | 21 Mo | < 64 Mo |
+| Page Opérations (50 lignes, HTML) | 42 Ko | < 150 Ko |
+| Page de saisie (HTML) | 10 Ko | < 150 Ko |
+| HTMX (compressé, mis en cache un an) | 17 Ko | — |
+| Feuille de style (compressée) | 4,2 Ko | — |
+
+Le parcours de saisie demande quatre gestes (bouton « + Opération »,
+montant, Tab et libellé, Entrée) ; le test de bout en bout le joue au clavier
+seul et vérifie le retour à la page de départ avec le solde à jour.
+
 ## Méthode
 
 ```bash
+go test -run '^$' -bench . -benchmem ./internal/ledger/
+
 make build
 DATA_DIR=/tmp/bg PORT=8080 ./bin/buddyget &
 grep -E 'VmRSS|VmHWM' /proc/$!/status   # RSS courant et pic

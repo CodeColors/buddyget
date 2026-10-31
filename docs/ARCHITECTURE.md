@@ -23,17 +23,24 @@ cmd/buddyget/          point d'entrée : configuration, base, serveur, arrêt pr
                        sous-commande healthcheck
 internal/
 ├── config/            variables d'environnement → Config validée
-├── platform/db/       ouverture SQLite (WAL, pools écriture/lecture), migrateur
-│   └── migrations/    NNNN_description.sql, embarqués
+├── platform/
+│   ├── db/            ouverture SQLite (WAL, pools écriture/lecture), transactions,
+│   │   └── migrations/ migrateur ; NNNN_description.sql embarqués
+│   ├── money/         montants en centimes : saisie et affichage à la française
+│   ├── calendar/      dates civiles AAAA-MM-JJ
+│   └── validation/    erreur de saisie commune (message destiné à l'utilisateur)
 ├── auth/              comptes, argon2id, limitation des tentatives, sessions, thème
-└── web/               routage, middlewares, handlers, rendu
+├── ledger/            grand livre : comptes, catégories, opérations, virements,
+│                      recherche (Filter), édition par lot
+└── web/               routage, middlewares, handlers par écran, rendu
     ├── templates/     layout.html + pages/<page>.html
-    └── static/        CSS, icône, manifeste PWA (embarqués)
+    └── static/        CSS, app.js, HTMX (vendorisé), icône, manifeste PWA
 e2e/                   tests Playwright (développement et CI uniquement)
 ```
 
-Les packages métier prévus par le plan (`ledger`, `importer`, `forecast`,
-`savings`, `budget`, `alerts`…) s'ajoutent jalon par jalon sur ce modèle.
+Les packages métier suivants (`importer`, `categorize`, `recurring`,
+`forecast`, `savings`, `budget`, `alerts`…) s'ajoutent jalon par jalon sur ce
+modèle : un service par domaine, appelé par les handlers.
 
 ## Chemin d'une requête
 
@@ -68,6 +75,28 @@ peuvent pas créer deux premiers comptes.
 | `schema_migrations` | versions de schéma appliquées |
 | `users` | comptes (identifiant insensible à la casse, empreinte argon2id, thème) |
 | `sessions` | empreinte SHA-256 du jeton, utilisateur, échéance (secondes Unix) |
+| `accounts` | comptes du foyer : type, banque, IBAN masqué, solde initial et sa date, archivage |
+| `categories` | deux niveaux (`parent_id`), type dépense / revenu / virement, couleur |
+| `transactions` | opérations : compte, date, libellé, montant signé en centimes, catégorie, note, pointage, virement |
+| `transfers` | lien entre les deux opérations d'un virement interne |
+| `transactions_fts` | index plein texte (FTS5) du libellé et de la note, tenu à jour par déclencheurs |
+
+L'index `(account_id, date, amount)` couvre le calcul des soldes sans lire la
+table des opérations.
+
+## Écrans et routes
+
+| Route | Écran |
+|---|---|
+| `/` | tableau de bord : soldes par compte et total |
+| `/operations` | liste paginée, recherche, filtres, tri, édition par lot (`POST /operations/lot`) |
+| `/operations/nouvelle`, `/operations/{id}` | saisie et modification (opération ou virement) |
+| `/comptes`, `/comptes/nouveau`, `/comptes/{id}` | comptes : liste, création, modification, archivage |
+| `/categories`, `/categories/nouvelle`, `/categories/{id}` | catégories et sous-catégories |
+
+Toute action renvoie (redirection 303) vers la page d'origine avec un message
+de confirmation. Les requêtes HTMX de la recherche ne reçoivent que le bloc
+des résultats (`renderBlock`).
 
 ## Interface
 
@@ -76,4 +105,9 @@ peuvent pas créer deux premiers comptes.
 - Mobile d'abord : barre d'onglets en bas sous 768 px, sous l'en-tête au-delà ;
   cibles tactiles de 44 px, champs de 16 px.
 - Thème rendu côté serveur (`data-theme`), couleurs en `light-dark()`.
-- Fichiers statiques servis depuis la mémoire, URL versionnées par empreinte.
+- Fichiers statiques servis depuis la mémoire (compressés une fois au
+  démarrage), URL versionnées par empreinte.
+- Opérations en cartes sur mobile, en colonnes alignées au-delà de 768 px ;
+  bouton flottant « + Opération » sur toutes les pages.
+- Amélioration progressive : chaque écran fonctionne sans JavaScript ; HTMX
+  rend la recherche instantanée, `app.js` ajoute confirmations et « tout cocher ».

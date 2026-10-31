@@ -10,12 +10,24 @@ puissant : un seul conteneur, une base SQLite, moins de 20 Mo de RAM au repos.
 
 Interface en français, modes clair et sombre, aucune requête vers l'extérieur.
 
+### Disponible aujourd'hui
+
+- Comptes (courant, épargne, espèces…) avec solde initial, archivage, IBAN masqué
+- Catégories sur deux niveaux, avec un jeu par défaut modifiable
+- Saisie d'une opération en quelques secondes (montant, libellé, Entrée), y
+  compris les virements entre comptes du foyer
+- Liste des opérations en cartes sur mobile, recherche instantanée
+  (sans accents ni majuscules), filtres par compte, catégorie, période,
+  montant et pointage, tri
+- Recatégorisation ou changement de compte par lot, sur une sélection ou sur
+  tous les résultats d'une recherche
+
 ## Avancement
 
 | Jalon | Contenu | État |
 |---|---|---|
 | 1 | Socle : configuration, SQLite et migrations, authentification, gabarit d'interface, image Docker, CI | ✅ |
-| 2 | Comptes, catégories, saisie manuelle, liste et recherche | à venir |
+| 2 | Comptes, catégories, saisie manuelle, virements, liste et recherche, édition par lot | ✅ |
 | 3 | Import CSV / XLSX / XLS | à venir |
 | 4 – 12 | Règles, récurrences, prévisionnel, épargne, budgets, alertes, rapports, exports, sauvegardes | à venir |
 

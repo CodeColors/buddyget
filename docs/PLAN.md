@@ -11,7 +11,7 @@ Date : 31/10/2026. Réf. : [cahier-des-charges.md](cahier-des-charges.md). Les �
 | Exports SG / BNP | Fichiers réels anonymisés fournis par l'utilisateur avant le jalon 3 |
 | Licence | AGPL-3.0 |
 
-**Avancement** : jalon 1 livré le 31/10/2026.
+**Avancement** : jalons 1 et 2 livrés le 31/10/2026.
 
 ## 1. Principes directeurs
 
