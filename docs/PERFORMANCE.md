@@ -139,10 +139,23 @@ les seuls mouvements des comptes d'épargne (quelques centaines au plus) :
 quotidienne ne consomme rien entre deux passages (un minuteur, aucune
 interrogation périodique).
 
+## Jalon 8 : 31/10/2026
+
+Même machine, cinq ans d'historique (20 000 opérations), 30 récurrences,
+10 enveloppes avec report :
+
+| Opération | Durée | Mémoire allouée |
+|---|---|---|
+| Examen complet des sept types d'alerte (dont un prévisionnel à 30 jours) | 44 ms | 7 Mo |
+
+L'examen a lieu en arrière-plan après une modification (les demandes
+rapprochées n'en font qu'une) et chaque nuit : il ne ralentit aucune page.
+La cloche de l'en-tête ajoute un décompte indexé par page affichée.
+
 ## Méthode
 
 ```bash
-go test -run '^$' -bench . -benchmem ./internal/ledger/ ./internal/importer/ ./internal/categorize/ ./internal/recurring/ ./internal/forecast/
+go test -run '^$' -bench . -benchmem ./internal/ledger/ ./internal/importer/ ./internal/categorize/ ./internal/recurring/ ./internal/forecast/ ./internal/alerts/
 
 make build
 DATA_DIR=/tmp/bg PORT=8080 ./bin/buddyget &

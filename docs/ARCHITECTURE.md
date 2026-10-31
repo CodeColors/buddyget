@@ -39,9 +39,13 @@ internal/
 ├── recurring/         récurrences : règles, échéances (date théorique et effective),
 │                      détection avec score
 ├── forecast/          prévisionnel : moteur pur (Compute), service (réglages,
-│                      exclusions, dépenses variables, intérêts estimés)
+│                      exclusions, dépenses variables, intérêts estimés,
+│                      reste à vivre)
 ├── savings/           épargne : modèles, réglages, intérêts (quinzaine, simple,
 │                      composé), disponible/bloqué, inscription des intérêts
+├── budget/            enveloppes mensuelles : report, consommé, tendance
+├── alerts/            alertes : examen (7 types), acquittement, notifications
+│                      SMTP et webhook
 ├── scheduler/         tâche quotidienne unique (un minuteur réarmé chaque jour)
 ├── importer/          import : lecteurs CSV/XLSX/XLS, profils, Mapping, déduplication,
 │   │                  brouillon, validation, historique, annulation
@@ -53,7 +57,7 @@ e2e/                   tests Playwright (développement et CI uniquement)
 testdata/              relevés d'exemple (synthétiques, voir testdata/README.md)
 ```
 
-Les packages métier suivants (`budget`, `alerts`…) s'ajoutent jalon par jalon sur ce
+Les packages métier suivants (`goals`, `loans`, `reports`…) s'ajoutent jalon par jalon sur ce
 modèle : un service par domaine, appelé par les handlers.
 
 ## Chemin d'une requête
@@ -103,6 +107,10 @@ peuvent pas créer deux premiers comptes.
 | `forecast_exclusions` | échéances écartées du prévisionnel (récurrence, date théorique) |
 | `forecast_settings` | réglages du prévisionnel (une ligne) : seuil, solde pointé, moyenne des dépenses variables |
 | `savings_settings` | réglages d'un compte d'épargne : produit, taux, méthode d'intérêts, inscription automatique, plafond, blocage (date ou durée), pénalité |
+| `budgets` | enveloppes : catégorie, plafond mensuel, report, mois de départ |
+| `alerts` | alertes : type, clé de la situation, titre, détail, lien, date, acquittement, notification |
+| `alert_settings` | réglage de chaque type d'alerte : activé, paramètre |
+| `notification_settings` | canaux sortants (une ligne) : SMTP, webhook, rythme, discrétion |
 
 Une opération importée porte `import_id` (annulation) et `import_hash`
 (empreinte unique par compte, garde-fou contre les doublons). Une écriture
@@ -131,6 +139,8 @@ table des opérations.
 | `/recurrences/detectees` | séries détectées : valider, modifier, rejeter |
 | `/previsionnel` | prévisionnel à une date cible (`?compte=&date=`) : solde prévu, point bas, courbe, détail, échéances ; exclusion (`POST /previsionnel/exclusions`) et réglages (`POST /previsionnel/reglages`) |
 | `/epargne` | épargne : total, disponible et bloqué, intérêts, évolution, versements programmés, projection (`?date=`) ; inscription des intérêts d'une année close (`POST /epargne/{id}/interets`) |
+| `/budgets`, `/budgets/nouveau`, `/budgets/{catégorie}` | enveloppes du mois (`?mois=AAAA-MM`), tendance sur 12 mois, saisie et suppression |
+| `/alertes`, `/alertes/reglages` | alertes à lire et acquittement ; types d'alerte, canaux sortants, notification d'essai |
 | `/plus` | écrans secondaires (mobile et tablette) |
 
 ### Chemin d'un import

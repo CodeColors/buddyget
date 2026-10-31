@@ -368,13 +368,15 @@ supprimée ; seules les récurrences actives entreront dans le prévisionnel.
 ### Navigation à cinq onglets
 La barre d'onglets mobile compte cinq entrées (Accueil, Opérations,
 Prévisionnel, Importer, Plus) ; « Plus » mène à une page qui liste les
-écrans secondaires (épargne, récurrences, comptes, catégories, règles,
-virements, historique des imports). Le prévisionnel a pris au jalon 6 la
-place des récurrences, consultées moins souvent et accessibles depuis son
-écran. La tablette (768 à 1023 px) garde ces cinq entrées en haut de page ;
-à partir de 1024 px, toutes les rubriques s'affichent et « Plus » disparaît. Au-delà de 768 px, toutes les rubriques
-s'affichent et « Plus » disparaît ; entre 768 et 1023 px, sans leurs icônes.
-Le tout en CSS, sans script.
+écrans secondaires (budgets, épargne, récurrences, alertes, comptes,
+catégories, règles, virements, historique des imports). Le prévisionnel a
+pris au jalon 6 la place des récurrences, consultées moins souvent et
+accessibles depuis son écran. La tablette (768 à 1023 px) garde ces cinq
+entrées en haut de page ; à partir de 1024 px, toutes les rubriques
+s'affichent et « Plus » disparaît, sans leurs icônes jusqu'à 1279 px. Les
+alertes sont signalées par une cloche dans l'en-tête, à toutes les largeurs ;
+sous 400 px, le nom de l'application laisse la place aux actions de
+l'en-tête (le logo reste). Le tout en CSS, sans script.
 
 ### Construction de l'interface
 `web.New` reçoit les services du domaine regroupés dans `web.Services`
@@ -521,6 +523,69 @@ ce même moteur et renvoie à son détail jour par jour.
 ### Tâche quotidienne
 Prévue au jalon 8, elle est arrivée avec l'inscription des intérêts : un
 seul `time.Timer`, réarmé chaque jour à 00h05 (heure locale), exécute les
-travaux au démarrage puis quotidiennement. Un travail en échec est
+travaux au démarrage puis quotidiennement (intérêts, puis alertes au
+jalon 8). Un travail en échec est
 journalisé et retenté le lendemain. À l'arrêt, le serveur attend la fin du
 travail en cours avant de fermer la base.
+
+## Budgets et alertes (jalon 8)
+
+### Enveloppes
+- Un plafond mensuel par catégorie de dépenses ; une catégorie parente
+  couvre ses sous-catégories, sauf celles qui ont leur propre enveloppe :
+  une dépense compte dans l'enveloppe la plus précise, jamais dans deux.
+- Consommé : dépenses nettes du mois (remboursements déduits), hors
+  virements internes, tous comptes confondus.
+- Report facultatif, par enveloppe : le reste ou le dépassement de chaque
+  mois s'ajoute au suivant, à partir du mois de création.
+- État en toutes lettres (« Dans le budget », « Bientôt atteint »,
+  « Dépassé »), la couleur et la jauge ne font que souligner. Le seuil
+  « bientôt atteint » est celui de l'alerte d'enveloppe (80 % par défaut) :
+  un seul réglage.
+- Tendance : dépenses des catégories budgétées sur douze mois face au total
+  actuel des enveloppes, en barres SVG avec tableau équivalent.
+- Dans le prévisionnel des comptes courants, le plafond d'une enveloppe
+  remplace la moyenne des dépenses de ses catégories (marqué « Enveloppe »).
+  Pour un compte seul ou l'épargne, la moyenne reste la règle : les
+  enveloppes valent pour le foyer.
+
+### Reste à vivre
+Calculé par le prévisionnel (pas de second calcul) sur les comptes courants
+pour le mois en cours : entrées reçues et attendues − charges et dépenses
+prévues à venir − versements vers l'épargne et les autres comptes (faits et
+à venir) − dépenses déjà faites. Les virements entre comptes courants ne
+comptent pas. Sans estimation des dépenses variables : c'est ce qui leur
+reste.
+
+### Alertes : un seul système
+- Sept types, chacun activable avec un paramètre : enveloppe presque
+  épuisée (% consommé) ou dépassée ; solde prévisionnel sous le seuil
+  (horizon en jours, seuil du prévisionnel) ; dépense inhabituelle (plus de
+  N fois la médiane des dépenses du même libellé sur un an, à défaut de la
+  même catégorie ; dépenses de 20 € et plus des sept derniers jours) ;
+  abonnement dont le montant (écart toléré en %, sauf montant estimé) ou la
+  date (plus de 3 jours) change, d'après le dernier prélèvement de la même
+  série ; échéance proche ; pas d'import depuis N jours ; déblocage de
+  fonds d'épargne imminent.
+- Une alerte par situation, repérée par une clé (enveloppe et mois, première
+  date sous le seuil, opération…) : acquittée, elle ne revient pas. Les
+  alertes acquittées sont purgées après 90 jours.
+- Examen après chaque modification réussie (toute requête POST authentifiée
+  aboutissant à une redirection : saisie, import, budget, récurrence…),
+  en arrière-plan et regroupé, et chaque nuit. Jamais d'interrogation
+  périodique ; un examen complet prend 44 ms sur 20 000 opérations.
+- Réglages communs au foyer : BuddyGet n'a pour l'instant qu'un compte
+  utilisateur ; ils deviendront personnels avec la gestion de plusieurs
+  utilisateurs.
+
+### Notifications sortantes
+E-mail (SMTP avec STARTTLS obligatoire ou TLS dès la connexion,
+authentification facultative) et webhook (POST en texte brut, en-tête
+`Title` reconnu par ntfy), désactivés par défaut : ce sont les seules
+connexions sortantes de l'application. Rythme : immédiat, récapitulatif
+quotidien ou hebdomadaire (le lundi). Les notifications sont discrètes par
+défaut (nombre et types d'alerte, ni libellé ni montant). Sans canal actif,
+les alertes sont marquées notifiées : activer un canal n'envoie pas
+l'historique. Un envoi en échec est retenté au passage suivant. Le mot de
+passe SMTP est stocké dans la base (sur le NAS), jamais réaffiché ni
+journalisé.

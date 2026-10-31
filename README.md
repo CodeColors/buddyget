@@ -8,7 +8,8 @@ puissant : un seul conteneur, une base SQLite, moins de 20 Mo de RAM au repos.
 - Budget prévisionnel à une date choisie, à partir des opérations récurrentes
 - Comptes d'épargne avec intérêts et durée de blocage
 
-Interface en français, modes clair et sombre, aucune requête vers l'extérieur.
+Interface en français, modes clair et sombre, aucune requête vers l'extérieur
+(sauf les notifications par e-mail ou webhook, si vous les activez).
 
 ### Disponible aujourd'hui
 
@@ -46,6 +47,12 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
   quinzaine ou au jour le jour et inscrits au 31 décembre, fonds bloqués
   jusqu'à une date ou par versement, avertissement avant un retrait
   anticipé, versements programmés, évolution et projection
+- Budgets par enveloppe (report facultatif d'un mois sur l'autre), reste à
+  vivre du mois sur le tableau de bord, tendance sur douze mois
+- Alertes (enveloppe, solde prévu sous le seuil, dépense inhabituelle,
+  abonnement modifié, échéance proche, import oublié, déblocage d'épargne),
+  avec cloche dans l'en-tête ; notifications par e-mail ou ntfy/webhook,
+  désactivées par défaut et discrètes
 
 ## Avancement
 
@@ -58,7 +65,8 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
 | 5 | Récurrences : détection avec score de confiance, validation, saisie manuelle | ✅ |
 | 6 | Prévisionnel : courbe, point bas, seuil, jours non ouvrés, dépenses variables, exclusion ponctuelle | ✅ |
 | 7 | Épargne : modèles, intérêts, disponible et bloqué, versements programmés, vue Épargne | ✅ |
-| 8 – 12 | Budgets, alertes, rapports, exports, sauvegardes | à venir |
+| 8 | Budgets par enveloppe, reste à vivre, alertes et notifications facultatives | ✅ |
+| 9 – 12 | Abonnements, rapports, scénarios, crédits, partage, exports, sauvegardes | à venir |
 
 Le détail est dans [docs/PLAN.md](docs/PLAN.md) et le cahier des charges dans
 [docs/cahier-des-charges.md](docs/cahier-des-charges.md).
