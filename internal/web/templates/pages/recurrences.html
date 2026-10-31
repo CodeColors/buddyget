@@ -29,7 +29,7 @@
   <a class="row-link" href="/recurrences/{{.ID}}">
     <span class="row-title">{{.Label}}{{if eq .Origin "detectee"}} <span class="badge">Détectée</span>{{end}}</span>
     <span class="row-meta">{{.Period.Label}}{{if .LastDay}}, le dernier jour{{end}} · {{.AccountName}}{{with .CategoryName}} · {{.}}{{end}}</span>
-    <span class="row-meta">{{if not .Active}}Suspendue{{else if .Finished}}Terminée le {{.End.Format}}{{else}}Prochaine échéance le {{.Next.Format}}{{end}}</span>
+    <span class="row-meta">{{if not .Active}}Suspendue{{else if .Finished}}Terminée le {{.End.Format}}{{else}}Prochaine échéance le {{.Next.Due.Format}}{{end}}</span>
   </a>
   <span class="amount{{if gt .Amount 0}} positive{{end}}">{{if .Estimated}}≈ {{end}}{{eurosSigned .Amount}}</span>
 </li>

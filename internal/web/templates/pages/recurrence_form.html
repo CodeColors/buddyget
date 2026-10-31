@@ -61,6 +61,12 @@
       </div>
     </div>
     <label class="check"><input type="checkbox" name="last_day" value="1"{{if .LastDay}} checked{{end}}> Toujours le dernier jour du mois</label>
+    <div class="field">
+      <label for="business_day">Échéance un samedi, un dimanche ou un jour férié</label>
+      <select id="business_day" name="business_day">
+        {{- range .Shifts}}<option value="{{.}}"{{if eq . $.Data.Shift}} selected{{end}}>{{.Label}}</option>{{end}}
+      </select>
+    </div>
     <div class="field-row">
       <div class="field">
         <label for="account">Compte</label>

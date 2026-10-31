@@ -3,6 +3,7 @@ package recurring
 import (
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -48,7 +49,7 @@ func (e *env) monthlyOps(label string, amount int64, n int, start calendar.Date)
 func TestRuleCRUDAndNext(t *testing.T) {
 	e := newEnv(t)
 	ctx := t.Context()
-	in := RuleInput{Label: " Loyer ", AccountID: e.account, Amount: -700_00, Period: calendar.Monthly, Start: "2026-01-31", End: "2026-12-31", Origin: Manual}
+	in := RuleInput{Label: " Loyer ", AccountID: e.account, Amount: -700_00, Period: calendar.Monthly, Shift: calendar.NoShift, Start: "2026-01-31", End: "2026-12-31", Origin: Manual}
 	id, err := e.s.CreateRule(ctx, in)
 	if err != nil {
 		t.Fatal(err)
@@ -57,8 +58,8 @@ func TestRuleCRUDAndNext(t *testing.T) {
 	if err != nil || r.Label != "Loyer" || r.AccountName != "Courant" || !r.Active || r.Origin != Manual {
 		t.Fatalf("récurrence lue : %+v, %v", r, err)
 	}
-	if next, ok := r.Next("2026-02-01"); !ok || next != "2026-02-28" {
-		t.Errorf("prochaine échéance : %s, %v", next, ok)
+	if next, ok := r.Next("2026-02-01"); !ok || next.Due != "2026-02-28" {
+		t.Errorf("prochaine échéance : %+v, %v", next, ok)
 	}
 	if _, ok := r.Next("2027-01-01"); ok {
 		t.Error("après la date de fin, la récurrence est terminée")
@@ -88,7 +89,7 @@ func TestRuleCRUDAndNext(t *testing.T) {
 
 func TestRuleValidation(t *testing.T) {
 	e := newEnv(t)
-	base := RuleInput{Label: "Loyer", AccountID: e.account, Amount: -700_00, Period: calendar.Monthly, Start: "2026-01-05", Origin: Manual}
+	base := RuleInput{Label: "Loyer", AccountID: e.account, Amount: -700_00, Period: calendar.Monthly, Shift: calendar.NextBusinessDay, Start: "2026-01-05", Origin: Manual}
 	for name, c := range map[string]struct {
 		mutate func(*RuleInput)
 		msg    string
@@ -160,11 +161,11 @@ func TestDetectedAcceptAndDismiss(t *testing.T) {
 	if err := e.s.Dismiss(ctx, netflix); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.s.CreateRule(ctx, RuleInput{Label: "Abonnement salle", AccountID: e.account, Amount: -29_90, Period: calendar.Monthly, Start: "2026-10-20", Origin: Manual}); err != nil {
+	if _, err := e.s.CreateRule(ctx, RuleInput{Label: "Abonnement salle", AccountID: e.account, Amount: -29_90, Period: calendar.Monthly, Shift: calendar.NoShift, Start: "2026-10-20", Origin: Manual}); err != nil {
 		t.Fatal(err)
 	}
 	// Une série validée après modification de son libellé reste couverte.
-	if err := e.s.UpdateRule(ctx, id, RuleInput{Label: "Électricité", AccountID: e.account, Amount: -80_00, Period: calendar.Monthly, Start: r.Start}); err != nil {
+	if err := e.s.UpdateRule(ctx, id, RuleInput{Label: "Électricité", AccountID: e.account, Amount: -80_00, Period: calendar.Monthly, Shift: calendar.NoShift, Start: r.Start}); err != nil {
 		t.Fatal(err)
 	}
 	if cs, _ = e.s.Detected(ctx, today); len(cs) != 0 {
@@ -172,5 +173,34 @@ func TestDetectedAcceptAndDismiss(t *testing.T) {
 	}
 	if _, err := e.s.Accept(ctx, netflix, today); !errors.Is(err, ErrNotFound) {
 		t.Errorf("une série rejetée ne peut plus être validée : %v", err)
+	}
+}
+
+func TestOccurrencesShifted(t *testing.T) {
+	r := Rule{Period: calendar.Monthly, LastDay: true, Shift: calendar.NextBusinessDay, Start: "2026-01-31", End: "2026-06-30"}
+	var got []Occurrence
+	for o := range r.Occurrences("2026-03-01") {
+		got = append(got, o)
+	}
+	// Le 28 février 2026 est un samedi : l'échéance passe au lundi 2 mars et
+	// reste donc à venir le 1er mars.
+	want := []Occurrence{
+		{"2026-02-28", "2026-03-02"},
+		{"2026-03-31", "2026-03-31"},
+		{"2026-04-30", "2026-04-30"},
+		{"2026-05-31", "2026-06-01"}, // dimanche
+		{"2026-06-30", "2026-06-30"},
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("échéances : %v, attendu %v", got, want)
+	}
+	// Reportée la veille, l'échéance du dimanche 1er novembre (Toussaint)
+	// tombe le vendredi 30 octobre.
+	r = Rule{Period: calendar.Monthly, Shift: calendar.PreviousBusinessDay, Start: "2026-10-01"}
+	if next, _ := r.Next("2026-10-30"); next != (Occurrence{"2026-11-01", "2026-10-30"}) {
+		t.Errorf("report à la veille : %+v", next)
+	}
+	if _, ok := (Rule{Period: calendar.Monthly, Start: "2026-01-01", End: "2026-01-01"}).Next("2026-01-02"); ok {
+		t.Error("une récurrence terminée n'a plus d'échéance")
 	}
 }

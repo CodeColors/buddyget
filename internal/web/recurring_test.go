@@ -74,7 +74,7 @@ func TestDetectedRecurrences(t *testing.T) {
 	}
 	start := regexp.MustCompile(`id="start" name="start" type="date" value="([0-9-]+)"`).FindStringSubmatch(form)[1]
 	e.expectRedirect("POST", "/recurrences", url.Values{
-		"origin": {"detectee"}, "serie": {netflix}, "type": {"depense"}, "amount": {"19,99"}, "label": {"Netflix"}, "period": {"1-mois"},
+		"origin": {"detectee"}, "serie": {netflix}, "type": {"depense"}, "amount": {"19,99"}, "label": {"Netflix"}, "period": {"1-mois"}, "business_day": {"suivant"},
 		"start": {start}, "account": {account}, "category": {"0"},
 	}, "/recurrences")
 	e.expectRedirect("POST", "/recurrences/detectees/rejeter", url.Values{"signature": {loyer}}, "/recurrences/detectees")
@@ -91,7 +91,7 @@ func TestManualRecurrence(t *testing.T) {
 	e.createAccount("Courant", "0")
 	account := idOf(t, e.do("GET", "/comptes", nil).body, "comptes", "Courant")
 
-	form := url.Values{"type": {"revenu"}, "amount": {"150"}, "label": {"Pension"}, "period": {"autre"},
+	form := url.Values{"type": {"revenu"}, "amount": {"150"}, "label": {"Pension"}, "period": {"autre"}, "business_day": {"precedent"},
 		"custom_count": {"10"}, "custom_unit": {"jour"}, "start": {"2026-01-05"}, "end": {"2025-01-01"}, "account": {account}}
 	if res := e.do("POST", "/recurrences", form); res.status != http.StatusUnprocessableEntity || !strings.Contains(res.body, "date de fin précède") {
 		t.Errorf("fin avant le début : %d", res.status)
@@ -104,8 +104,9 @@ func TestManualRecurrence(t *testing.T) {
 	}
 
 	id := idOf(t, list, "recurrences", "Pension")
-	if body := e.do("GET", "/recurrences/"+id, nil).body; !strings.Contains(body, `value="autre" selected`) || !strings.Contains(body, `value="10"`) {
-		t.Error("la périodicité personnalisée doit être reprise")
+	if body := e.do("GET", "/recurrences/"+id, nil).body; !strings.Contains(body, `value="autre" selected`) || !strings.Contains(body, `value="10"`) ||
+		!strings.Contains(body, `value="precedent" selected`) {
+		t.Error("la périodicité personnalisée et le report doivent être repris")
 	}
 	e.expectRedirect("POST", "/recurrences/"+id+"/activer", url.Values{"active": {"false"}}, "/recurrences")
 	if body := e.expectFlash("/recurrences", "Récurrence suspendue."); !strings.Contains(body, "Suspendues ou terminées") {

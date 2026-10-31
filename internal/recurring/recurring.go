@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"iter"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -40,6 +41,7 @@ type Rule struct {
 	Estimated     bool
 	Period        calendar.Period
 	LastDay       bool
+	Shift         calendar.Shift // report d'une échéance tombant un jour non ouvré
 	Start         calendar.Date
 	End           calendar.Date // vide : sans fin
 	CategoryID    int64
@@ -47,13 +49,41 @@ type Rule struct {
 	CategoryColor string
 	Origin        Origin
 	Active        bool
+	Signature     string // série d'opérations que la récurrence représente
+}
+
+// Occurrence est une échéance : sa date théorique, qui identifie
+// l'échéance, et sa date effective, reportée au jour ouvré voisin.
+type Occurrence struct {
+	Nominal calendar.Date
+	Due     calendar.Date
+}
+
+// Occurrences parcourt dans l'ordre les échéances dont la date effective
+// est postérieure ou égale à from, jusqu'à la date de fin : sans date de
+// fin, le parcours ne s'arrête qu'à l'initiative de l'appelant.
+func (r Rule) Occurrences(from calendar.Date) iter.Seq[Occurrence] {
+	return func(yield func(Occurrence) bool) {
+		_, n := r.Period.NextOnOrAfter(r.Start, r.LastDay, from.AddDays(-calendar.MaxShift))
+		for ; ; n++ {
+			d := r.Period.Nth(r.Start, n, r.LastDay)
+			if r.End != "" && d > r.End {
+				return
+			}
+			if o := (Occurrence{Nominal: d, Due: r.Shift.Apply(d)}); o.Due >= from && !yield(o) {
+				return
+			}
+		}
+	}
 }
 
 // Next renvoie la prochaine échéance à partir de from (incluse) ; faux si
 // la récurrence est terminée.
-func (r Rule) Next(from calendar.Date) (calendar.Date, bool) {
-	d, _ := r.Period.NextOnOrAfter(r.Start, r.LastDay, from)
-	return d, r.End == "" || d <= r.End
+func (r Rule) Next(from calendar.Date) (Occurrence, bool) {
+	for o := range r.Occurrences(from) {
+		return o, true
+	}
+	return Occurrence{}, false
 }
 
 // RuleInput est la saisie d'une récurrence ; Amount est signé.
@@ -64,6 +94,7 @@ type RuleInput struct {
 	Estimated  bool
 	Period     calendar.Period
 	LastDay    bool
+	Shift      calendar.Shift
 	Start      calendar.Date
 	End        calendar.Date
 	CategoryID int64
@@ -84,9 +115,9 @@ func NewService(d *db.DB) *Service { return &Service{db: d} }
 
 const ruleSelect = `
 	SELECT r.id, r.label, r.account_id, a.name, r.amount, r.estimated, r.period_count, r.period_unit, r.last_day,
-		r.start_date, coalesce(r.end_date, ''), coalesce(r.category_id, 0),
+		r.business_day, r.start_date, coalesce(r.end_date, ''), coalesce(r.category_id, 0),
 		coalesce(CASE WHEN p.id IS NULL THEN c.name ELSE p.name || ' › ' || c.name END, ''), coalesce(c.color, ''),
-		r.origin, r.active
+		r.origin, r.active, r.signature
 	FROM recurring_rules r
 	JOIN accounts a ON a.id = r.account_id
 	LEFT JOIN categories c ON c.id = r.category_id
@@ -95,7 +126,7 @@ const ruleSelect = `
 func scanRule(row interface{ Scan(...any) error }) (Rule, error) {
 	var r Rule
 	err := row.Scan(&r.ID, &r.Label, &r.AccountID, &r.AccountName, &r.Amount, &r.Estimated, &r.Period.Count, &r.Period.Unit,
-		&r.LastDay, &r.Start, &r.End, &r.CategoryID, &r.CategoryName, &r.CategoryColor, &r.Origin, &r.Active)
+		&r.LastDay, &r.Shift, &r.Start, &r.End, &r.CategoryID, &r.CategoryName, &r.CategoryColor, &r.Origin, &r.Active, &r.Signature)
 	return r, err
 }
 
@@ -140,10 +171,10 @@ func (s *Service) CreateRule(ctx context.Context, in RuleInput) (int64, error) {
 	}
 	res, err := s.db.W.ExecContext(ctx, `
 		INSERT INTO recurring_rules (label, account_id, amount, estimated, period_count, period_unit, last_day,
-			start_date, end_date, category_id, origin, signature)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''), nullif(?, 0), ?, ?)`,
+			business_day, start_date, end_date, category_id, origin, signature)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, nullif(?, ''), nullif(?, 0), ?, ?)`,
 		in.Label, in.AccountID, in.Amount, in.Estimated, in.Period.Count, in.Period.Unit, in.LastDay,
-		in.Start, in.End, in.CategoryID, in.Origin, in.Signature)
+		in.Shift, in.Start, in.End, in.CategoryID, in.Origin, in.Signature)
 	if err != nil {
 		return 0, err
 	}
@@ -159,10 +190,10 @@ func (s *Service) UpdateRule(ctx context.Context, id int64, in RuleInput) error 
 	}
 	res, err := s.db.W.ExecContext(ctx, `
 		UPDATE recurring_rules SET label = ?, account_id = ?, amount = ?, estimated = ?, period_count = ?, period_unit = ?,
-			last_day = ?, start_date = ?, end_date = nullif(?, ''), category_id = nullif(?, 0)
+			last_day = ?, business_day = ?, start_date = ?, end_date = nullif(?, ''), category_id = nullif(?, 0)
 		WHERE id = ?`,
 		in.Label, in.AccountID, in.Amount, in.Estimated, in.Period.Count, in.Period.Unit, in.LastDay,
-		in.Start, in.End, in.CategoryID, id)
+		in.Shift, in.Start, in.End, in.CategoryID, id)
 	return affectedOne(res, err)
 }
 
@@ -201,6 +232,8 @@ func (s *Service) validate(ctx context.Context, in RuleInput) (RuleInput, error)
 		return in, validation.Error("Montant trop élevé.")
 	case !in.Period.Valid():
 		return in, validation.Error("Périodicité invalide : deux ans au plus entre deux échéances.")
+	case !slices.Contains(calendar.Shifts, in.Shift):
+		return in, validation.Error("Choisissez le report des échéances tombant un jour non ouvré.")
 	case in.Start == "":
 		return in, validation.Error("Indiquez la date de la première échéance.")
 	case in.End != "" && in.End < in.Start:
@@ -268,7 +301,7 @@ func (s *Service) Accept(ctx context.Context, signature string, today calendar.D
 func (c Candidate) Input() RuleInput {
 	return RuleInput{
 		Label: c.Label, AccountID: c.AccountID, Amount: c.Amount, Estimated: c.Estimated,
-		Period: c.Period, LastDay: c.LastDay, Start: c.Last, CategoryID: c.CategoryID, Origin: Detected,
+		Period: c.Period, LastDay: c.LastDay, Shift: calendar.NextBusinessDay, Start: c.Last, CategoryID: c.CategoryID, Origin: Detected,
 		Signature: c.Signature,
 	}
 }
