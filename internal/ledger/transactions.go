@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/codecolors/buddyget/internal/platform/calendar"
+	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/platform/money"
 	"github.com/codecolors/buddyget/internal/platform/validation"
 )
@@ -32,6 +33,7 @@ type Transaction struct {
 	TransferID             int64
 	CounterpartAccountID   int64
 	CounterpartAccountName string
+	InterestYear           int // écriture d'intérêts : l'année rémunérée
 }
 
 // IsTransfer indique une jambe de virement entre comptes du foyer.
@@ -46,6 +48,9 @@ type TransactionInput struct {
 	CategoryID int64
 	Note       string
 	Cleared    bool
+	// InterestYear marque une écriture d'intérêts d'épargne et l'année
+	// qu'elle rémunère (une seule par compte) ; 0 pour une opération ordinaire.
+	InterestYear int
 }
 
 // TransferInput est la saisie d'un virement ; Amount est positif et quitte
@@ -66,7 +71,7 @@ const transactionSelect = `
 		coalesce(t.category_id, 0),
 		coalesce(CASE WHEN p.id IS NULL THEN c.name ELSE p.name || ' › ' || c.name END, ''),
 		coalesce(c.color, ''), t.note, t.cleared, coalesce(t.transfer_id, 0),
-		coalesce(o.account_id, 0), coalesce(oa.name, '')
+		coalesce(o.account_id, 0), coalesce(oa.name, ''), coalesce(t.interest_year, 0)
 	FROM transactions t
 	JOIN accounts a ON a.id = t.account_id
 	LEFT JOIN categories c ON c.id = t.category_id
@@ -78,7 +83,7 @@ func scanTransaction(row interface{ Scan(...any) error }) (Transaction, error) {
 	var t Transaction
 	err := row.Scan(&t.ID, &t.AccountID, &t.AccountName, &t.Date, &t.Label, &t.Amount,
 		&t.CategoryID, &t.CategoryName, &t.CategoryColor, &t.Note, &t.Cleared, &t.TransferID,
-		&t.CounterpartAccountID, &t.CounterpartAccountName)
+		&t.CounterpartAccountID, &t.CounterpartAccountName, &t.InterestYear)
 	return t, err
 }
 
@@ -100,9 +105,12 @@ func (s *Service) CreateTransaction(ctx context.Context, in TransactionInput) (i
 			return err
 		}
 		res, err := tx.ExecContext(ctx, `
-			INSERT INTO transactions (account_id, date, label, amount, category_id, note, cleared)
-			VALUES (?, ?, ?, ?, nullif(?, 0), ?, ?)`,
-			in.AccountID, in.Date, in.Label, in.Amount, in.CategoryID, in.Note, in.Cleared)
+			INSERT INTO transactions (account_id, date, label, amount, category_id, note, cleared, interest_year)
+			VALUES (?, ?, ?, ?, nullif(?, 0), ?, ?, nullif(?, 0))`,
+			in.AccountID, in.Date, in.Label, in.Amount, in.CategoryID, in.Note, in.Cleared, in.InterestYear)
+		if db.IsUniqueViolation(err) {
+			return validation.Errorf("Les intérêts de %d sont déjà inscrits sur ce compte.", in.InterestYear)
+		}
 		if err != nil {
 			return err
 		}
@@ -129,11 +137,14 @@ func (s *Service) UpdateTransaction(ctx context.Context, id int64, in Transactio
 		if in, err = validateTransaction(ctx, tx, in); err != nil {
 			return err
 		}
+		// Une écriture d'intérêts déplacée vers un autre compte redevient une
+		// opération ordinaire ; sinon elle le reste (in.InterestYear est ignoré).
 		_, err = tx.ExecContext(ctx, `
 			UPDATE transactions SET account_id = ?, date = ?, label = ?, amount = ?,
-				category_id = nullif(?, 0), note = ?, cleared = ?
+				category_id = nullif(?, 0), note = ?, cleared = ?,
+				interest_year = CASE WHEN account_id = ? THEN interest_year END
 			WHERE id = ?`,
-			in.AccountID, in.Date, in.Label, in.Amount, in.CategoryID, in.Note, in.Cleared, id)
+			in.AccountID, in.Date, in.Label, in.Amount, in.CategoryID, in.Note, in.Cleared, in.AccountID, id)
 		return err
 	})
 }
