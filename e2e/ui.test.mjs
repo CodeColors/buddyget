@@ -373,6 +373,27 @@ test('prévisionnel sur mobile : horizon, échéance écartée, seuil', async ()
   }, session);
 });
 
+test('épargne sur mobile : compte créé depuis un modèle, vue Épargne', async () => {
+  await withPage(360, 'light', async (page) => {
+    await page.goto(`${BASE}/`);
+    await page.getByRole('navigation', { name: 'Navigation principale' }).getByRole('link', { name: 'Plus' }).click();
+    await page.getByRole('link', { name: /^Épargne/ }).click();
+    await page.getByRole('navigation', { name: "Ouvrir un compte d'épargne" }).getByRole('link', { name: 'LDDS' }).click();
+    await page.getByText("elles n'ont rien d'officiel").waitFor();
+    assert.equal(await page.getByLabel('Taux annuel (%)').inputValue(), '1,70');
+    await page.getByLabel('Solde initial').fill('1500');
+    await page.getByRole('button', { name: 'Enregistrer' }).click();
+    await page.getByRole('status').filter({ hasText: 'Compte enregistré.' }).waitFor();
+
+    await page.goto(`${BASE}/epargne`);
+    const card = page.locator('.savings-card').filter({ hasText: 'LDDS' });
+    await card.getByText('Par quinzaine').waitFor();
+    await card.getByText('avant le plafond').waitFor();
+    await checkLayout(page, 'épargne', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'epargne-parcours-360-light.png'), fullPage: true });
+  }, session);
+});
+
 const SCREENS = [
   ['tableau-de-bord', '/'],
   ['operations', '/operations'],
@@ -384,6 +405,8 @@ const SCREENS = [
   ['regles', '/regles'],
   ['virements', '/operations/virements'],
   ['previsionnel', '/previsionnel'],
+  ['epargne', '/epargne'],
+  ['compte-epargne', '/comptes/nouveau?modele=livret_a'],
   ['recurrences', '/recurrences'],
   ['recurrence-saisie', '/recurrences/nouvelle'],
   ['plus', '/plus'],
