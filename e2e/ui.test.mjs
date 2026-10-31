@@ -292,6 +292,40 @@ test('fichier inconnu : choix des colonnes sur mobile', async () => {
   }, session);
 });
 
+test('règle de catégorisation en un clic depuis une opération', async () => {
+  await withPage(360, 'light', async (page) => {
+    await page.goto(`${BASE}/operations?q=boulangerie`);
+    await page.locator('.tx-label').getByText('Boulangerie', { exact: true }).click();
+    await page.getByRole('heading', { name: 'Catégoriser automatiquement' }).waitFor();
+    assert.equal(await page.getByLabel('Si le libellé contient').inputValue(), 'Boulangerie');
+    await page.locator('#rule-category').selectOption({ label: 'Alimentation › Courses' });
+    await checkLayout(page, 'règle en un clic', 'light');
+    await page.getByRole('button', { name: 'Créer la règle' }).click();
+    await page.getByRole('status').filter({ hasText: /Règle enregistrée\. \d+ opérations? catégorisées?\./ }).waitFor();
+    assert.match(page.url(), /\/operations\?q=boulangerie$/);
+    await page.locator('.tx-cat').filter({ hasText: 'Alimentation › Courses' }).first().waitFor();
+  }, session);
+});
+
+test('virement interne détecté puis relié', async () => {
+  await withPage(360, 'dark', async (page) => {
+    // Le prélèvement EDF importé (−78,32 €) retrouve son pendant sur le livret.
+    const res = await page.request.post(`${BASE}/operations`, {
+      form: { type: 'revenu', amount: '78,32', label: 'VIR RECU', date: '2026-10-31', account: '2', back: '/operations' },
+      maxRedirects: 0,
+    });
+    assert.equal(res.status(), 303);
+    await page.goto(`${BASE}/operations`);
+    await page.getByRole('link', { name: /virements? internes? possibles? à vérifier/ }).click();
+    await page.getByRole('heading', { name: 'Virements à rapprocher' }).waitFor();
+    await checkLayout(page, 'virements à rapprocher', 'dark');
+    await page.screenshot({ path: path.join(SHOTS, 'virements-a-relier-360-dark.png'), fullPage: true });
+    const pair = page.locator('.pair').filter({ hasText: 'PRLV SEPA EDF' });
+    await pair.getByRole('button', { name: /Relier en virement/ }).click();
+    await page.getByRole('status').filter({ hasText: 'Virement relié' }).waitFor();
+  }, session);
+});
+
 const SCREENS = [
   ['tableau-de-bord', '/'],
   ['operations', '/operations'],
@@ -300,6 +334,8 @@ const SCREENS = [
   ['categories', '/categories'],
   ['import', '/import'],
   ['historique-imports', '/import/historique'],
+  ['regles', '/regles'],
+  ['virements', '/operations/virements'],
 ];
 
 for (const scheme of SCHEMES) {
