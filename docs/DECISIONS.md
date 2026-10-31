@@ -194,3 +194,84 @@ filtrée comprise) avec un message de confirmation.
 Les colonnes qui ne servent qu'aux jalons suivants (date de valeur, tiers,
 empreinte d'import, provenance) seront ajoutées par leur migration, quand
 elles serviront.
+
+## Import (jalon 3)
+
+### Profils provisoires faute d'exports réels
+Aucun export réel de la Société Générale ni de BNP Paribas n'a été fourni :
+les profils `sg.yaml` et `bnp.yaml` et les fichiers de `testdata/` sont
+**synthétiques**, marqués comme tels, et devront être vérifiés sur des
+exports réels anonymisés. L'import ne dépend pas de leur exactitude : un
+fichier non reconnu passe par le choix manuel des colonnes, qui peut être
+enregistré comme profil.
+
+### Un seul mécanisme de lecture : `Mapping`
+Un profil (YAML) liste, pour chaque donnée, les intitulés de colonne
+possibles ; il est reconnu quand une des 30 premières lignes contient une
+date, un libellé et un montant (ou débit et crédit). Il se résout alors en
+`Mapping` (numéros de colonnes, ligne d'en-tête, format de date, sens des
+montants). Le choix manuel des colonnes produit directement un `Mapping`.
+Les profils fournis sont embarqués ; un fichier du même nom dans
+`/data/profiles/` les remplace, et tout autre fichier `.yaml` y ajoute un
+profil, essayé en premier. Les profils sont relus à chaque dépôt : une
+modification s'applique sans redémarrage. Format YAML (`go.yaml.in/yaml/v3`)
+plutôt que JSON : il se commente et se modifie à la main.
+
+### Lecture des fichiers
+- Format reconnu à la signature, pas à l'extension : certains « .xls »
+  bancaires sont des CSV, d'autres des pages HTML (refusées avec un message
+  invitant à réexporter).
+- CSV lu en flux ; encodage UTF-8 (avec ou sans BOM) sinon Windows-1252
+  (sur-ensemble d'ISO-8859-1) ; séparateur deviné parmi `;` `,` tabulation
+  `|` par la régularité du nombre de colonnes.
+- XLSX : `excelize`, lu en flux, valeurs brutes (dates en numéro de série,
+  montants sans format). XLS : `extrame/xls` (dernière version, 2020), qui
+  décode correctement les textes accentués contrairement à `xlsReader`
+  (essayé) ; une panique de la bibliothèque devient un message d'erreur.
+- Les montants à la française sont lus par `money.Parse` ; un nombre à
+  virgule flottante issu d'un classeur est arrondi au centime.
+- `golang.org/x/text` (déjà lié par excelize) fournit le décodage
+  Windows-1252 et la suppression des accents ; il remplace la table
+  d'accents écrite au jalon 2 (un seul mécanisme : `platform/text.Fold`).
+
+### Déduplication par rang d'occurrence
+Empreinte SHA-256 de (compte, date, montant, libellé normalisé, rang de
+l'occurrence identique dans le fichier), unique par compte en base. Deux
+achats identiques le même jour reçoivent les rangs 1 et 2 et sont tous deux
+importés ; un export qui chevauche le précédent reproduit les mêmes rangs
+pour les jours complets qu'il contient, et n'ajoute rien. Limite connue : un
+export qui coupe une journée au milieu de deux opérations identiques peut
+décaler les rangs de ce jour-là. Une opération importée puis supprimée à la
+main sera réimportée par un fichier qui la contient.
+
+### Brouillon en base, pas en mémoire
+Le fichier déposé est copié dans `DATA_DIR/imports/` (le formulaire est lu
+en flux, sans fichier temporaire : l'image `scratch` n'a pas de `/tmp`), puis
+ses lignes interprétées sont rangées par lots dans `import_lines`. L'aperçu
+est paginé (100 lignes), la sélection est une colonne de cette table et la
+validation un seul `INSERT … SELECT` dans une transaction. Un brouillon
+abandonné depuis 24 h est purgé au dépôt suivant (pas de tâche de fond).
+Après ces opérations lourdes, `db.ReleaseMemory` rend au système le cache
+SQLite et le tas Go : la RAM au repos repasse de 55 à 30 Mo après un import
+de 10 000 lignes.
+
+### Écriture des opérations importées
+L'import insère directement dans `transactions` les lignes qu'il a
+validées (date, libellé borné, montant non nul), en une seule requête :
+passer par `ledger.CreateTransaction` imposerait une transaction et des
+contrôles de compte et de catégorie par ligne, inutiles ici. Le grand livre reste seul à modifier une opération
+existante. Une annulation supprime les opérations portant l'identifiant de
+l'import.
+
+### Catégorie suggérée à l'aperçu
+Elle viendra des règles de catégorisation du jalon 4, appliquées à l'import :
+un mécanisme provisoire (par exemple d'après l'historique) serait un second
+mécanisme de catégorisation, à proscrire.
+
+### Rapprochement
+Le solde relevé sur le site de la banque est enregistré sur le compte
+(`bank_balance`, `bank_balance_date`) et comparé au solde calculé à la même
+date ; l'écart renvoie vers la liste des opérations non pointées jusqu'à
+cette date. La vue de pointage rapide (jalon 9) réutilisera ce même solde.
+C'est la troisième étape de l'assistant d'import, aussi accessible depuis
+chaque compte.

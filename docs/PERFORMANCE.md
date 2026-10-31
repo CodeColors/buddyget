@@ -63,10 +63,40 @@ Le parcours de saisie demande quatre gestes (bouton « + Opération »,
 montant, Tab et libellé, Entrée) ; le test de bout en bout le joue au clavier
 seul et vérifie le retour à la page de départ avec le solde à jour.
 
+## Jalon 3 : 31/10/2026
+
+Même machine. Import d'un relevé de **10 000 lignes**, mesuré sur le binaire
+(dépôt par le formulaire, aperçu, validation) :
+
+| Mesure | CSV (770 Ko) | XLSX (276 Ko) | Cible |
+|---|---|---|---|
+| Dépôt, lecture et mise en attente | 0,14 s | 0,38 s | — |
+| Validation (insertion et indexation plein texte) | 0,16 s | 0,16 s | — |
+| Pic de RAM du processus (`VmHWM`) | 41 Mo | 48 Mo | < 150 Mo |
+| RAM juste après la validation | 29 Mo | 31 Mo | < 64 Mo |
+
+Benchmark `go test -bench Import10000 ./internal/importer/` (dépôt, mise en
+attente et validation, en mémoire) : 240 ms et 15 Mo alloués au total par
+import.
+
+| Mesure | Résultat | Cible |
+|---|---|---|
+| Taille du binaire (avec excelize, xls, YAML) | 18,3 Mo | image < 50 Mo |
+| RAM au repos après démarrage | 21 à 23 Mo | < 64 Mo (objectif 30) |
+
+### Correction apportée pendant la mesure
+
+Sans précaution, la RAM restait à 55 Mo après un import de 10 000 lignes,
+et ne redescendait qu'à 49 Mo après plusieurs minutes : le tas Go n'en
+représentait que 9 Mo, le reste étant le cache et les tampons de SQLite.
+`db.ReleaseMemory` (cache SQLite de la connexion d'écriture et tas Go rendus
+au système) est appelé après la mise en attente, la validation et
+l'annulation d'un import.
+
 ## Méthode
 
 ```bash
-go test -run '^$' -bench . -benchmem ./internal/ledger/
+go test -run '^$' -bench . -benchmem ./internal/ledger/ ./internal/importer/
 
 make build
 DATA_DIR=/tmp/bg PORT=8080 ./bin/buddyget &

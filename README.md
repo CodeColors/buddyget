@@ -21,6 +21,12 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
   montant et pointage, tri
 - Recatégorisation ou changement de compte par lot, sur une sélection ou sur
   tous les résultats d'une recherche
+- Import des relevés CSV, Excel (.xlsx) et Excel 97-2003 (.xls) en trois
+  étapes (fichier, vérification, rapprochement) : encodage et séparateur
+  détectés, format reconnu, choix des colonnes à la main sinon ; aucun
+  doublon même en réimportant des fichiers qui se chevauchent ; historique
+  et annulation d'un import
+- Rapprochement : écart entre le solde de la banque et le solde calculé
 
 ## Avancement
 
@@ -28,7 +34,7 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
 |---|---|---|
 | 1 | Socle : configuration, SQLite et migrations, authentification, gabarit d'interface, image Docker, CI | ✅ |
 | 2 | Comptes, catégories, saisie manuelle, virements, liste et recherche, édition par lot | ✅ |
-| 3 | Import CSV / XLSX / XLS | à venir |
+| 3 | Import CSV / XLSX / XLS, profils SG / BNP / générique, déduplication, annulation, rapprochement | ✅ (profils SG et BNP à vérifier sur des exports réels) |
 | 4 – 12 | Règles, récurrences, prévisionnel, épargne, budgets, alertes, rapports, exports, sauvegardes | à venir |
 
 Le détail est dans [docs/PLAN.md](docs/PLAN.md) et le cahier des charges dans
@@ -100,6 +106,36 @@ Les données tiennent dans le dossier `/volume1/docker/buddyget` (fichier
 **Hyper Backup**. La sauvegarde intégrée (chiffrée, planifiée) arrive au
 jalon 11.
 
+## Ajouter ou ajuster un profil d'import
+
+Un profil décrit un format d'export : pour chaque donnée, les intitulés de
+colonne possibles (casse et accents ignorés). Le plus simple est de passer
+par l'assistant : à l'étape « Colonnes du fichier », indiquez la ligne
+d'en-tête et les colonnes, puis donnez un nom au profil ; il est enregistré
+dans `/data/profiles/` et reconnu aux imports suivants.
+
+À la main, déposez un fichier `.yaml` dans `/volume1/docker/buddyget/profiles/`.
+Un fichier nommé `sg.yaml`, `bnp.yaml` ou `generique.yaml` remplace le profil
+fourni du même nom ; tout autre fichier ajoute un profil, essayé en premier.
+Les modifications s'appliquent au dépôt suivant, sans redémarrage.
+
+```yaml
+nom: Ma banque
+colonnes:
+  date: ["Date opération", "Date"]
+  libelle: ["Libellé détaillé", "Libellé"]  # la première colonne non vide l'emporte
+  montant: ["Montant"]                       # ou bien :
+  # debit: ["Débit"]
+  # credit: ["Crédit"]
+format_date: JJ/MM/AAAA   # facultatif : JJ/MM/AA, AAAA-MM-JJ, JJ-MM-AAAA, JJ.MM.AAAA, AAAA/MM/JJ
+# montants_inverses: true  # si les dépenses sont écrites en positif
+```
+
+Les profils Société Générale et BNP Paribas fournis sont **provisoires** :
+ils ont été établis sans export réel. Si votre export n'est pas reconnu,
+l'assistant propose le choix des colonnes ; signalez-le pour que le profil
+soit corrigé.
+
 ## Configuration
 
 Toutes les options sont des variables d'environnement facultatives.
@@ -112,6 +148,7 @@ Toutes les options sont des variables d'environnement facultatives.
 | `TZ` | UTC | fuseau des journaux (`Europe/Paris`) |
 | `BASE_URL` | — | adresse publique, ex. `https://budget.mondomaine.fr` ; en HTTPS, active les cookies `Secure` |
 | `TRUSTED_PROXIES` | — | adresses ou réseaux CIDR (séparés par des virgules) dont l'en-tête `X-Forwarded-For` est cru |
+| `MAX_UPLOAD_MB` | `10` | taille maximale d'un fichier importé (1 à 100) |
 | `GOMEMLIMIT` | `100MiB` (image) | plafond mémoire visé par le ramasse-miettes |
 
 Les journaux ne contiennent jamais de libellé ni de montant.

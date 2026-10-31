@@ -28,17 +28,22 @@ internal/
 │   │   └── migrations/ migrateur ; NNNN_description.sql embarqués
 │   ├── money/         montants en centimes : saisie et affichage à la française
 │   ├── calendar/      dates civiles AAAA-MM-JJ
+│   ├── text/          forme de comparaison des textes (casse, accents, espaces)
 │   └── validation/    erreur de saisie commune (message destiné à l'utilisateur)
 ├── auth/              comptes, argon2id, limitation des tentatives, sessions, thème
 ├── ledger/            grand livre : comptes, catégories, opérations, virements,
-│                      recherche (Filter), édition par lot
+│                      recherche (Filter), édition par lot, rapprochement
+├── importer/          import : lecteurs CSV/XLSX/XLS, profils, Mapping, déduplication,
+│   │                  brouillon, validation, historique, annulation
+│   └── profiles/      sg.yaml, bnp.yaml, generique.yaml (embarqués)
 └── web/               routage, middlewares, handlers par écran, rendu
     ├── templates/     layout.html + pages/<page>.html
     └── static/        CSS, app.js, HTMX (vendorisé), icône, manifeste PWA
 e2e/                   tests Playwright (développement et CI uniquement)
+testdata/              relevés d'exemple (synthétiques, voir testdata/README.md)
 ```
 
-Les packages métier suivants (`importer`, `categorize`, `recurring`,
+Les packages métier suivants (`categorize`, `recurring`,
 `forecast`, `savings`, `budget`, `alerts`…) s'ajoutent jalon par jalon sur ce
 modèle : un service par domaine, appelé par les handlers.
 
@@ -80,6 +85,12 @@ peuvent pas créer deux premiers comptes.
 | `transactions` | opérations : compte, date, libellé, montant signé en centimes, catégorie, note, pointage, virement |
 | `transfers` | lien entre les deux opérations d'un virement interne |
 | `transactions_fts` | index plein texte (FTS5) du libellé et de la note, tenu à jour par déclencheurs |
+| `imports` | historique des imports validés : fichier, profil, décomptes, annulation |
+| `import_drafts`, `import_lines` | imports en cours : fichier déposé, correspondance, lignes interprétées et sélection |
+
+Une opération importée porte `import_id` (annulation) et `import_hash`
+(empreinte unique par compte, garde-fou contre les doublons). Le compte porte
+le dernier solde bancaire relevé (`bank_balance`, `bank_balance_date`).
 
 L'index `(account_id, date, amount)` couvre le calcul des soldes sans lire la
 table des opérations.
@@ -93,6 +104,20 @@ table des opérations.
 | `/operations/nouvelle`, `/operations/{id}` | saisie et modification (opération ou virement) |
 | `/comptes`, `/comptes/nouveau`, `/comptes/{id}` | comptes : liste, création, modification, archivage |
 | `/categories`, `/categories/nouvelle`, `/categories/{id}` | catégories et sous-catégories |
+| `/import` | étape 1 : dépôt du fichier et choix du compte, imports en cours |
+| `/import/{jeton}`, `/import/{jeton}/colonnes` | étape 2 : choix des colonnes si besoin, aperçu et sélection, validation |
+| `/comptes/{id}/rapprochement` | étape 3 : solde de la banque, écart, opérations non pointées |
+| `/import/historique` | imports validés, annulation |
+
+### Chemin d'un import
+
+```
+dépôt ─► fichier copié dans DATA_DIR/imports/<jeton> ─► format (signature)
+      ─► 30 premières lignes ─► profil reconnu ? ─┬─ oui ─► Mapping
+                                                  └─ non ─► choix des colonnes ─► Mapping
+Mapping ─► lecture en flux ─► lignes interprétées + empreintes ─► import_lines (par lots)
+aperçu (pages de 100) ─► sélection ─► INSERT … SELECT dans transactions ─► imports
+```
 
 Toute action renvoie (redirection 303) vers la page d'origine avec un message
 de confirmation. Les requêtes HTMX de la recherche ne reçoivent que le bloc
