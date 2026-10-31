@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/db"
 )
@@ -17,6 +18,7 @@ type fixture struct {
 	t       *testing.T
 	s       *Service
 	ledger  *ledger.Service
+	rules   *categorize.Service
 	account int64
 	dataDir string
 }
@@ -36,7 +38,8 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &fixture{t: t, s: NewService(d, dataDir, 1<<20), ledger: l, account: account, dataDir: dataDir}
+	rules := categorize.NewService(d)
+	return &fixture{t: t, s: NewService(d, dataDir, 1<<20, rules), ledger: l, rules: rules, account: account, dataDir: dataDir}
 }
 
 func (f *fixture) upload(name string, data []byte) Draft {
@@ -265,5 +268,73 @@ func TestAbandonedDraftsArePurged(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(f.dataDir, "imports", old.Token)); !errors.Is(err, os.ErrNotExist) {
 		t.Error("le fichier du brouillon expiré doit être supprimé")
+	}
+}
+
+func TestUndoImportUnlinksTransfers(t *testing.T) {
+	f := newFixture(t)
+	ctx := t.Context()
+	livret, err := f.ledger.CreateAccount(ctx, ledger.AccountInput{Name: "Livret", Kind: ledger.AccountSavings, Bank: ledger.BankSG, OpeningDate: "2026-01-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	credit, err := f.ledger.CreateTransaction(ctx, ledger.TransactionInput{AccountID: livret, Date: "2026-10-28", Label: "Versement", Amount: 120_00})
+	if err != nil {
+		t.Fatal(err)
+	}
+	imp := f.commit(f.uploadFile("../../testdata/sg/releve-octobre.csv"))
+	candidates, err := f.ledger.TransferCandidates(ctx, 10)
+	if err != nil || len(candidates) != 1 || candidates[0].Debit.Label != "CHEQUE 0001234" {
+		t.Fatalf("le chèque de 120 € doit être proposé comme virement : %+v, %v", candidates, err)
+	}
+	if err := f.ledger.LinkTransfer(ctx, candidates[0].Debit.ID, credit); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.s.Undo(ctx, imp.ID); err != nil {
+		t.Fatal(err)
+	}
+	left, err := f.ledger.Transaction(ctx, credit)
+	if err != nil || left.IsTransfer() {
+		t.Errorf("l'opération restante doit redevenir simple : %+v, %v", left, err)
+	}
+}
+
+func TestImportSuggestsCategories(t *testing.T) {
+	f := newFixture(t)
+	ctx := t.Context()
+	cats, err := f.ledger.Categories(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var energy int64
+	for _, c := range cats {
+		if c.FullName() == "Logement › Énergie" {
+			energy = c.ID
+		}
+	}
+	if _, err := f.rules.CreateRule(ctx, categorize.RuleInput{Pattern: "edf", Match: categorize.MatchContains, CategoryID: energy}); err != nil {
+		t.Fatal(err)
+	}
+	d := f.uploadFile("../../testdata/sg/releve-octobre.csv")
+	lines, _, err := f.s.Lines(ctx, d.Token, StatusNew, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	suggested := 0
+	for _, l := range lines {
+		if l.CategoryName != "" {
+			suggested++
+			if l.Line != 6 || l.CategoryName != "Logement › Énergie" || l.CategoryColor == "" {
+				t.Errorf("suggestion inattendue : %+v", l)
+			}
+		}
+	}
+	if suggested != 1 {
+		t.Fatalf("%d suggestions, attendu 1", suggested)
+	}
+	f.commit(d)
+	p, err := f.ledger.Search(ctx, ledger.Filter{CategoryID: energy}, 0)
+	if err != nil || p.Count != 1 || p.Items[0].Label != "PRLV SEPA EDF CLIENTS PARTICULIERS ECH/301026" {
+		t.Errorf("la catégorie suggérée doit être enregistrée : %+v, %v", p, err)
 	}
 }

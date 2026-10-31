@@ -1,7 +1,10 @@
 {{define "content"}}
 <div class="page-head">
   <h1>Catégories</h1>
-  <a class="btn btn-primary" href="/categories/nouvelle">Nouvelle catégorie</a>
+  <div class="actions">
+    <a class="btn" href="/regles">Règles</a>
+    <a class="btn btn-primary" href="/categories/nouvelle">Nouvelle catégorie</a>
+  </div>
 </div>
 {{- range .Data}}
 <section aria-labelledby="groupe-{{.Kind}}">

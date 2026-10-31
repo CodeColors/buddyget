@@ -353,6 +353,12 @@ func (s *Server) commitImport(w http.ResponseWriter, r *http.Request) {
 	if imp.Duplicate > 0 {
 		msg += " " + plural(imp.Duplicate, "doublon ignoré", "doublons ignorés") + "."
 	}
+	if n, err := s.transferCount(r); err != nil {
+		s.serverError(w, r, err)
+		return
+	} else if n > 0 {
+		msg += " " + plural(n, "virement interne possible", "virements internes possibles") + " à vérifier dans Opérations."
+	}
 	s.redirect(w, r, fmt.Sprintf("/comptes/%d/rapprochement?import=1", imp.AccountID), msg)
 }
 
@@ -380,10 +386,6 @@ func (s *Server) undoImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	removed, err := s.importer.Undo(r.Context(), id)
-	if errors.Is(err, importer.ErrNotFound) {
-		s.notFound(w, r)
-		return
-	}
 	if err != nil {
 		s.failed(w, r, err, "/import/historique")
 		return

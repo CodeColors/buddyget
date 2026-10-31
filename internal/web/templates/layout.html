@@ -79,7 +79,7 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4M4 7.5V17a2 2 0 0 0 2 2h14V9H6.5A2.5 2.5 0 0 1 4 7.5zM16 14h.01"/></svg>
     <span>Comptes</span>
   </a>
-  <a href="/categories"{{if navActive .Path "/categories"}} aria-current="page"{{end}}>
+  <a href="/categories"{{if or (navActive .Path "/categories") (navActive .Path "/regles")}} aria-current="page"{{end}}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5V4h8.5l9 9-8.5 8.5zM8 8h.01"/></svg>
     <span>Catégories</span>
   </a>
@@ -112,3 +112,16 @@
   <li{{if eq . 3}} aria-current="step"{{end}}><span class="step-num">3</span> <span class="step-label">Rapprochement</span></li>
 </ol>
 {{end}}
+
+{{/* Liste des catégories d'une règle ; le paramètre porte CategoryID et
+   Categories (formulaire de règle, règle « en un clic » d'une opération). */}}
+{{define "rule-categories"}}
+<select id="rule-category" name="category" required>
+  <option value="">Choisir…</option>
+  {{- range .Categories}}
+  <optgroup label="{{.Kind.Label}}">
+    {{- range .Categories}}<option value="{{.ID}}"{{if eq .ID $.CategoryID}} selected{{end}}>{{.FullName}}</option>{{end}}
+  </optgroup>
+  {{- end}}
+</select>
+{{- end}}

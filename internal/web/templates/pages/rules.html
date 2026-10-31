@@ -1,0 +1,25 @@
+{{define "content"}}
+<div class="page-head">
+  <h1>Règles de catégorisation</h1>
+  <a class="btn btn-primary" href="/regles/nouvelle">Nouvelle règle</a>
+</div>
+<p class="muted">Les règles catégorisent les opérations importées. Elles sont essayées de la plus prioritaire à la moins prioritaire, puis du motif le plus long au plus court : la première qui s'applique l'emporte.</p>
+{{- if .Data}}
+<ul class="rows" aria-label="Règles">
+  {{- range .Data}}
+  <li class="row">
+    <a class="row-link" href="/regles/{{.ID}}">
+      <span class="row-title">Libellé {{.Match.Label}} « {{.Pattern}} »</span>
+      <span class="row-meta">{{template "dot" .CategoryColor}} {{.CategoryName}}{{if .Priority}} · priorité {{.Priority}}{{end}}</span>
+    </a>
+  </li>
+  {{- end}}
+</ul>
+<form method="post" action="/regles/appliquer" data-confirm="Appliquer toutes les règles aux opérations sans catégorie ?">
+  <button class="btn" type="submit">Appliquer les règles aux opérations sans catégorie</button>
+</form>
+{{- else}}
+<p class="card empty muted">Aucune règle pour l'instant. Le plus simple : ouvrez une opération et utilisez « Catégoriser automatiquement ».</p>
+{{- end}}
+<p><a href="/categories">Retour aux catégories</a></p>
+{{end}}

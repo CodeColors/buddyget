@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/db"
 )
@@ -30,7 +31,7 @@ func BenchmarkImport10000(b *testing.B) {
 	}
 	b.Cleanup(func() { _ = d.Close() })
 	l := ledger.NewService(d)
-	s := NewService(d, b.TempDir(), 10<<20)
+	s := NewService(d, b.TempDir(), 10<<20, categorize.NewService(d))
 	i := 0
 	for b.Loop() {
 		i++

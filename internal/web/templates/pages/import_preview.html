@@ -45,7 +45,8 @@
         <span class="tx-cat">
           {{- if eq .Status "erreur"}}<span class="badge badge-error">Illisible</span> {{.Error}}
           {{- else if eq .Status "doublon"}}<span class="badge">Déjà importée</span>
-          {{- else}}Nouvelle{{end -}}
+          {{- else if .CategoryName}}{{template "dot" .CategoryColor}}{{.CategoryName}}
+          {{- else}}Nouvelle, sans catégorie{{end -}}
         </span>
       </span>
       <span class="tx-meta">

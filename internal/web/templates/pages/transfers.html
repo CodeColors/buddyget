@@ -1,0 +1,40 @@
+{{define "content"}}
+<h1>Virements à rapprocher</h1>
+<p class="muted">Ces paires ressemblent à des virements entre vos comptes : même montant, de signe opposé, à {{.Data.WindowDays}} jours d'écart au plus. Une fois reliées, elles ne comptent plus ni en dépense ni en revenu.</p>
+{{- if .Data.Candidates}}
+<ul class="pairs" aria-label="Paires proposées">
+  {{- range .Data.Candidates}}
+  <li class="card pair">
+    <div class="pair-legs">
+      <div>
+        <span class="pair-account">{{.Debit.AccountName}}</span>
+        <span class="tx-label">{{.Debit.Label}}</span>
+        <span class="muted">{{.Debit.Date.Format}}</span>
+        <span class="amount">{{eurosSigned .Debit.Amount}}</span>
+      </div>
+      <span class="pair-arrow" aria-hidden="true">→</span>
+      <div>
+        <span class="pair-account">{{.Credit.AccountName}}</span>
+        <span class="tx-label">{{.Credit.Label}}</span>
+        <span class="muted">{{.Credit.Date.Format}}</span>
+        <span class="amount positive">{{eurosSigned .Credit.Amount}}</span>
+      </div>
+    </div>
+    <div class="actions">
+      <form method="post" action="/operations/virements/relier">
+        <input type="hidden" name="debit" value="{{.Debit.ID}}"><input type="hidden" name="credit" value="{{.Credit.ID}}">
+        <button class="btn btn-primary" type="submit">Relier en virement<span class="sr-only"> de {{.Debit.AccountName}} vers {{.Credit.AccountName}} du {{.Debit.Date.Format}}</span></button>
+      </form>
+      <form method="post" action="/operations/virements/ignorer">
+        <input type="hidden" name="debit" value="{{.Debit.ID}}"><input type="hidden" name="credit" value="{{.Credit.ID}}">
+        <button class="btn" type="submit">Ce n'est pas un virement</button>
+      </form>
+    </div>
+  </li>
+  {{- end}}
+</ul>
+{{- else}}
+<p class="card empty muted">Aucun virement à rapprocher.</p>
+{{- end}}
+<p><a href="/operations">Retour aux opérations</a></p>
+{{end}}

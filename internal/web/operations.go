@@ -8,9 +8,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/money"
+	"github.com/codecolors/buddyget/internal/platform/validation"
 )
 
 // Types d'opération proposés à la saisie.
@@ -72,6 +74,7 @@ type operationsView struct {
 	Q          url.Values // critères saisis, pour remplir le formulaire
 	Filter     string     // critères encodés, réutilisés par l'édition par lot
 	Problem    string
+	Transfers  int // virements internes à rapprocher
 	Page       ledger.Page
 	PageNumber int
 	PrevURL    string
@@ -137,6 +140,10 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v.Categories = ledger.GroupByKind(cats)
+	if v.Transfers, err = s.transferCount(r); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	s.render(w, r, http.StatusOK, "operations", "Opérations", v)
 }
 
@@ -178,6 +185,8 @@ type operationForm struct {
 	Accounts   []ledger.AccountBalance
 	Categories []ledger.KindGroup
 	Labels     []string
+	// RulePattern est le motif proposé pour la règle « en un clic ».
+	RulePattern string
 }
 
 func (f operationForm) title() string {
@@ -264,7 +273,7 @@ func (s *Server) editOperationPage(w http.ResponseWriter, r *http.Request) {
 	f := operationForm{
 		ID: t.ID, TransferID: t.TransferID, Label: t.Label, Date: string(t.Date),
 		AccountID: t.AccountID, CategoryID: t.CategoryID, Note: t.Note, Cleared: t.Cleared,
-		Amount: money.FormatInput(t.Amount), Back: backFromReferer(r),
+		Amount: money.FormatInput(t.Amount), Back: backFromReferer(r), RulePattern: categorize.SuggestPattern(t.Label),
 	}
 	switch {
 	case t.IsTransfer() && t.Amount < 0:
@@ -445,5 +454,33 @@ func (s *Server) batchOperations(w http.ResponseWriter, r *http.Request) {
 	case n > 1:
 		msg += fmt.Sprintf(" %d virements laissés tels quels.", n)
 	}
+	if r.PostFormValue("regle") != "" {
+		note, err := s.ruleFromSearch(r, query.Get("q"), ch)
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		msg += " " + note
+	}
 	s.redirect(w, r, back, msg)
+}
+
+// ruleFromSearch crée, avec une recatégorisation par lot, la règle qui
+// catégorisera de même les prochaines opérations : « le libellé contient le
+// texte recherché ». Renvoie le message à afficher.
+func (s *Server) ruleFromSearch(r *http.Request, query string, ch ledger.BatchChange) (string, error) {
+	if !ch.SetCategory || ch.CategoryID == 0 {
+		return "Règle non créée : choisissez une catégorie.", nil
+	}
+	if strings.TrimSpace(query) == "" {
+		return "Règle non créée : recherchez d'abord un texte dans les libellés.", nil
+	}
+	_, err := s.rules.CreateRule(r.Context(), categorize.RuleInput{Pattern: query, Match: categorize.MatchContains, CategoryID: ch.CategoryID})
+	if msg, ok := validation.Message(err); ok {
+		return "Règle non créée : " + msg, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return "Règle « " + strings.TrimSpace(query) + " » créée pour les prochaines opérations.", nil
 }

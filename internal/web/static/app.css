@@ -636,6 +636,24 @@ details.more[open] { display: grid; gap: .5rem; }
 
 .badge-error { color: var(--danger-text); background: var(--danger-bg); }
 
+.notice {
+  margin: 0;
+  padding: .75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 8px;
+}
+
+/* Virements à rapprocher */
+
+.pairs { display: grid; gap: .75rem; margin: 0; padding: 0; list-style: none; }
+.pair { display: grid; gap: .75rem; }
+.pair-legs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: .5rem; }
+.pair-legs > div { display: grid; gap: .125rem; min-width: 0; }
+.pair-account { font-weight: 700; }
+.pair-arrow { color: var(--muted); font-size: 1.5rem; }
+
 .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .75rem; margin: 0 0 1rem; }
 .figures div { display: grid; gap: .125rem; }
 .figures dt { color: var(--muted); font-size: .875rem; }

@@ -18,6 +18,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/codecolors/buddyget/internal/categorize"
+	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/platform/validation"
@@ -32,6 +34,8 @@ const (
 	stageBatch = 200
 	// labelMaxLen borne les libellés importés, comme ceux saisis.
 	labelMaxLen = 200
+	// stagedFields est le nombre de valeurs par ligne en attente (hors jeton).
+	stagedFields = 8
 )
 
 // ErrNotFound signale un import ou un brouillon inexistant.
@@ -47,17 +51,20 @@ const (
 // Service conduit les imports.
 type Service struct {
 	db          *db.DB
-	uploads     string // fichiers déposés en attente de validation
+	rules       *categorize.Service // catégorie suggérée pour chaque ligne
+	uploads     string              // fichiers déposés en attente de validation
 	profilesDir string
 	maxBytes    int64
 	now         func() time.Time
 }
 
 // NewService crée le service d'import ; les fichiers en attente vont dans
-// dataDir/imports, les profils personnels dans dataDir/profiles.
-func NewService(d *db.DB, dataDir string, maxUploadBytes int64) *Service {
+// dataDir/imports, les profils personnels dans dataDir/profiles. Les règles
+// de catégorisation suggèrent la catégorie de chaque ligne.
+func NewService(d *db.DB, dataDir string, maxUploadBytes int64, rules *categorize.Service) *Service {
 	return &Service{
 		db:          d,
+		rules:       rules,
 		uploads:     filepath.Join(dataDir, "imports"),
 		profilesDir: filepath.Join(dataDir, "profiles"),
 		maxBytes:    maxUploadBytes,
@@ -94,6 +101,9 @@ type StagedLine struct {
 	Status   string
 	Error    string
 	Selected bool
+	// Catégorie suggérée par les règles, enregistrée à la validation.
+	CategoryName  string
+	CategoryColor string
 }
 
 // Import est un import validé.
@@ -303,6 +313,10 @@ func (s *Service) stage(ctx context.Context, token string, accountID int64, form
 	}
 	defer s.db.ReleaseMemory(ctx)
 	spreadsheet := format != FormatCSV
+	rules, err := s.rules.Matcher(ctx, 0)
+	if err != nil {
+		return err
+	}
 	ranks := map[string]int{}
 	lines := 0
 	return s.db.Tx(ctx, func(tx *sql.Tx) error {
@@ -312,18 +326,18 @@ func (s *Service) stage(ctx context.Context, token string, accountID int64, form
 		if _, err := tx.ExecContext(ctx, `UPDATE import_drafts SET profile = ?, mapping = ? WHERE token = ?`, profile, string(mapping), token); err != nil {
 			return err
 		}
-		batch := make([]any, 0, stageBatch*7)
+		batch := make([]any, 0, stageBatch*stagedFields)
 		flush := func() error {
 			if len(batch) == 0 {
 				return nil
 			}
-			n := len(batch) / 7
-			query := `INSERT INTO import_lines (token, line, date, label, amount, hash, status, error, selected) VALUES ` + //nolint:gosec // G202 : fragments constants.
-				strings.TrimSuffix(strings.Repeat(`(?, ?, ?, ?, ?, ?, ?, ?, 1),`, n), ",")
-			args := make([]any, 0, n*8)
-			for i := 0; i < len(batch); i += 7 {
+			n := len(batch) / stagedFields
+			query := `INSERT INTO import_lines (token, line, date, label, amount, hash, status, error, category_id, selected) VALUES ` + //nolint:gosec // G202 : fragments constants.
+				strings.TrimSuffix(strings.Repeat(`(?, ?, ?, ?, ?, ?, ?, ?, nullif(?, 0), 1),`, n), ",")
+			args := make([]any, 0, n*(stagedFields+1))
+			for i := 0; i < len(batch); i += stagedFields {
 				args = append(args, token)
-				args = append(args, batch[i:i+7]...)
+				args = append(args, batch[i:i+stagedFields]...)
 			}
 			_, err := tx.ExecContext(ctx, query, args...)
 			batch = batch[:0]
@@ -338,15 +352,15 @@ func (s *Service) stage(ctx context.Context, token string, accountID int64, form
 				return nil
 			}
 			lines++
-			status, hash := StatusError, ""
+			status, hash, category := StatusError, "", int64(0)
 			if l.Err == "" {
 				l.Label = truncate(l.Label, labelMaxLen)
 				key := dedupKey(l)
 				ranks[key]++
-				status, hash = StatusNew, lineHash(accountID, key, ranks[key])
+				status, hash, category = StatusNew, lineHash(accountID, key, ranks[key]), rules.Match(l.Label)
 			}
-			batch = append(batch, n, string(l.Date), l.Label, l.Amount, hash, status, l.Err)
-			if len(batch) == stageBatch*7 {
+			batch = append(batch, n, string(l.Date), l.Label, l.Amount, hash, status, l.Err, category)
+			if len(batch) == stageBatch*stagedFields {
 				return flush()
 			}
 			return nil
@@ -376,6 +390,15 @@ func truncate(s string, n int) string {
 	return string([]rune(s)[:n])
 }
 
+// stagedLineSelect lit les lignes en attente avec leur catégorie suggérée.
+const stagedLineSelect = `
+	SELECT l.line, l.date, l.label, l.amount, l.status, l.error, l.selected,
+		coalesce(CASE WHEN p.id IS NULL THEN c.name ELSE p.name || ' › ' || c.name END, ''), coalesce(c.color, '')
+	FROM import_lines l
+	LEFT JOIN categories c ON c.id = l.category_id
+	LEFT JOIN categories p ON p.id = c.parent_id
+	WHERE `
+
 // Lines renvoie une page des lignes en attente, filtrées par statut
 // (toutes si status est vide), et le nombre total de lignes du filtre.
 func (s *Service) Lines(ctx context.Context, token, status string, page int) ([]StagedLine, int, error) {
@@ -388,8 +411,7 @@ func (s *Service) Lines(ctx context.Context, token, status string, page int) ([]
 	if err := s.db.R.QueryRowContext(ctx, `SELECT count(*) FROM import_lines WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	query := `SELECT line, date, label, amount, status, error, selected FROM import_lines WHERE ` + //nolint:gosec // G202 : fragments constants.
-		where + ` ORDER BY line LIMIT ? OFFSET ?`
+	query := stagedLineSelect + where + ` ORDER BY l.line LIMIT ? OFFSET ?` //nolint:gosec // G202 : fragments constants.
 	rows, err := s.db.R.QueryContext(ctx, query, append(args, PageSize, (max(page, 1)-1)*PageSize)...)
 	if err != nil {
 		return nil, 0, err
@@ -398,7 +420,7 @@ func (s *Service) Lines(ctx context.Context, token, status string, page int) ([]
 	var out []StagedLine
 	for rows.Next() {
 		var l StagedLine
-		if err := rows.Scan(&l.Line, &l.Date, &l.Label, &l.Amount, &l.Status, &l.Error, &l.Selected); err != nil {
+		if err := rows.Scan(&l.Line, &l.Date, &l.Label, &l.Amount, &l.Status, &l.Error, &l.Selected, &l.CategoryName, &l.CategoryColor); err != nil {
 			return nil, 0, err
 		}
 		out = append(out, l)
@@ -459,8 +481,8 @@ func (s *Service) Commit(ctx context.Context, token string) (Import, error) {
 		// ON CONFLICT : une ligne importée entre-temps (autre onglet) est
 		// comptée comme doublon au lieu d'échouer.
 		res, err = tx.ExecContext(ctx, `
-			INSERT INTO transactions (account_id, date, label, amount, import_id, import_hash)
-			SELECT ?, date, label, amount, ?, hash FROM import_lines
+			INSERT INTO transactions (account_id, date, label, amount, category_id, import_id, import_hash)
+			SELECT ?, date, label, amount, category_id, ?, hash FROM import_lines
 			WHERE token = ? AND status = 'nouvelle' AND selected = 1
 			ORDER BY date, line
 			ON CONFLICT DO NOTHING`,
@@ -575,6 +597,15 @@ func (s *Service) Undo(ctx context.Context, id int64) (int, error) {
 		if undone {
 			return validation.Error("Cet import a déjà été annulé.")
 		}
+		linked, err := transfersOf(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		// Un virement relié à une opération de l'import redevient une opération
+		// simple de l'autre côté.
+		if err := ledger.UnlinkTransfers(ctx, tx, linked); err != nil {
+			return err
+		}
 		res, err := tx.ExecContext(ctx, `DELETE FROM transactions WHERE import_id = ?`, id)
 		if err != nil {
 			return err
@@ -586,6 +617,26 @@ func (s *Service) Undo(ctx context.Context, id int64) (int, error) {
 		return err
 	})
 	return int(removed), err
+}
+
+// transfersOf renvoie les virements auxquels participent les opérations d'un
+// import.
+func transfersOf(ctx context.Context, tx *sql.Tx, importID int64) ([]int64, error) {
+	rows, err := tx.QueryContext(ctx,
+		`SELECT DISTINCT transfer_id FROM transactions WHERE import_id = ? AND transfer_id IS NOT NULL`, importID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 func (s *Service) exists(ctx context.Context, query string, args ...any) (bool, error) {

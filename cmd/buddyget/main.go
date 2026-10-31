@@ -20,6 +20,7 @@ import (
 	_ "time/tzdata" // base des fuseaux embarquée : l'image scratch n'en a pas (TZ)
 
 	"github.com/codecolors/buddyget/internal/auth"
+	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
@@ -69,8 +70,9 @@ func run() error {
 		}
 	}()
 
-	handler, err := web.New(cfg, database, auth.NewService(database), ledger.NewService(database),
-		importer.NewService(database, cfg.DataDir, cfg.MaxUploadBytes()))
+	rules := categorize.NewService(database)
+	handler, err := web.New(cfg, database, auth.NewService(database), ledger.NewService(database), rules,
+		importer.NewService(database, cfg.DataDir, cfg.MaxUploadBytes(), rules))
 	if err != nil {
 		return err
 	}

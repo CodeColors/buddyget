@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/codecolors/buddyget/internal/auth"
+	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
@@ -37,6 +38,7 @@ type Server struct {
 	db             *db.DB
 	auth           *auth.Service
 	ledger         *ledger.Service
+	rules          *categorize.Service
 	importer       *importer.Service
 	maxUpload      int64
 	pages          *renderer
@@ -46,7 +48,8 @@ type Server struct {
 }
 
 // New construit le gestionnaire HTTP complet de l'application.
-func New(cfg config.Config, database *db.DB, authService *auth.Service, ledgerService *ledger.Service, importService *importer.Service) (http.Handler, error) {
+func New(cfg config.Config, database *db.DB, authService *auth.Service, ledgerService *ledger.Service,
+	rulesService *categorize.Service, importService *importer.Service) (http.Handler, error) {
 	static, err := loadAssets()
 	if err != nil {
 		return nil, err
@@ -69,6 +72,7 @@ func New(cfg config.Config, database *db.DB, authService *auth.Service, ledgerSe
 		db:             database,
 		auth:           authService,
 		ledger:         ledgerService,
+		rules:          rulesService,
 		importer:       importService,
 		maxUpload:      cfg.MaxUploadBytes(),
 		pages:          pages,
@@ -120,6 +124,17 @@ func New(cfg config.Config, database *db.DB, authService *auth.Service, ledgerSe
 		"POST /import/{token}/selection":       s.selectLines,
 		"POST /import/{token}/valider":         s.commitImport,
 		"POST /import/{token}/abandonner":      s.cancelImport,
+		"GET /regles":                          s.rulesPage,
+		"GET /regles/nouvelle":                 s.newRulePage,
+		"POST /regles":                         s.createRule,
+		"POST /regles/appliquer":               s.applyRules,
+		"GET /regles/{id}":                     s.editRulePage,
+		"POST /regles/{id}":                    s.updateRule,
+		"POST /regles/{id}/supprimer":          s.deleteRule,
+		"GET /operations/virements":            s.transfersPage,
+		"POST /operations/virements/relier":    s.linkTransfer,
+		"POST /operations/virements/ignorer":   s.dismissTransfer,
+		"POST /operations/{id}/delier":         s.unlinkTransfer,
 	} {
 		mux.Handle(pattern, s.requireUser(h))
 	}
@@ -190,7 +205,7 @@ func (s *Server) inputError(w http.ResponseWriter, r *http.Request, err error) (
 	if msg, ok := validation.Message(err); ok {
 		return msg, true
 	}
-	if errors.Is(err, ledger.ErrNotFound) {
+	if errors.Is(err, ledger.ErrNotFound) || errors.Is(err, categorize.ErrNotFound) || errors.Is(err, importer.ErrNotFound) {
 		s.notFound(w, r)
 	} else {
 		s.serverError(w, r, err)

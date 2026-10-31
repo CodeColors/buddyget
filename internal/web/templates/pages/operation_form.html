@@ -88,6 +88,38 @@
   </form>
   {{- end}}
 </section>
+{{- if and .ID (not .TransferID)}}
+<section class="card form-card" aria-labelledby="regle">
+  <h2 id="regle">Catégoriser automatiquement</h2>
+  <p class="muted">Créez une règle pour que les opérations semblables soient catégorisées à l'import.</p>
+  <form class="form" method="post" action="/regles">
+    <input type="hidden" name="back" value="{{.Back}}">
+    <input type="hidden" name="match" value="contient">
+    <div class="field-row">
+      <div class="field">
+        <label for="rule-pattern">Si le libellé contient</label>
+        <input id="rule-pattern" name="pattern" value="{{.RulePattern}}" maxlength="100" autocomplete="off" required>
+      </div>
+      <div class="field">
+        <label for="rule-category">alors la catégorie est</label>
+        {{template "rule-categories" .}}
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" name="apply" value="1" checked> Appliquer aussi aux opérations existantes sans catégorie</label>
+    <div class="actions"><button class="btn btn-primary" type="submit">Créer la règle</button></div>
+  </form>
+</section>
+{{- end}}
+{{- if .TransferID}}
+<section class="card form-card" aria-labelledby="delier">
+  <h2 id="delier">Ce n'est pas un virement ?</h2>
+  <p class="muted">Les deux opérations redeviennent simples et retrouvent leur place parmi les dépenses et les revenus.</p>
+  <form method="post" action="/operations/{{.ID}}/delier" data-confirm="Défaire ce virement ?">
+    <input type="hidden" name="back" value="{{.Back}}">
+    <button class="btn" type="submit">Défaire le virement</button>
+  </form>
+</section>
+{{- end}}
 {{- if .ID}}
 <section class="card danger-zone" aria-labelledby="suppression">
   <h2 id="suppression">Suppression</h2>

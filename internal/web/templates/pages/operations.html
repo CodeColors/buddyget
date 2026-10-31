@@ -1,6 +1,9 @@
 {{define "content"}}
 {{- with .Data}}
 <h1>Opérations</h1>
+{{- if .Transfers}}
+<p class="notice"><a href="/operations/virements">{{plural .Transfers "virement interne possible" "virements internes possibles"}} à vérifier</a> : reliés, ils ne comptent plus ni en dépense ni en revenu.</p>
+{{- end}}
 
 <form class="filters" method="get" action="/operations" role="search"
       hx-get="/operations" hx-target="#resultats" hx-swap="outerHTML" hx-push-url="true"
@@ -100,6 +103,7 @@
         </select>
       </div>
     </div>
+    <label class="check"><input type="checkbox" name="regle" value="1"> Créer aussi une règle : les libellés contenant le texte recherché iront dans cette catégorie</label>
     <p class="hint">Les virements entre comptes ne sont jamais modifiés par lot.</p>
     <div class="actions"><button class="btn btn-primary" type="submit">Appliquer</button></div>
   </form>
