@@ -394,6 +394,29 @@ test('épargne sur mobile : compte créé depuis un modèle, vue Épargne', asyn
   }, session);
 });
 
+test('enveloppe dépassée puis alerte dans la cloche, sur mobile', async () => {
+  await withPage(360, 'light', async (page) => {
+    await page.goto(`${BASE}/plus`);
+    await page.getByRole('link', { name: /^Budgets/ }).click();
+    await page.getByRole('link', { name: 'Créer une enveloppe' }).click();
+    await page.getByLabel('Catégorie').selectOption({ label: 'Alimentation' });
+    await page.getByLabel('Plafond mensuel (€)').fill('1');
+    await page.getByRole('button', { name: 'Enregistrer' }).click();
+    await page.getByRole('status').filter({ hasText: 'Enveloppe enregistrée.' }).waitFor();
+    await page.locator('.envelope').filter({ hasText: 'Alimentation' }).getByText('Dépassé').waitFor();
+    await checkLayout(page, 'budgets', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'budgets-parcours-360-light.png'), fullPage: true });
+
+    // L'examen des alertes suit l'enregistrement, en arrière-plan.
+    await page.waitForFunction(async () => (await (await fetch('/alertes')).text()).includes('dépassée'));
+    await page.goto(`${BASE}/`);
+    await page.getByRole('link', { name: /^Alertes : \d+ à lire/ }).click();
+    await page.getByText('Enveloppe « Alimentation » dépassée', { exact: true }).waitFor();
+    await checkLayout(page, 'alertes', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'alertes-parcours-360-light.png'), fullPage: true });
+  }, session);
+});
+
 const SCREENS = [
   ['tableau-de-bord', '/'],
   ['operations', '/operations'],
@@ -406,6 +429,9 @@ const SCREENS = [
   ['virements', '/operations/virements'],
   ['previsionnel', '/previsionnel'],
   ['epargne', '/epargne'],
+  ['budgets', '/budgets'],
+  ['alertes', '/alertes'],
+  ['alertes-reglages', '/alertes/reglages'],
   ['compte-epargne', '/comptes/nouveau?modele=livret_a'],
   ['recurrences', '/recurrences'],
   ['recurrence-saisie', '/recurrences/nouvelle'],
