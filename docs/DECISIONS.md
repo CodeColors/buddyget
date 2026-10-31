@@ -368,9 +368,11 @@ supprimée ; seules les récurrences actives entreront dans le prévisionnel.
 ### Navigation à cinq onglets
 La barre d'onglets mobile compte cinq entrées (Accueil, Opérations,
 Prévisionnel, Importer, Plus) ; « Plus » mène à une page qui liste les
-écrans secondaires (récurrences, comptes, catégories, règles, virements,
-historique des imports). Le prévisionnel a pris au jalon 6 la place des
-récurrences, consultées moins souvent et accessibles depuis son écran. Au-delà de 768 px, toutes les rubriques
+écrans secondaires (épargne, récurrences, comptes, catégories, règles,
+virements, historique des imports). Le prévisionnel a pris au jalon 6 la
+place des récurrences, consultées moins souvent et accessibles depuis son
+écran. La tablette (768 à 1023 px) garde ces cinq entrées en haut de page ;
+à partir de 1024 px, toutes les rubriques s'affichent et « Plus » disparaît. Au-delà de 768 px, toutes les rubriques
 s'affichent et « Plus » disparaît ; entre 768 et 1023 px, sans leurs icônes.
 Le tout en CSS, sans script.
 
@@ -443,3 +445,82 @@ jamais déformés. Couleurs par classes CSS : les deux thèmes s'appliquent sans
 code. Aucun script, compatible avec la CSP ; la liste des échéances sert
 d'alternative textuelle. uPlot (≈ 50 Ko) n'apportait que l'interactivité au
 survol, superflue ici.
+
+## Épargne (jalon 7)
+
+### Réglages à part, un compte reste un compte
+Un compte d'épargne est un compte ordinaire (type « Épargne ») : ses
+opérations, virements, imports et rapprochements passent par le grand
+livre. Ses réglages propres vivent dans `savings_settings` (1-1) : produit,
+taux, méthode d'intérêts, plafond, blocage, pénalité. Ils sont saisis dans
+le formulaire du compte (section affichée en CSS pour le type « Épargne »),
+vérifiés avant toute écriture, et supprimés si le compte change de type.
+
+### Modèles préremplis, sans valeur officielle
+Livret A, LDDS, LEP, PEL, livret bancaire, assurance-vie, compte à terme,
+autre. Les valeurs ont été relevées le 31/10/2026 et sont affichées comme
+des valeurs par défaut à vérifier, avec cette date :
+- plafonds : Livret A 22 950 €, LDDS 12 000 €, LEP 10 000 €, PEL 61 200 € ;
+- taux en vigueur depuis le 01/08/2026 : Livret A et LDDS 1,70 %, LEP
+  2,50 % ; PEL ouvert depuis le 01/01/2026 : 2 % (fixé à l'ouverture). Ces
+  taux viennent de sources tierces concordantes, faute d'accès à la source
+  officielle depuis l'environnement de développement ;
+- livret bancaire, assurance-vie, compte à terme : taux laissé vide (propre
+  à chaque contrat).
+Méthode : quinzaine pour les livrets, composée annuelle pour le PEL et
+l'assurance-vie, simple pour le compte à terme.
+
+### Intérêts
+Taux en centièmes de point (170 = 1,70 %), un seul taux par compte : un
+changement de taux en cours d'année s'applique à toute l'année calculée.
+- **Quinzaine** (livrets réglementés) : chaque quinzaine rapporte taux/24
+  sur le solde qui a valeur à son début ; un versement compte à partir de
+  la quinzaine suivante, un retrait dès le début de la quinzaine où il a
+  lieu ; capitalisation au 31/12.
+- **Simple / composé annuel** : au jour le jour (taux / 365 ou 366, valeur
+  J+1), crédités au 31/12 ; en intérêts simples, les intérêts déjà crédités
+  ne rapportent rien.
+- Le solde initial d'un compte rapporte dès sa date (il existait au début du
+  jour).
+- **Inscription** : une opération « Intérêts AAAA » datée du 31/12, marquée
+  par `interest_year` (une par compte et par année, index unique),
+  modifiable comme toute opération si la banque a versé un autre montant ;
+  déplacée vers un autre compte, elle redevient ordinaire.
+  - automatique, au passage à la nouvelle année, pour les comptes qui le
+    demandent, à partir de l'année où leurs réglages ont été enregistrés :
+    jamais d'écritures rétroactives inattendues ;
+  - à la demande, depuis la vue Épargne, pour les années closes restantes.
+  Un compte dont on importe les relevés doit désactiver l'inscription
+  automatique : les intérêts figurent déjà dans le relevé.
+
+### Disponible et bloqué
+Deux formes de blocage, exclusives : tout le solde jusqu'à une date
+(PEL, compte à terme) ou chaque versement pendant N mois (déblocage
+glissant, comme l'épargne salariale), les retraits puisant d'abord dans les
+fonds libres. Le calcul est fait à une date donnée, d'après tous les
+mouvements. Une dépense ou un virement qui dépasse le disponible déclenche
+un avertissement avec la pénalité estimée (pourcentage du montant
+anticipé) ; l'opération n'est enregistrée qu'une fois le retrait confirmé.
+L'avertissement porte sur les nouvelles saisies ; l'import enregistre ce
+que la banque a déjà exécuté.
+
+### Versements programmés : des récurrences
+Une récurrence peut être un virement vers un autre compte du foyer
+(`to_account_id`) : c'est le versement programmé, sans mécanisme propre. Le
+prévisionnel en compte le débit et le crédit selon les comptes couverts
+(rien si les deux le sont : ils s'annulent).
+
+### Projection et intérêts estimés
+Le prévisionnel couvre au choix les comptes courants, toute l'épargne ou un
+compte. Pour un compte rémunéré, il ajoute au 31/12 de chaque année de
+l'horizon les intérêts estimés d'après les mouvements passés et prévus (les
+intérêts projetés rapportent l'année suivante), sauf si ceux de l'année sont
+déjà inscrits. La vue Épargne affiche la projection à une date choisie par
+ce même moteur et renvoie à son détail jour par jour.
+
+### Tâche quotidienne
+Prévue au jalon 8, elle est arrivée avec l'inscription des intérêts : un
+seul `time.Timer`, réarmé chaque jour à 00h05 (heure locale), exécute les
+travaux au démarrage puis quotidiennement. Un travail en échec est
+journalisé et retenté le lendemain. À l'arrêt, le serveur attend la fin du
+travail en cours avant de fermer la base.

@@ -39,7 +39,10 @@ internal/
 ├── recurring/         récurrences : règles, échéances (date théorique et effective),
 │                      détection avec score
 ├── forecast/          prévisionnel : moteur pur (Compute), service (réglages,
-│                      exclusions, dépenses variables)
+│                      exclusions, dépenses variables, intérêts estimés)
+├── savings/           épargne : modèles, réglages, intérêts (quinzaine, simple,
+│                      composé), disponible/bloqué, inscription des intérêts
+├── scheduler/         tâche quotidienne unique (un minuteur réarmé chaque jour)
 ├── importer/          import : lecteurs CSV/XLSX/XLS, profils, Mapping, déduplication,
 │   │                  brouillon, validation, historique, annulation
 │   └── profiles/      sg.yaml, bnp.yaml, generique.yaml (embarqués)
@@ -50,7 +53,7 @@ e2e/                   tests Playwright (développement et CI uniquement)
 testdata/              relevés d'exemple (synthétiques, voir testdata/README.md)
 ```
 
-Les packages métier suivants (`savings`, `budget`, `alerts`…) s'ajoutent jalon par jalon sur ce
+Les packages métier suivants (`budget`, `alerts`…) s'ajoutent jalon par jalon sur ce
 modèle : un service par domaine, appelé par les handlers.
 
 ## Chemin d'une requête
@@ -95,13 +98,15 @@ peuvent pas créer deux premiers comptes.
 | `import_drafts`, `import_lines` | imports en cours : fichier déposé, correspondance, lignes interprétées, catégorie suggérée et sélection |
 | `category_rules` | règles : motif, « contient » ou expression régulière, catégorie, priorité |
 | `transfer_dismissals` | paires écartées de la détection des virements internes |
-| `recurring_rules` | récurrences : libellé, compte, montant (fixe ou estimé), périodicité, report au jour ouvré, première et dernière échéance, catégorie, origine, active, signature de la série |
+| `recurring_rules` | récurrences : libellé, compte (et compte destinataire d'un versement programmé), montant (fixe ou estimé), périodicité, report au jour ouvré, première et dernière échéance, catégorie, origine, active, signature de la série |
 | `recurring_dismissals` | séries rejetées à la détection |
 | `forecast_exclusions` | échéances écartées du prévisionnel (récurrence, date théorique) |
 | `forecast_settings` | réglages du prévisionnel (une ligne) : seuil, solde pointé, moyenne des dépenses variables |
+| `savings_settings` | réglages d'un compte d'épargne : produit, taux, méthode d'intérêts, inscription automatique, plafond, blocage (date ou durée), pénalité |
 
 Une opération importée porte `import_id` (annulation) et `import_hash`
-(empreinte unique par compte, garde-fou contre les doublons). Le compte porte
+(empreinte unique par compte, garde-fou contre les doublons). Une écriture
+d'intérêts porte `interest_year` (une par compte et par année). Le compte porte
 le dernier solde bancaire relevé (`bank_balance`, `bank_balance_date`).
 
 L'index `(account_id, date, amount)` couvre le calcul des soldes sans lire la
@@ -125,7 +130,8 @@ table des opérations.
 | `/recurrences`, `/recurrences/nouvelle`, `/recurrences/{id}` | récurrences : liste et prochaines échéances, saisie, suspension |
 | `/recurrences/detectees` | séries détectées : valider, modifier, rejeter |
 | `/previsionnel` | prévisionnel à une date cible (`?compte=&date=`) : solde prévu, point bas, courbe, détail, échéances ; exclusion (`POST /previsionnel/exclusions`) et réglages (`POST /previsionnel/reglages`) |
-| `/plus` | écrans secondaires (mobile) |
+| `/epargne` | épargne : total, disponible et bloqué, intérêts, évolution, versements programmés, projection (`?date=`) ; inscription des intérêts d'une année close (`POST /epargne/{id}/interets`) |
+| `/plus` | écrans secondaires (mobile et tablette) |
 
 ### Chemin d'un import
 

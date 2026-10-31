@@ -41,6 +41,11 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
   calcul ligne par ligne ; échéances reportées au jour ouvré (week-ends et
   jours fériés), dépenses courantes estimées sur la moyenne des derniers mois,
   échéance écartée en un clic, solde pointé au choix
+- Épargne : comptes créés à partir de modèles (Livret A, LDDS, LEP, PEL,
+  assurance-vie…) aux taux et plafonds modifiables, intérêts calculés par
+  quinzaine ou au jour le jour et inscrits au 31 décembre, fonds bloqués
+  jusqu'à une date ou par versement, avertissement avant un retrait
+  anticipé, versements programmés, évolution et projection
 
 ## Avancement
 
@@ -52,7 +57,8 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
 | 4 | Règles de catégorisation (en un clic, rétroactives, à l'import), virements internes détectés | ✅ |
 | 5 | Récurrences : détection avec score de confiance, validation, saisie manuelle | ✅ |
 | 6 | Prévisionnel : courbe, point bas, seuil, jours non ouvrés, dépenses variables, exclusion ponctuelle | ✅ |
-| 7 – 12 | Épargne, budgets, alertes, rapports, exports, sauvegardes | à venir |
+| 7 | Épargne : modèles, intérêts, disponible et bloqué, versements programmés, vue Épargne | ✅ |
+| 8 – 12 | Budgets, alertes, rapports, exports, sauvegardes | à venir |
 
 Le détail est dans [docs/PLAN.md](docs/PLAN.md) et le cahier des charges dans
 [docs/cahier-des-charges.md](docs/cahier-des-charges.md).

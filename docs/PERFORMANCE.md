@@ -130,6 +130,15 @@ l'ordre de 18 fois sur cette machine, à confirmer sur le matériel cible
 (jalon 12). La page (courbe SVG comprise) ne pèse que quelques dizaines de
 kilo-octets avant compression.
 
+## Jalon 7 : 31/10/2026
+
+Le prévisionnel à 24 mois du jalon 6 reste à **28 ms** (2,5 Mo alloués)
+avec la recherche des intérêts estimés. Les calculs d'épargne portent sur
+les seuls mouvements des comptes d'épargne (quelques centaines au plus) :
+365 jours ou 24 quinzaines par année calculée, négligeable. La tâche
+quotidienne ne consomme rien entre deux passages (un minuteur, aucune
+interrogation périodique).
+
 ## Méthode
 
 ```bash
