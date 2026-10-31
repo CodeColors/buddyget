@@ -127,7 +127,9 @@ func TestMoreMenu(t *testing.T) {
 			t.Errorf("page Plus : %q absent", want)
 		}
 	}
-	if body := e.do("GET", "/comptes", nil).body; !strings.Contains(body, `class="nav-more" href="/plus" aria-current="page"`) {
-		t.Error("« Plus » doit être actif sur un écran secondaire")
+	for _, path := range []string{"/comptes", "/recurrences"} {
+		if body := e.do("GET", path, nil).body; !strings.Contains(body, `class="nav-more" href="/plus" aria-current="page"`) {
+			t.Errorf("« Plus » doit être actif sur l'écran secondaire %s", path)
+		}
 	}
 }

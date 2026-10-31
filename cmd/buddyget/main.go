@@ -22,6 +22,7 @@ import (
 	"github.com/codecolors/buddyget/internal/auth"
 	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
+	"github.com/codecolors/buddyget/internal/forecast"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/db"
@@ -71,13 +72,14 @@ func run() error {
 		}
 	}()
 
-	rules := categorize.NewService(database)
+	accounts, rules, recurrences := ledger.NewService(database), categorize.NewService(database), recurring.NewService(database)
 	handler, err := web.New(cfg, database, web.Services{
 		Auth:      auth.NewService(database),
-		Ledger:    ledger.NewService(database),
+		Ledger:    accounts,
 		Rules:     rules,
 		Importer:  importer.NewService(database, cfg.DataDir, cfg.MaxUploadBytes(), rules),
-		Recurring: recurring.NewService(database),
+		Recurring: recurrences,
+		Forecast:  forecast.NewService(database, accounts, recurrences),
 	})
 	if err != nil {
 		return err

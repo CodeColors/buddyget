@@ -17,6 +17,7 @@ import (
 	"github.com/codecolors/buddyget/internal/auth"
 	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
+	"github.com/codecolors/buddyget/internal/forecast"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/db"
@@ -41,6 +42,7 @@ type Services struct {
 	Rules     *categorize.Service
 	Importer  *importer.Service
 	Recurring *recurring.Service
+	Forecast  *forecast.Service
 }
 
 // Server regroupe les dépendances des handlers.
@@ -51,6 +53,7 @@ type Server struct {
 	rules          *categorize.Service
 	importer       *importer.Service
 	recurring      *recurring.Service
+	forecast       *forecast.Service
 	maxUpload      int64
 	pages          *renderer
 	assets         assets
@@ -85,6 +88,7 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		rules:          svc.Rules,
 		importer:       svc.Importer,
 		recurring:      svc.Recurring,
+		forecast:       svc.Forecast,
 		maxUpload:      cfg.MaxUploadBytes(),
 		pages:          pages,
 		assets:         static,
@@ -156,6 +160,9 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		"POST /recurrences/{id}":               s.updateRecurrence,
 		"POST /recurrences/{id}/activer":       s.toggleRecurrence,
 		"POST /recurrences/{id}/supprimer":     s.deleteRecurrence,
+		"GET /previsionnel":                    s.forecastPage,
+		"POST /previsionnel/exclusions":        s.excludeOccurrence,
+		"POST /previsionnel/reglages":          s.saveForecastSettings,
 		"GET /plus":                            s.morePage,
 	} {
 		mux.Handle(pattern, s.requireUser(h))

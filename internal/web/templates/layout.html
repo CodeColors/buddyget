@@ -63,7 +63,7 @@
 </header>
 {{- if .User}}
 <nav class="tabbar" aria-label="Navigation principale">
-  {{- $secondary := or (navActive .Path "/comptes") (navActive .Path "/categories") (navActive .Path "/regles") (navActive .Path "/plus")}}
+  {{- $secondary := or (navActive .Path "/recurrences") (navActive .Path "/comptes") (navActive .Path "/categories") (navActive .Path "/regles") (navActive .Path "/plus")}}
   <a href="/"{{if navActive .Path "/"}} aria-current="page"{{end}}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg>
     <span>Accueil</span>
@@ -72,11 +72,15 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>
     <span>Opérations</span>
   </a>
+  <a href="/previsionnel"{{if navActive .Path "/previsionnel"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16h16M7 15l4-4 3 3 6-6"/></svg>
+    <span>Prévisionnel</span>
+  </a>
   <a href="/import"{{if navActive .Path "/import"}} aria-current="page"{{end}}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
     <span>Importer</span>
   </a>
-  <a href="/recurrences"{{if navActive .Path "/recurrences"}} aria-current="page"{{end}}>
+  <a class="nav-secondary" href="/recurrences"{{if navActive .Path "/recurrences"}} aria-current="page"{{end}}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m17 3 3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3m13-2v2a3 3 0 0 1-3 3H4"/></svg>
     <span>Récurrences</span>
   </a>
