@@ -268,7 +268,7 @@ test('import d\'un relevé en trois étapes puis rapprochement', async () => {
     await page.getByLabel('Solde (€)').fill('2 000');
     await page.getByRole('button', { name: 'Comparer' }).click();
     await page.getByRole('status').filter({ hasText: 'Solde bancaire enregistré.' }).waitFor();
-    await page.getByText('Écart', { exact: true }).waitFor();
+    await page.getByText('Reste à pointer', { exact: true }).waitFor();
     await checkLayout(page, 'rapprochement', 'light');
     await page.screenshot({ path: path.join(SHOTS, 'rapprochement-360-light.png'), fullPage: true });
   }, session);
@@ -417,6 +417,39 @@ test('enveloppe dépassée puis alerte dans la cloche, sur mobile', async () => 
   }, session);
 });
 
+test('saisie rapide (étiquettes, modèle) puis pointage sur mobile', async () => {
+  await withPage(360, 'light', async (page) => {
+    await page.goto(`${BASE}/operations/nouvelle`);
+    await page.getByLabel('Montant (€)').fill('1,20');
+    await page.getByLabel('Libellé').fill('Boulangerie');
+    await page.getByLabel('Étiquettes').fill('quotidien');
+    await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Opération enregistrée.' }).waitFor();
+    const entered = page.locator('.tx').filter({ hasText: 'quotidien' });
+    await entered.getByText('Boulangerie', { exact: true }).waitFor();
+
+    await entered.locator('.tx-link').click();
+    await page.getByRole('button', { name: 'Enregistrer comme modèle' }).click();
+    await page.getByRole('status').filter({ hasText: 'Modèle enregistré' }).waitFor();
+    await page.goto(`${BASE}/operations/nouvelle`);
+    await page.getByRole('button', { name: /^Boulangerie/ }).click();
+    await page.getByRole('status').filter({ hasText: 'Opération « Boulangerie » enregistrée.' }).waitFor();
+
+    // Pointage : solde de la banque, puis un geste par opération.
+    await page.goto(`${BASE}/comptes/1/rapprochement`);
+    await page.getByLabel('Solde (€)').fill('1000');
+    await page.getByRole('button', { name: /^(Comparer|Mettre à jour)$/ }).click();
+    await page.getByRole('status').filter({ hasText: 'Solde bancaire enregistré.' }).waitFor();
+    const before = await page.locator('#ecart dd').nth(1).textContent();
+    const first = page.getByRole('button', { name: /^Pointer « / }).first();
+    await first.click();
+    await page.getByRole('button', { name: /^Dépointer « / }).first().waitFor();
+    await page.waitForFunction((old) => document.querySelectorAll('#ecart dd')[1].textContent !== old, before, { timeout: 5000 });
+    await checkLayout(page, 'pointage', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'pointage-parcours-360-light.png'), fullPage: true });
+  }, session);
+});
+
 const SCREENS = [
   ['tableau-de-bord', '/'],
   ['operations', '/operations'],
@@ -432,6 +465,11 @@ const SCREENS = [
   ['budgets', '/budgets'],
   ['alertes', '/alertes'],
   ['alertes-reglages', '/alertes/reglages'],
+  ['abonnements', '/abonnements'],
+  ['rapports', '/rapports'],
+  ['rapport-annuel', '/rapports?annee=2026'],
+  ['etiquettes', '/etiquettes'],
+  ['pointage', '/comptes/1/rapprochement'],
   ['compte-epargne', '/comptes/nouveau?modele=livret_a'],
   ['recurrences', '/recurrences'],
   ['recurrence-saisie', '/recurrences/nouvelle'],
