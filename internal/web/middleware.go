@@ -90,6 +90,19 @@ func (s *Server) requireUser(next http.HandlerFunc) http.Handler {
 	})
 }
 
+// afterChange demande un examen des alertes après chaque modification
+// réussie (redirection 303) : saisie, import, budget, récurrence… L'examen a
+// lieu en arrière-plan, les demandes rapprochées n'en font qu'une.
+func (s *Server) afterChange(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rec, r)
+		if rec.status == http.StatusSeeOther {
+			s.alerts.Trigger()
+		}
+	})
+}
+
 // clientIP renvoie l'adresse du client. X-Forwarded-For n'est lu que si la
 // connexion vient d'un proxy de confiance ; on remonte alors la chaîne
 // depuis la droite jusqu'à la première adresse non fiable.

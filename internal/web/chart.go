@@ -161,3 +161,50 @@ func floorTo(v, step int64) int64 {
 func pct(y float64) float64 { return plotTop + plotHeight*y/plotSize }
 
 func coord(v float64) string { return strconv.FormatFloat(v, 'f', 1, 64) }
+
+// barChart compare des montants mensuels à une référence (le total des
+// enveloppes) : une barre par mois, une ligne pour la référence.
+type barChart struct {
+	ID          string
+	Desc        string
+	Top, Height float64
+	Bars        []chartBar
+	Reference   float64 // ordonnée de la ligne de référence, repère 1000
+	YTicks      []chartTick
+	XTicks      []chartTick
+}
+
+// chartBar est une barre, repère 1000 ; Over marque un dépassement.
+type chartBar struct {
+	X, Y, W, H float64
+	Over       bool
+}
+
+// newBarChart trace les dépenses mensuelles face au total des enveloppes.
+func newBarChart(id string, months []forecast.Point, reference int64) barChart {
+	hi := reference
+	for _, m := range months {
+		hi = max(hi, m.Balance)
+	}
+	unit := niceStep(hi)
+	top := max(-floorTo(-hi, unit), unit)
+	y := func(v int64) float64 { return plotSize * float64(top-max(v, 0)) / float64(top) }
+	c := barChart{ID: id, Top: plotTop, Height: plotHeight, Reference: y(reference)}
+	slot := plotSize / float64(len(months))
+	for i, m := range months {
+		x := slot*float64(i) + slot*0.15
+		c.Bars = append(c.Bars, chartBar{X: x, W: slot * 0.7, Y: y(m.Balance), H: plotSize - y(m.Balance), Over: m.Balance > reference})
+		if (len(months)-1-i)%2 == 0 || len(months) <= 6 { // au-delà de six mois, une étiquette sur deux, dont le mois en cours
+			label := m.Date.MonthShort()
+			if m.Date.Time().Month() == 1 {
+				label += " " + strconv.Itoa(m.Date.Time().Year())
+			}
+			pos := slot*float64(i) + slot/2
+			c.XTicks = append(c.XTicks, chartTick{Pos: pos, Pct: pos / 10, Label: label})
+		}
+	}
+	for v := top; v >= 0; v -= unit {
+		c.YTicks = append(c.YTicks, chartTick{Pos: y(v), Pct: pct(y(v)), Label: money.FormatEuros(v)})
+	}
+	return c
+}

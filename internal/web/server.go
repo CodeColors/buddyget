@@ -14,12 +14,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/codecolors/buddyget/internal/alerts"
 	"github.com/codecolors/buddyget/internal/auth"
+	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
 	"github.com/codecolors/buddyget/internal/forecast"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
+	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/platform/money"
 	"github.com/codecolors/buddyget/internal/platform/validation"
@@ -44,7 +47,9 @@ type Services struct {
 	Importer  *importer.Service
 	Recurring *recurring.Service
 	Savings   *savings.Service
+	Budgets   *budget.Service
 	Forecast  *forecast.Service
+	Alerts    *alerts.Service
 }
 
 // Server regroupe les dépendances des handlers.
@@ -56,7 +61,9 @@ type Server struct {
 	importer       *importer.Service
 	recurring      *recurring.Service
 	savings        *savings.Service
+	budgets        *budget.Service
 	forecast       *forecast.Service
+	alerts         *alerts.Service
 	maxUpload      int64
 	pages          *renderer
 	assets         assets
@@ -76,6 +83,9 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		"eurosSigned":  money.FormatSigned,
 		"amountInput":  money.FormatInput,
 		"neg":          func(v int64) int64 { return -v },
+		"add":          func(a, b int64) int64 { return a + b },
+		"sub":          func(a, b int64) int64 { return a - b },
+		"yearMonth":    func(d calendar.Date) string { return string(d)[:7] },
 		"percent":      func(hundredths int) string { return money.FormatInput(int64(hundredths)) + "\u00a0%" },
 		"navActive":    navActive,
 		"plural":       plural,
@@ -94,7 +104,9 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		importer:       svc.Importer,
 		recurring:      svc.Recurring,
 		savings:        svc.Savings,
+		budgets:        svc.Budgets,
 		forecast:       svc.Forecast,
+		alerts:         svc.Alerts,
 		maxUpload:      cfg.MaxUploadBytes(),
 		pages:          pages,
 		assets:         static,
@@ -171,9 +183,24 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		"POST /previsionnel/reglages":          s.saveForecastSettings,
 		"GET /epargne":                         s.savingsPage,
 		"POST /epargne/{id}/interets":          s.recordInterest,
+		"GET /budgets":                         s.budgetsPage,
+		"GET /budgets/nouveau":                 s.newBudgetPage,
+		"GET /budgets/{id}":                    s.editBudgetPage,
+		"POST /budgets":                        s.saveBudget,
+		"POST /budgets/{id}/supprimer":         s.deleteBudget,
+		"GET /alertes":                         s.alertsPage,
+		"POST /alertes/acquitter":              s.acknowledgeAlert,
+		"GET /alertes/reglages":                s.alertSettingsPage,
+		"POST /alertes/reglages":               s.saveAlertSettings,
+		"POST /alertes/canaux":                 s.saveChannels,
+		"POST /alertes/essai":                  s.testChannels,
 		"GET /plus":                            s.morePage,
 	} {
-		mux.Handle(pattern, s.requireUser(h))
+		var handler http.Handler = h
+		if strings.HasPrefix(pattern, "POST ") {
+			handler = s.afterChange(handler)
+		}
+		mux.Handle(pattern, s.requireUser(handler.ServeHTTP))
 	}
 	mux.HandleFunc("/", s.notFound)
 
@@ -193,12 +220,17 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 }
 
 // render affiche une page dans la mise en page commune, avec le message
-// de confirmation éventuellement laissé par l'action précédente.
+// de confirmation éventuellement laissé par l'action précédente et le
+// nombre d'alertes à lire (cloche de l'en-tête).
 func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, page, title string, data any) {
 	v := view{Title: title, Path: r.URL.Path, Theme: auth.ThemeAuto, User: currentUser(r.Context()), Data: data}
 	if v.User != nil {
 		v.Theme = v.User.Theme
 		v.Flash = s.popFlash(w, r)
+		var err error
+		if v.Alerts, err = s.alerts.OpenCount(r.Context()); err != nil {
+			slog.WarnContext(r.Context(), "décompte des alertes", "err", err)
+		}
 	}
 	s.execute(w, r, status, page, "layout", v)
 }

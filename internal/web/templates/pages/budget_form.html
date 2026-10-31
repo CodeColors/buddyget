@@ -1,0 +1,41 @@
+{{define "content"}}
+{{- with .Data}}
+<section class="card form-card" aria-labelledby="titre">
+  <h1 id="titre">{{$.Title}}</h1>
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form" method="post" action="/budgets">
+    {{- if .Existing}}
+    <input type="hidden" name="existing" value="1">
+    <input type="hidden" name="category" value="{{.CategoryID}}">
+    {{- range .Categories}}{{if eq .ID $.Data.CategoryID}}<p><strong>{{template "dot" .Color}} {{.FullName}}</strong></p>{{end}}{{end}}
+    {{- else}}
+    <div class="field">
+      <label for="category">Catégorie</label>
+      <select id="category" name="category" required aria-describedby="category-aide">
+        <option value="">Choisir…</option>
+        {{- range .Categories}}<option value="{{.ID}}"{{if eq .ID $.Data.CategoryID}} selected{{end}}>{{.FullName}}</option>{{end}}
+      </select>
+      <p id="category-aide" class="hint">Une catégorie parente couvre ses sous-catégories, sauf celles qui ont leur propre enveloppe.</p>
+    </div>
+    {{- end}}
+    <div class="field">
+      <label for="amount">Plafond mensuel (€)</label>
+      <input id="amount" name="amount" value="{{.Amount}}" inputmode="decimal" autocomplete="off" placeholder="0,00" required>
+    </div>
+    <label class="check"><input type="checkbox" name="carry_over" value="1"{{if .CarryOver}} checked{{end}}> Reporter le reste (ou le dépassement) sur le mois suivant</label>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Enregistrer</button>
+      <a class="btn" href="/budgets">Annuler</a>
+    </div>
+  </form>
+</section>
+{{- if .Existing}}
+<section class="card danger-zone" aria-labelledby="suppression">
+  <h2 id="suppression">Suppression</h2>
+  <form method="post" action="/budgets/{{.CategoryID}}/supprimer" data-confirm="Supprimer cette enveloppe ?">
+    <button class="btn btn-danger" type="submit">Supprimer l'enveloppe</button>
+  </form>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

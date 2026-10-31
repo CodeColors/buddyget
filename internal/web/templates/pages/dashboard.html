@@ -19,6 +19,48 @@
     {{- end}}
   </ul>
 </section>
+{{- if .HasOutlook}}
+{{- with .Outlook}}
+<section class="card outlook" aria-labelledby="reste">
+  <div class="section-head">
+    <h2 id="reste">Reste à vivre en {{.Month.MonthLabel}}</h2>
+    <a href="/previsionnel">Prévisionnel</a>
+  </div>
+  <p class="forecast-closing amount{{if lt .Left 0}} negative{{end}}">{{euros .Left}}</p>
+  <dl class="breakdown">
+    <div><dt>Entrées reçues et attendues</dt><dd class="amount">{{eurosSigned (add .Received .Expected)}}</dd></div>
+    <div><dt>Charges et dépenses prévues à venir</dt><dd class="amount">{{eurosSigned .Upcoming}}</dd></div>
+    <div><dt>Versements vers l'épargne et vos autres comptes</dt><dd class="amount">{{eurosSigned .Savings}}</dd></div>
+    <div><dt>Dépenses déjà faites</dt><dd class="amount">{{eurosSigned .Spent}}</dd></div>
+  </dl>
+  <p class="hint">Ce qui reste ce mois-ci pour les dépenses courantes, d'après vos comptes courants, récurrences et opérations prévues.</p>
+</section>
+{{- end}}
+{{- end}}
+{{- if .Envelopes}}
+<section aria-labelledby="enveloppes">
+  <div class="section-head">
+    <h2 id="enveloppes">Enveloppes du mois</h2>
+    <a href="/budgets">Tous les budgets</a>
+  </div>
+  <ul class="rows envelopes">
+    {{- range .Envelopes}}<li class="row">{{template "envelope" .}}</li>{{end}}
+  </ul>
+</section>
+{{- end}}
+{{- if .Alerts}}
+<section aria-labelledby="dernieres-alertes">
+  <div class="section-head">
+    <h2 id="dernieres-alertes">Alertes</h2>
+    <a href="/alertes">Toutes les alertes</a>
+  </div>
+  <ul class="rows">
+    {{- range .Alerts}}
+    <li class="row"><a class="row-link" href="{{or .Link "/alertes"}}"><span class="row-title">{{.Title}}</span>{{with .Detail}}<span class="row-meta">{{.}}</span>{{end}}</a></li>
+    {{- end}}
+  </ul>
+</section>
+{{- end}}
 {{- else}}
 <section class="card empty">
   <h2>Premiers pas</h2>

@@ -27,12 +27,13 @@ var (
 
 // view est la donnée commune passée au gabarit de mise en page.
 type view struct {
-	Title string
-	Path  string // chemin courant : lien actif, retour après changement de thème
-	Theme auth.Theme
-	User  *auth.User
-	Flash string // confirmation de l'action précédente
-	Data  any    // donnée propre à la page
+	Title  string
+	Path   string // chemin courant : lien actif, retour après changement de thème
+	Theme  auth.Theme
+	User   *auth.User
+	Flash  string // confirmation de l'action précédente
+	Alerts int    // alertes non acquittées
+	Data   any    // donnée propre à la page
 }
 
 // renderer associe chaque page (templates/pages/<nom>.html) à un jeu de

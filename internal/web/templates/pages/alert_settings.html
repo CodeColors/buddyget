@@ -1,0 +1,94 @@
+{{define "content"}}
+{{- with .Data}}
+<h1>Réglages des alertes</h1>
+{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+<section class="card form-card" aria-labelledby="types">
+  <h2 id="types">Alertes examinées</h2>
+  <form class="form" method="post" action="/alertes/reglages">
+    {{- range .Settings}}
+    <fieldset class="field alert-kind">
+      <legend class="sr-only">{{.Kind.Label}}</legend>
+      <label class="check"><input type="checkbox" name="enabled_{{.Kind}}" value="1"{{if .Enabled}} checked{{end}}> {{.Kind.Label}}</label>
+      <div class="field">
+        <label for="param_{{.Kind}}">{{.Kind.ParamLabel}}</label>
+        <input id="param_{{.Kind}}" name="param_{{.Kind}}" type="number" value="{{.Param}}" inputmode="numeric" required>
+      </div>
+    </fieldset>
+    {{- end}}
+    <p class="hint">Le seuil du solde prévisionnel se règle dans le prévisionnel.</p>
+    <div class="actions"><button class="btn btn-primary" type="submit">Enregistrer</button></div>
+  </form>
+</section>
+
+<section class="card form-card" aria-labelledby="canaux">
+  <h2 id="canaux">Notifications sortantes</h2>
+  <p class="muted">Facultatives et désactivées par défaut : ce sont les seules connexions que BuddyGet établit vers l'extérieur, et seulement si vous les activez.</p>
+  {{- with .Channels}}
+  <form class="form channels-form" method="post" action="/alertes/canaux">
+    <fieldset class="field">
+      <legend>E-mail</legend>
+      <label class="check"><input type="checkbox" name="email_enabled" value="1"{{if .EmailEnabled}} checked{{end}}> Envoyer les alertes par e-mail</label>
+      <div class="field-row if-email">
+        <div class="field">
+          <label for="smtp_host">Serveur SMTP</label>
+          <input id="smtp_host" name="smtp_host" value="{{.SMTPHost}}" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="smtp_port">Port</label>
+          <input id="smtp_port" name="smtp_port" type="number" min="1" max="65535" value="{{.SMTPPort}}" inputmode="numeric">
+        </div>
+      </div>
+      <div class="field if-email">
+        <label for="smtp_security">Sécurité</label>
+        <select id="smtp_security" name="smtp_security">
+          <option value="starttls"{{if eq .SMTPSecurity "starttls"}} selected{{end}}>STARTTLS (port 587)</option>
+          <option value="tls"{{if eq .SMTPSecurity "tls"}} selected{{end}}>TLS dès la connexion (port 465)</option>
+        </select>
+      </div>
+      <div class="field-row if-email">
+        <div class="field">
+          <label for="smtp_user">Identifiant <span class="optional">(facultatif)</span></label>
+          <input id="smtp_user" name="smtp_user" value="{{.SMTPUser}}" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="smtp_password">Mot de passe</label>
+          <input id="smtp_password" name="smtp_password" type="password" autocomplete="new-password" aria-describedby="smtp-password-aide">
+          <p id="smtp-password-aide" class="hint">Laissez vide pour conserver le mot de passe enregistré.</p>
+        </div>
+      </div>
+      <div class="field-row if-email">
+        <div class="field">
+          <label for="email_from">Expéditeur</label>
+          <input id="email_from" name="email_from" type="email" value="{{.EmailFrom}}" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="email_to">Destinataires</label>
+          <input id="email_to" name="email_to" value="{{.EmailTo}}" autocomplete="off" aria-describedby="email-to-aide">
+          <p id="email-to-aide" class="hint">Séparés par des virgules.</p>
+        </div>
+      </div>
+    </fieldset>
+    <fieldset class="field">
+      <legend>Webhook ou ntfy</legend>
+      <label class="check"><input type="checkbox" name="webhook_enabled" value="1"{{if .WebhookEnabled}} checked{{end}}> Publier les alertes sur une adresse web</label>
+      <div class="field if-webhook">
+        <label for="webhook_url">Adresse</label>
+        <input id="webhook_url" name="webhook_url" type="url" value="{{.WebhookURL}}" placeholder="https://ntfy.sh/mon-sujet" autocomplete="off" spellcheck="false">
+      </div>
+    </fieldset>
+    <div class="field">
+      <label for="frequency">Rythme</label>
+      <select id="frequency" name="frequency">
+        {{- range $.Data.Frequencies}}<option value="{{.}}"{{if eq . $.Data.Channels.Frequency}} selected{{end}}>{{.Label}}</option>{{end}}
+      </select>
+    </div>
+    <label class="check"><input type="checkbox" name="discreet" value="1"{{if .Discreet}} checked{{end}}> Notifications discrètes : ni libellé ni montant, seulement le type des alertes</label>
+    <div class="actions"><button class="btn btn-primary" type="submit">Enregistrer les canaux</button></div>
+  </form>
+  {{- end}}
+  <form method="post" action="/alertes/essai">
+    <button class="btn" type="submit">Envoyer une notification d'essai</button>
+  </form>
+</section>
+{{- end}}
+{{end}}

@@ -2,9 +2,12 @@ package web
 
 import (
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/codecolors/buddyget/internal/alerts"
+	"github.com/codecolors/buddyget/internal/forecast"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/money"
@@ -34,12 +37,40 @@ func (s *Server) loadAccounts(r *http.Request) (accountsView, error) {
 	return v, err
 }
 
+// dashboardShown borne les enveloppes et alertes du tableau de bord.
+const dashboardShown = 3
+
+// dashboardView est la synthèse du tableau de bord.
+type dashboardView struct {
+	accountsView
+	Outlook    forecast.Outlook
+	HasOutlook bool
+	Envelopes  []envelope // les plus consommées
+	Alerts     []alerts.Alert
+}
+
 func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
-	v, err := s.loadAccounts(r)
-	if err != nil {
+	var v dashboardView
+	var err error
+	if v.accountsView, err = s.loadAccounts(r); err != nil {
 		s.serverError(w, r, err)
 		return
 	}
+	if v.Outlook, v.HasOutlook, err = s.forecast.Outlook(r.Context(), v.Today); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	if v.Envelopes, err = s.envelopes(r, v.Today); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	slices.SortStableFunc(v.Envelopes, func(a, b envelope) int { return b.Percent() - a.Percent() })
+	v.Envelopes = v.Envelopes[:min(len(v.Envelopes), dashboardShown)]
+	if v.Alerts, err = s.alerts.Open(r.Context()); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	v.Alerts = v.Alerts[:min(len(v.Alerts), dashboardShown)]
 	s.render(w, r, http.StatusOK, "dashboard", "Tableau de bord", v)
 }
 

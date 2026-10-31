@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/codecolors/buddyget/internal/alerts"
 	"github.com/codecolors/buddyget/internal/auth"
 	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/categorize"
@@ -31,6 +32,7 @@ type testEnv struct {
 	srv    *httptest.Server
 	client *http.Client
 	auth   *auth.Service
+	alerts *alerts.Service // examen déclenché à la main : pas de tâche de fond
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -44,10 +46,13 @@ func newTestEnv(t *testing.T) *testEnv {
 	dataDir := t.TempDir()
 	accounts, rules, recurrences := ledger.NewService(d), categorize.NewService(d), recurring.NewService(d)
 	savingsAccounts, budgets := savings.NewService(d, accounts), budget.NewService(d, accounts)
+	forecasts := forecast.NewService(d, accounts, recurrences, savingsAccounts, budgets)
+	alertCenter := alerts.NewService(d, accounts, recurrences, savingsAccounts, budgets, forecasts, "")
 	h, err := New(config.Config{MaxUploadMB: 1}, d, Services{
 		Auth: svc, Ledger: accounts, Rules: rules,
 		Importer: importer.NewService(d, dataDir, 1<<20, rules), Recurring: recurrences,
-		Savings: savingsAccounts, Forecast: forecast.NewService(d, accounts, recurrences, savingsAccounts, budgets),
+		Savings: savingsAccounts, Budgets: budgets, Forecast: forecasts,
+		Alerts: alertCenter,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +66,7 @@ func newTestEnv(t *testing.T) *testEnv {
 			return http.ErrUseLastResponse
 		},
 	}
-	return &testEnv{t: t, srv: srv, client: client, auth: svc}
+	return &testEnv{t: t, srv: srv, client: client, auth: svc, alerts: alertCenter}
 }
 
 // result est une réponse déjà lue et fermée.

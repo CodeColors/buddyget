@@ -1,0 +1,46 @@
+{{define "content"}}
+{{- with .Data}}
+<div class="page-head">
+  <h1>Budgets</h1>
+  <a class="btn btn-primary" href="/budgets/nouveau">Nouvelle enveloppe</a>
+</div>
+<nav class="month-nav" aria-label="Mois affiché">
+  <a class="btn" href="/budgets?mois={{yearMonth .Prev}}"><span aria-hidden="true">‹</span><span class="sr-only">Mois précédent</span></a>
+  <h2>{{.Month.MonthLabel}}</h2>
+  <a class="btn" href="/budgets?mois={{yearMonth .Next}}"><span aria-hidden="true">›</span><span class="sr-only">Mois suivant</span></a>
+</nav>
+{{- if .Envelopes}}
+<p class="total">Dépensé <strong>{{euros .Spent}}</strong> sur {{euros .Available}}{{if .Current}}{{$left := sub .Available .Spent}} · {{if lt $left 0}}dépassement de {{euros (neg $left)}}{{else}}il reste {{euros $left}}{{end}}{{end}}</p>
+<ul class="rows envelopes" aria-label="Enveloppes">
+  {{- range .Envelopes}}
+  <li class="row">{{template "envelope" .}}</li>
+  {{- end}}
+</ul>
+{{- with .Trend}}
+<figure class="card chart">
+  <figcaption id="tendance-titre">Budget et dépenses sur 12 mois</figcaption>
+  {{template "bar-chart" .}}
+  <details class="more">
+    <summary>Voir le tableau</summary>
+    <div class="table-scroll">
+      <table class="raw">
+        <thead><tr><th scope="col">Mois</th><th scope="col">Dépensé</th><th scope="col">Enveloppes</th></tr></thead>
+        <tbody>
+          {{- range $.Data.TrendRows}}
+          <tr><th scope="row">{{.Date.MonthLabel}}</th><td class="amount">{{euros .Balance}}</td><td class="amount">{{euros $.Data.MonthlyBudgeted}}</td></tr>
+          {{- end}}
+        </tbody>
+      </table>
+    </div>
+  </details>
+</figure>
+{{- end}}
+{{- else}}
+<section class="card empty">
+  <h2>Aucune enveloppe</h2>
+  <p class="muted">Fixez un plafond mensuel par catégorie de dépenses (ou pour un groupe : la catégorie parente couvre ses sous-catégories). Les enveloppes remplacent la moyenne des dépenses dans le prévisionnel.</p>
+  <a class="btn btn-primary" href="/budgets/nouveau">Créer une enveloppe</a>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

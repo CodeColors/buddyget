@@ -72,21 +72,23 @@
     <div><dt>Dépenses variables estimées</dt><dd class="amount">{{eurosSigned .Totals.Variable}}</dd></div>
     <div class="breakdown-total"><dt>Solde prévu le {{.Target.Format}}</dt><dd>{{euros .Closing}}</dd></div>
   </dl>
-  {{- if .AverageMonths}}
+  {{- if .Categories}}
   <details class="more">
     <summary>Dépenses variables : {{euros .VariableMonthly}} par mois</summary>
-    <p class="muted">Moyenne {{if eq .AverageMonths 1}}du dernier mois complet{{else}}des {{.AverageMonths}} derniers mois complets{{end}}, hors récurrences et virements entre vos comptes, répartie jour par jour.</p>
+    <p class="muted">
+      {{- if .AverageMonths}}Moyenne {{if eq .AverageMonths 1}}du dernier mois complet{{else}}des {{.AverageMonths}} derniers mois complets{{end}}, hors récurrences et virements entre vos comptes{{if .Budgeted}} ; plafond de l'enveloppe pour les catégories budgétées{{end}}
+      {{- else}}Plafonds de vos enveloppes{{end}}, répartis jour par jour.</p>
     <ul class="rows rows-split" aria-label="Dépenses variables par catégorie">
       {{- range .Categories}}
       <li class="row">
-        <span class="row-title">{{with .Color}}{{template "dot" .}} {{end}}{{or .Name "Sans catégorie"}}</span>
+        <span class="row-title">{{with .Color}}{{template "dot" .}} {{end}}{{or .Name "Sans catégorie"}}{{if .Budget}} <span class="badge">Enveloppe</span>{{end}}</span>
         <span class="amount">{{euros .Monthly}}</span>
       </li>
       {{- end}}
     </ul>
   </details>
   {{- else if .Settings.AverageMonths}}
-  <p class="muted">Dépenses variables non estimées : il faut au moins un mois complet d'historique.</p>
+  <p class="muted">Dépenses variables non estimées : il faut au moins un mois complet d'historique, ou des enveloppes.</p>
   {{- else}}
   <p class="muted">Dépenses variables non estimées (voir les réglages).</p>
   {{- end}}

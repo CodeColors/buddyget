@@ -15,10 +15,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 	_ "time/tzdata" // base des fuseaux embarquée : l'image scratch n'en a pas (TZ)
 
+	"github.com/codecolors/buddyget/internal/alerts"
 	"github.com/codecolors/buddyget/internal/auth"
 	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/categorize"
@@ -78,6 +80,12 @@ func run() error {
 
 	accounts, rules, recurrences := ledger.NewService(database), categorize.NewService(database), recurring.NewService(database)
 	savingsAccounts, budgets := savings.NewService(database, accounts), budget.NewService(database, accounts)
+	forecasts := forecast.NewService(database, accounts, recurrences, savingsAccounts, budgets)
+	baseURL := ""
+	if cfg.BaseURL != nil {
+		baseURL = cfg.BaseURL.String()
+	}
+	alertCenter := alerts.NewService(database, accounts, recurrences, savingsAccounts, budgets, forecasts, baseURL)
 	handler, err := web.New(cfg, database, web.Services{
 		Auth:      auth.NewService(database),
 		Ledger:    accounts,
@@ -85,7 +93,9 @@ func run() error {
 		Importer:  importer.NewService(database, cfg.DataDir, cfg.MaxUploadBytes(), rules),
 		Recurring: recurrences,
 		Savings:   savingsAccounts,
-		Forecast:  forecast.NewService(database, accounts, recurrences, savingsAccounts, budgets),
+		Budgets:   budgets,
+		Forecast:  forecasts,
+		Alerts:    alertCenter,
 	})
 	if err != nil {
 		return err
@@ -105,21 +115,26 @@ func run() error {
 	}
 	slog.Info("BuddyGet démarré", "version", version, "adresse", cfg.Addr(), "démarrage", time.Since(start).Round(time.Millisecond))
 
-	// Travaux quotidiens ; arrêtés, et attendus, avant la fermeture de la base.
-	jobsDone := make(chan struct{})
-	go func() {
-		defer close(jobsDone)
-		scheduler.Run(ctx, scheduler.Job{Name: "intérêts des années closes", Run: func(ctx context.Context, today calendar.Date) error {
-			n, err := savingsAccounts.CloseYears(ctx, today)
-			if n > 0 {
-				slog.Info("intérêts inscrits", "écritures", n)
-			}
-			return err
-		}})
-	}()
+	// Travaux de fond : examen des alertes à la demande, travaux quotidiens
+	// (intérêts, puis alertes). Arrêtés, et attendus, avant la fermeture de
+	// la base.
+	var background sync.WaitGroup
+	background.Go(func() { alertCenter.Run(ctx) })
+	background.Go(func() {
+		scheduler.Run(ctx,
+			scheduler.Job{Name: "intérêts des années closes", Run: func(ctx context.Context, today calendar.Date) error {
+				n, err := savingsAccounts.CloseYears(ctx, today)
+				if n > 0 {
+					slog.Info("intérêts inscrits", "écritures", n)
+				}
+				return err
+			}},
+			scheduler.Job{Name: "alertes", Run: alertCenter.Daily},
+		)
+	})
 	defer func() {
 		stop()
-		<-jobsDone
+		background.Wait()
 	}()
 
 	errc := make(chan error, 1)

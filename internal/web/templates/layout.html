@@ -34,6 +34,11 @@
   </a>
   {{- with .User}}
   <div class="topbar-actions">
+    <a class="icon-btn bell" href="/alertes"{{if navActive $.Path "/alertes"}} aria-current="page"{{end}} title="Alertes">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zm4 4a2 2 0 0 0 4 0"/></svg>
+      {{- if $.Alerts}}<span class="bell-count" aria-hidden="true">{{$.Alerts}}</span>{{end}}
+      <span class="sr-only">Alertes{{if $.Alerts}} : {{$.Alerts}} à lire{{end}}</span>
+    </a>
     <form class="theme-switch" method="post" action="/preferences/theme">
       <fieldset>
         <legend class="sr-only">Thème d'affichage</legend>
@@ -63,7 +68,7 @@
 </header>
 {{- if .User}}
 <nav class="tabbar" aria-label="Navigation principale">
-  {{- $secondary := or (navActive .Path "/epargne") (navActive .Path "/recurrences") (navActive .Path "/comptes") (navActive .Path "/categories") (navActive .Path "/regles") (navActive .Path "/plus")}}
+  {{- $secondary := or (navActive .Path "/budgets") (navActive .Path "/alertes") (navActive .Path "/epargne") (navActive .Path "/recurrences") (navActive .Path "/comptes") (navActive .Path "/categories") (navActive .Path "/regles") (navActive .Path "/plus")}}
   <a href="/"{{if navActive .Path "/"}} aria-current="page"{{end}}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg>
     <span>Accueil</span>
@@ -79,6 +84,10 @@
   <a href="/import"{{if navActive .Path "/import"}} aria-current="page"{{end}}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
     <span>Importer</span>
+  </a>
+  <a class="nav-secondary" href="/budgets"{{if navActive .Path "/budgets"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 10h16M8 14h3"/></svg>
+    <span>Budgets</span>
   </a>
   <a class="nav-secondary" href="/epargne"{{if navActive .Path "/epargne"}} aria-current="page"{{end}}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11a7 6 0 0 1 13-2h2v4l-2 1v3h-3v-2H9v2H6v-3a6 6 0 0 1-1-3zM15 10h.01"/></svg>
@@ -169,6 +178,41 @@
   {{- end}}
   {{- if .HasLow}}
   <circle class="chart-low" cx="{{printf "%.1f" .LowX}}%" cy="{{printf "%.1f" .LowY}}%" r="5"/>
+  {{- end}}
+</svg>
+{{- end}}
+
+{{/* Enveloppe de budget : état en toutes lettres, jauge, consommé et
+   restant. */}}
+{{define "envelope"}}
+<div class="envelope">
+  <div class="envelope-head">
+    <a class="row-title" href="/budgets/{{.CategoryID}}">{{template "dot" .CategoryColor}}{{.CategoryName}}</a>
+    <span class="badge badge-{{.State.Class}}">{{.State.Label}}</span>
+  </div>
+  <svg class="gauge gauge-{{.State.Class}}" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect class="gauge-track" width="100" height="4"/><rect class="gauge-fill" width="{{.Fill}}" height="4"/></svg>
+  <p class="row-meta">{{euros .Spent}} sur {{euros .Available}}{{if .Carry}} (report {{eurosSigned .Carry}}){{end}} · {{if lt .Remaining 0}}dépassement de {{euros (neg .Remaining)}}{{else}}reste {{euros .Remaining}}{{end}}</p>
+</div>
+{{- end}}
+
+{{/* Diagramme en barres (barChart) ; la figure porte le titre <ID>-titre. */}}
+{{define "bar-chart"}}
+<svg class="chart-svg" role="img" aria-labelledby="{{.ID}}-titre {{.ID}}-desc">
+  <desc id="{{.ID}}-desc">{{.Desc}}</desc>
+  <svg y="{{.Top}}%" width="100%" height="{{.Height}}%" viewBox="0 0 1000 1000" preserveAspectRatio="none">
+    {{- range .YTicks}}
+    <line class="chart-grid" x1="0" x2="1000" y1="{{printf "%.1f" .Pos}}" y2="{{printf "%.1f" .Pos}}" vector-effect="non-scaling-stroke"/>
+    {{- end}}
+    {{- range .Bars}}
+    <rect class="chart-bar{{if .Over}} is-over{{end}}" x="{{printf "%.1f" .X}}" y="{{printf "%.1f" .Y}}" width="{{printf "%.1f" .W}}" height="{{printf "%.1f" .H}}"/>
+    {{- end}}
+    <line class="chart-threshold" x1="0" x2="1000" y1="{{printf "%.1f" .Reference}}" y2="{{printf "%.1f" .Reference}}" vector-effect="non-scaling-stroke"/>
+  </svg>
+  {{- range .YTicks}}
+  <text class="chart-label" x="4" y="{{printf "%.1f" .Pct}}%" dy="-4">{{.Label}}</text>
+  {{- end}}
+  {{- range .XTicks}}
+  <text class="chart-label chart-x" x="{{printf "%.1f" .Pct}}%" y="100%" dy="-4">{{.Label}}</text>
   {{- end}}
 </svg>
 {{- end}}
