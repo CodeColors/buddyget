@@ -319,3 +319,58 @@ suggestion (par exemple d'après l'historique) n'existe.
   jamais laisser un virement à une seule jambe.
 - La liste des opérations et la fin d'un import signalent les paires à
   vérifier ; le décompte ne charge pas les opérations.
+
+## Récurrences (jalon 5)
+
+### Périodicité : un nombre et une unité
+`calendar.Period` (tous les N jours, semaines ou mois) couvre hebdomadaire,
+mensuelle, bimestrielle, trimestrielle, semestrielle, annuelle et
+personnalisée. Chaque échéance se calcule depuis la date de départ, sans
+dérive : une série du 31 tombe le 28 ou le 29 février puis de nouveau le 31
+mars ; l'option « dernier jour du mois » couvre les salaires de fin de mois.
+Le report au jour ouvré suivant ou précédent relève du prévisionnel
+(jalon 6), avec le calendrier des jours fériés.
+
+### Détection
+- Groupe : compte, sens (entrée ou sortie) et libellé normalisé sans les
+  mots contenant un chiffre (références, dates d'échéance). C'est aussi la
+  **signature** d'une série.
+- Série : montants à ±10 % d'une même valeur centrale (rapport max/min
+  ≤ 1,1/0,9) ; une hausse de prix plus forte ouvre une nouvelle série.
+- Périodicité : chaque date est comparée à l'échéance attendue d'une série
+  ancrée sur la première occurrence, recalée de l'écart médian ; conforme à
+  ±3 jours. La régularité retient la plus faible des deux parts : dates
+  conformes parmi les occurrences, et parmi les échéances attendues (une
+  échéance manquée compte). Seules les périodicités proches de l'écart
+  médian sont évaluées.
+- Retenue si : trois occurrences au moins, régularité ≥ 60 %, pas deux
+  échéances manquées de suite, score ≥ 40.
+- Score (0 à 100) = régularité × confiance due au nombre d'occurrences (50 %
+  à 3, 100 % à partir de 6) × stabilité du montant (1 si fixe, sinon
+  1 − coefficient de variation, 0,7 au moins).
+- Montant proposé : fixe s'il ne varie jamais, sinon moyenne des trois
+  dernières occurrences, marquée « estimée ».
+- La récurrence validée part de la dernière occurrence constatée ; une
+  échéance en retard de moins de trois jours (délai bancaire) reste attendue.
+- Historique examiné : trois ans, hors virements internes. La détection se
+  fait à l'affichage (49 ms pour 20 000 opérations), rien n'est stocké.
+
+### Validation
+Une série validée, modifiée puis enregistrée, ou saisie à la main devient
+une récurrence ; sa signature, fixée à la création (celle de la série
+d'origine, sinon tirée du libellé), empêche que la série soit de nouveau
+proposée, même si le libellé est modifié. Une série rejetée est mémorisée
+(`recurring_dismissals`). Une récurrence peut être suspendue sans être
+supprimée ; seules les récurrences actives entreront dans le prévisionnel.
+
+### Navigation à cinq onglets
+Avec les récurrences, la barre d'onglets mobile passe à cinq entrées
+(Accueil, Opérations, Importer, Récurrences, Plus) ; « Plus » mène à une
+page qui liste les écrans secondaires (comptes, catégories, règles,
+virements, historique des imports). Au-delà de 768 px, toutes les rubriques
+s'affichent et « Plus » disparaît ; entre 768 et 1023 px, sans leurs icônes.
+Le tout en CSS, sans script.
+
+### Construction de l'interface
+`web.New` reçoit les services du domaine regroupés dans `web.Services`
+plutôt qu'en paramètres successifs.

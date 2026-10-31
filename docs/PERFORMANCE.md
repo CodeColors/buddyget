@@ -106,10 +106,18 @@ La recherche des virements est refaite à chaque affichage complet de la liste
 des opérations (pas lors des mises à jour de la recherche instantanée) ; sa
 durée sur le NAS reste à mesurer (jalon 12).
 
+## Jalon 5 : 31/10/2026
+
+Même machine. Détection des récurrences sur **20 000 opérations** (trois ans,
+60 séries mensuelles mêlées à des achats sans régularité) : **49 ms**, 12 Mo
+alloués. La première version évaluait les six périodicités pour chaque série
+(135 ms) ; n'évaluer que celles proches de l'écart médian entre occurrences
+a divisé le temps par près de trois sans changer les résultats.
+
 ## Méthode
 
 ```bash
-go test -run '^$' -bench . -benchmem ./internal/ledger/ ./internal/importer/ ./internal/categorize/
+go test -run '^$' -bench . -benchmem ./internal/ledger/ ./internal/importer/ ./internal/categorize/ ./internal/recurring/
 
 make build
 DATA_DIR=/tmp/bg PORT=8080 ./bin/buddyget &

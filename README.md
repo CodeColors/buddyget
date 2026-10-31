@@ -30,6 +30,9 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
 - Règles de catégorisation : créées en un clic depuis une opération ou lors
   d'une recatégorisation par lot, appliquées aux imports (catégorie suggérée
   dès l'aperçu) et, à la demande, à l'historique
+- Opérations récurrentes (loyer, salaire, abonnements…) détectées dans
+  l'historique avec un score de confiance, à valider, modifier ou rejeter ;
+  saisie manuelle avec toute périodicité, du hebdomadaire à l'annuel
 - Virements entre vos comptes repérés dans les relevés (même montant, dates
   proches) et proposés au rapprochement, pour ne fausser ni les dépenses ni
   les revenus
@@ -42,7 +45,8 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
 | 2 | Comptes, catégories, saisie manuelle, virements, liste et recherche, édition par lot | ✅ |
 | 3 | Import CSV / XLSX / XLS, profils SG / BNP / générique, déduplication, annulation, rapprochement | ✅ (profils SG et BNP à vérifier sur des exports réels) |
 | 4 | Règles de catégorisation (en un clic, rétroactives, à l'import), virements internes détectés | ✅ |
-| 5 – 12 | Récurrences, prévisionnel, épargne, budgets, alertes, rapports, exports, sauvegardes | à venir |
+| 5 | Récurrences : détection avec score de confiance, validation, saisie manuelle | ✅ |
+| 6 – 12 | Prévisionnel, épargne, budgets, alertes, rapports, exports, sauvegardes | à venir |
 
 Le détail est dans [docs/PLAN.md](docs/PLAN.md) et le cahier des charges dans
 [docs/cahier-des-charges.md](docs/cahier-des-charges.md).
