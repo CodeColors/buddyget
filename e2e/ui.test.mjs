@@ -20,6 +20,7 @@ const PASSWORD = 'une phrase de passe solide';
 const WIDTHS = [360, 768, 1280];
 const SCHEMES = ['light', 'dark'];
 const BACKGROUND = { light: 'rgb(245, 246, 248)', dark: 'rgb(16, 18, 23)' };
+const TARGETS = 'button, input:not([type=hidden]), select, textarea, summary, a.btn, .tabbar a, .fab, .tile, .row-link, .tx-link';
 
 let server;
 let dataDir;
@@ -70,8 +71,11 @@ async function checkLayout(page, label, scheme) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.equal(overflow, 0, `${label} : défilement horizontal`);
 
-  const tooSmall = await page.$$eval('button, input:not([type=hidden]), .tabbar a', (els) =>
+  // Une case à cocher ou un bouton radio se touche par son libellé.
+  const tooSmall = await page.$$eval(TARGETS, (els) =>
     els
+      .filter((el) => el.getClientRects().length > 0)
+      .map((el) => (el.matches('[type=checkbox], [type=radio]') ? el.closest('label') ?? el : el))
       .filter((el) => {
         const r = el.getBoundingClientRect();
         return r.height < 44 || r.width < 44;
@@ -80,7 +84,9 @@ async function checkLayout(page, label, scheme) {
   );
   assert.deepEqual(tooSmall, [], `${label} : cibles tactiles < 44 px`);
 
-  const fontSizes = await page.$$eval('input:not([type=hidden])', (els) => els.map((el) => parseFloat(getComputedStyle(el).fontSize)));
+  const fontSizes = await page.$$eval('input:not([type=hidden]), select, textarea', (els) =>
+    els.filter((el) => el.getClientRects().length > 0).map((el) => parseFloat(getComputedStyle(el).fontSize)),
+  );
   assert.ok(fontSizes.every((size) => size >= 16), `${label} : champ < 16 px (${fontSizes})`);
 
   const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -153,6 +159,112 @@ test('choix manuel du thème mémorisé et appliqué sans flash', async () => {
     await checkLayout(page, 'retour au thème automatique', 'light');
   }, session);
 });
+
+test('création des comptes depuis le tableau de bord', async () => {
+  await withPage(360, 'light', async (page) => {
+    await page.goto(`${BASE}/`);
+    await page.getByRole('link', { name: 'Créer un compte' }).click();
+    await page.getByLabel('Nom du compte').fill('Compte courant');
+    await page.getByLabel('Solde initial').fill('1 500');
+    await page.getByRole('button', { name: 'Enregistrer' }).click();
+    await page.getByRole('status').filter({ hasText: 'Compte enregistré.' }).waitFor();
+
+    await page.getByRole('link', { name: 'Nouveau compte' }).click();
+    await page.getByLabel('Nom du compte').fill('Livret A');
+    await page.getByLabel('Type').selectOption('epargne');
+    await page.getByLabel('Solde initial').fill('3000');
+    await page.getByRole('button', { name: 'Enregistrer' }).click();
+    await page.getByRole('status').filter({ hasText: 'Compte enregistré.' }).waitFor();
+    await checkLayout(page, 'liste des comptes', 'light');
+  }, session);
+});
+
+test('saisie au clavier : bouton +, montant, Tab, libellé, Entrée', async () => {
+  await withPage(360, 'light', async (page) => {
+    await page.goto(`${BASE}/`);
+    const start = performance.now();
+    await page.getByRole('link', { name: 'Opération : nouvelle saisie' }).click();
+    await page.waitForURL(/\/operations\/nouvelle/);
+    await page.keyboard.type('12,50'); // le montant a le focus
+    await page.keyboard.press('Tab');
+    await page.keyboard.type('Boulangerie');
+    await page.keyboard.press('Enter');
+    await page.getByRole('status').filter({ hasText: 'Opération enregistrée.' }).waitFor();
+    const elapsed = performance.now() - start;
+
+    // Retour à la page de départ, solde à jour (1 500 − 12,50).
+    assert.equal(page.url(), `${BASE}/`);
+    await page.getByText(/1\s487,50/).first().waitFor();
+    assert.ok(elapsed < 15_000, `saisie en ${elapsed} ms`);
+  }, session);
+});
+
+test('virement entre comptes : champs adaptés sans script', async () => {
+  await withPage(360, 'dark', async (page) => {
+    await page.goto(`${BASE}/operations/nouvelle`);
+    const category = page.getByLabel('Catégorie');
+    const target = page.getByLabel('Vers le compte');
+    assert.ok(await category.isVisible());
+    assert.ok(!(await target.isVisible()));
+    await page.getByRole('radio', { name: 'Virement' }).check();
+    assert.ok(!(await category.isVisible()));
+    await page.getByLabel('Montant (€)').fill('200');
+    await page.getByLabel('Libellé').fill('Épargne du mois');
+    await target.selectOption({ label: 'Livret A' });
+    await checkLayout(page, 'formulaire de virement', 'dark');
+    await page.screenshot({ path: path.join(SHOTS, 'virement-360-dark.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Virement enregistré.' }).waitFor();
+  }, session);
+});
+
+test('recherche instantanée et édition par lot', async () => {
+  await withPage(360, 'light', async (page) => {
+    for (const [label, amount] of [['Café de la Gare', '3,50'], ['Café du Port', '4'], ['Supermarché', '82,10']]) {
+      const res = await page.request.post(`${BASE}/operations`, {
+        form: { type: 'depense', amount, label, date: '2026-10-20', account: '1', back: '/operations' },
+        maxRedirects: 0,
+      });
+      assert.equal(res.status(), 303);
+    }
+    await page.goto(`${BASE}/operations`);
+    await page.evaluate(() => { window.pageMarker = true; });
+    await page.getByRole('searchbox', { name: 'Rechercher' }).fill('cafe');
+    await page.getByText('2 opérations').waitFor();
+    assert.match(page.url(), /q=cafe/);
+    assert.equal(await page.evaluate(() => window.pageMarker), true, 'la recherche ne recharge pas la page');
+
+    await page.getByText('Modifier par lot').click();
+    await page.getByLabel('Tous les résultats de la recherche').check();
+    await page.locator('#lot-categorie').selectOption({ label: 'Alimentation › Restaurants' });
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.locator('#lot').getByRole('button', { name: 'Appliquer' }).click();
+    await page.getByRole('status').filter({ hasText: '2 opérations modifiées.' }).waitFor();
+    assert.equal(await page.locator('.tx-cat').filter({ hasText: 'Alimentation › Restaurants' }).count(), 2);
+  }, session);
+});
+
+const SCREENS = [
+  ['tableau-de-bord', '/'],
+  ['operations', '/operations'],
+  ['saisie', '/operations/nouvelle'],
+  ['comptes', '/comptes'],
+  ['categories', '/categories'],
+];
+
+for (const scheme of SCHEMES) {
+  for (const width of WIDTHS) {
+    test(`écrans du grand livre à ${width} px, thème ${scheme}`, async () => {
+      await withPage(width, scheme, async (page) => {
+        for (const [name, url] of SCREENS) {
+          await page.goto(`${BASE}${url}`);
+          await checkLayout(page, `${name} ${width} px ${scheme}`, scheme);
+          await page.screenshot({ path: path.join(SHOTS, `${name}-${width}-${scheme}.png`), fullPage: true });
+        }
+      }, session);
+    });
+  }
+}
 
 test('déconnexion', async () => {
   await withPage(360, 'light', async (page) => {
