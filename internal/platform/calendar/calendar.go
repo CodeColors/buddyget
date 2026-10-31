@@ -36,3 +36,18 @@ func (d Date) Format() string {
 	}
 	return string(d[8:10] + "/" + d[5:7] + "/" + d[0:4])
 }
+
+// Time renvoie la date à minuit UTC, pour les calculs.
+func (d Date) Time() time.Time {
+	t, _ := time.Parse(layout, string(d))
+	return t
+}
+
+// AddDays décale la date d'un nombre de jours (négatif pour reculer).
+func (d Date) AddDays(n int) Date { return FromTime(d.Time().AddDate(0, 0, n)) }
+
+// DaysUntil renvoie le nombre de jours de d à other (négatif si other est
+// antérieure).
+func (d Date) DaysUntil(other Date) int {
+	return int(other.Time().Sub(d.Time()).Hours() / 24)
+}
