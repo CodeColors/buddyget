@@ -244,12 +244,62 @@ test('recherche instantanée et édition par lot', async () => {
   }, session);
 });
 
+const TESTDATA = path.resolve(import.meta.dirname, '../testdata');
+
+test('import d\'un relevé en trois étapes puis rapprochement', async () => {
+  await withPage(360, 'light', async (page) => {
+    await page.goto(`${BASE}/import`);
+    await page.getByLabel('Compte qui reçoit les opérations').selectOption('1');
+    await page.setInputFiles('#file', path.join(TESTDATA, 'sg/releve-octobre.csv'));
+    await page.getByRole('button', { name: 'Continuer' }).click();
+    await page.getByRole('heading', { name: "Vérifier l'import" }).waitFor();
+    await checkLayout(page, 'aperçu de l\'import', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'import-apercu-360-light.png'), fullPage: true });
+
+    // Décocher une ligne met à jour le résumé sans recharger la page.
+    await page.evaluate(() => { window.pageMarker = true; });
+    await page.getByLabel('Importer la ligne 9').uncheck();
+    const commit = page.getByRole('button', { name: 'Importer 5 opérations' });
+    await commit.waitFor();
+    assert.equal(await page.evaluate(() => window.pageMarker), true);
+    await commit.click();
+
+    await page.getByRole('status').filter({ hasText: '5 opérations importées.' }).waitFor();
+    await page.getByLabel('Solde (€)').fill('2 000');
+    await page.getByRole('button', { name: 'Comparer' }).click();
+    await page.getByRole('status').filter({ hasText: 'Solde bancaire enregistré.' }).waitFor();
+    await page.getByText('Écart', { exact: true }).waitFor();
+    await checkLayout(page, 'rapprochement', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'rapprochement-360-light.png'), fullPage: true });
+  }, session);
+});
+
+test('fichier inconnu : choix des colonnes sur mobile', async () => {
+  await withPage(360, 'dark', async (page) => {
+    await page.goto(`${BASE}/import`);
+    await page.setInputFiles('#file', path.join(TESTDATA, 'generique/sans-entete.csv'));
+    await page.getByRole('button', { name: 'Continuer' }).click();
+    await page.getByRole('heading', { name: 'Colonnes du fichier' }).waitFor();
+    await checkLayout(page, 'choix des colonnes', 'dark');
+    await page.screenshot({ path: path.join(SHOTS, 'import-colonnes-360-dark.png'), fullPage: true });
+
+    await page.getByLabel('Montant', { exact: true }).selectOption({ label: 'C — -750.00' });
+    await page.getByRole('button', { name: 'Continuer' }).click();
+    await page.getByRole('button', { name: 'Importer 3 opérations' }).waitFor();
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: "Abandonner l'import" }).click();
+    await page.getByRole('status').filter({ hasText: 'Import abandonné.' }).waitFor();
+  }, session);
+});
+
 const SCREENS = [
   ['tableau-de-bord', '/'],
   ['operations', '/operations'],
   ['saisie', '/operations/nouvelle'],
   ['comptes', '/comptes'],
   ['categories', '/categories'],
+  ['import', '/import'],
+  ['historique-imports', '/import/historique'],
 ];
 
 for (const scheme of SCHEMES) {
