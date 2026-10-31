@@ -1,0 +1,47 @@
+{{define "content"}}
+{{- with .Data}}
+<h1>Rapprochement · {{.R.Account.Name}}</h1>
+{{- if .FromImport}}{{template "steps" 3}}{{end}}
+<p class="muted">Comparez le solde affiché par votre banque au solde calculé par BuddyGet : un écart révèle une opération manquante, en double ou erronée.</p>
+
+{{- if .R.HasBankBalance}}
+<section class="card reconcile" aria-labelledby="resultat">
+  <h2 id="resultat">Au {{.R.BankDate.Format}}</h2>
+  <dl class="figures">
+    <div><dt>Solde de la banque</dt><dd class="amount">{{euros .R.BankBalance}}</dd></div>
+    <div><dt>Solde calculé</dt><dd class="amount">{{euros .R.Computed}}</dd></div>
+    <div><dt>Écart</dt><dd class="amount{{if .R.Gap}} negative{{else}} positive{{end}}">{{eurosSigned .R.Gap}}</dd></div>
+  </dl>
+  {{- if .R.Gap}}
+  <p>Les soldes diffèrent. Vérifiez les opérations non pointées : celles qui ne figurent pas sur le relevé, ou qui y manquent.</p>
+  {{- else}}
+  <p class="flash" role="status">Les soldes concordent.</p>
+  {{- end}}
+  <a class="btn" href="{{.UnclearedURL}}">Voir les {{plural .R.Uncleared "opération non pointée" "opérations non pointées"}}</a>
+</section>
+{{- end}}
+
+<section class="card form-card" aria-labelledby="saisie-solde">
+  <h2 id="saisie-solde">Solde affiché par la banque</h2>
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form" method="post" action="/comptes/{{.R.Account.ID}}/rapprochement">
+    {{- if .FromImport}}<input type="hidden" name="import" value="1">{{end}}
+    <div class="field-row">
+      <div class="field">
+        <label for="balance">Solde (€)</label>
+        <input id="balance" name="balance" value="{{.Balance}}" autocomplete="off" required{{if not .R.HasBankBalance}} autofocus{{end}} aria-describedby="solde-aide">
+      </div>
+      <div class="field">
+        <label for="date">au</label>
+        <input id="date" name="date" type="date" value="{{.Date}}" required>
+      </div>
+    </div>
+    <p id="solde-aide" class="hint">Un signe moins indique un découvert.</p>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Comparer</button>
+      <a class="btn" href="/operations?compte={{.R.Account.ID}}">Opérations du compte</a>
+    </div>
+  </form>
+</section>
+{{- end}}
+{{end}}

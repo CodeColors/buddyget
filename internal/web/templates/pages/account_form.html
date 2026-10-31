@@ -45,6 +45,13 @@
   </form>
 </section>
 {{- if .ID}}
+<section class="card form-card" aria-labelledby="banque">
+  <h2 id="banque">Relevés et rapprochement</h2>
+  <div class="actions">
+    <a class="btn" href="/import?compte={{.ID}}">Importer un relevé</a>
+    <a class="btn" href="/comptes/{{.ID}}/rapprochement">Rapprocher avec la banque</a>
+  </div>
+</section>
 <section class="card danger-zone" aria-labelledby="gestion">
   <h2 id="gestion">Archivage et suppression</h2>
   <p class="muted">Un compte archivé n'est plus proposé à la saisie mais garde son historique. Seul un compte sans opération peut être supprimé.</p>

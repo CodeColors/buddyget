@@ -15,7 +15,7 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Addr() != ":8080" || cfg.DBPath() != "/data/buddyget.db" || cfg.LogLevel != slog.LevelInfo {
+	if cfg.Addr() != ":8080" || cfg.DBPath() != "/data/buddyget.db" || cfg.LogLevel != slog.LevelInfo || cfg.MaxUploadBytes() != 10<<20 {
 		t.Errorf("valeurs par défaut inattendues : %+v", cfg)
 	}
 	if cfg.SecureCookies() || cfg.BaseURL != nil || cfg.TrustedProxies != nil {
@@ -30,11 +30,12 @@ func TestLoadValues(t *testing.T) {
 		"LOG_LEVEL":       "debug",
 		"BASE_URL":        "https://budget.example.fr/",
 		"TRUSTED_PROXIES": "172.16.0.0/12, 192.168.1.10",
+		"MAX_UPLOAD_MB":   "25",
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Addr() != ":9000" || cfg.DBPath() != "/srv/bg/buddyget.db" || cfg.LogLevel != slog.LevelDebug {
+	if cfg.Addr() != ":9000" || cfg.DBPath() != "/srv/bg/buddyget.db" || cfg.LogLevel != slog.LevelDebug || cfg.MaxUploadMB != 25 {
 		t.Errorf("valeurs inattendues : %+v", cfg)
 	}
 	if !cfg.SecureCookies() || cfg.BaseURL.String() != "https://budget.example.fr" {
@@ -58,6 +59,7 @@ func TestLoadInvalid(t *testing.T) {
 		"niveau inconnu":     {"LOG_LEVEL": "bavard"},
 		"URL sans schéma":    {"BASE_URL": "budget.example.fr"},
 		"proxy invalide":     {"TRUSTED_PROXIES": "10.0.0.0/8,proxy"},
+		"taille d'import":    {"MAX_UPLOAD_MB": "0"},
 	}
 	for name, vars := range cases {
 		t.Run(name, func(t *testing.T) {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/codecolors/buddyget/internal/auth"
 	"github.com/codecolors/buddyget/internal/config"
+	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/platform/money"
@@ -36,6 +37,8 @@ type Server struct {
 	db             *db.DB
 	auth           *auth.Service
 	ledger         *ledger.Service
+	importer       *importer.Service
+	maxUpload      int64
 	pages          *renderer
 	assets         assets
 	secureCookies  bool
@@ -43,18 +46,21 @@ type Server struct {
 }
 
 // New construit le gestionnaire HTTP complet de l'application.
-func New(cfg config.Config, database *db.DB, authService *auth.Service, ledgerService *ledger.Service) (http.Handler, error) {
+func New(cfg config.Config, database *db.DB, authService *auth.Service, ledgerService *ledger.Service, importService *importer.Service) (http.Handler, error) {
 	static, err := loadAssets()
 	if err != nil {
 		return nil, err
 	}
 	pages, err := newRenderer(template.FuncMap{
-		"asset":       static.url,
-		"euros":       money.Format,
-		"eurosSigned": money.FormatSigned,
-		"amountInput": money.FormatInput,
-		"navActive":   navActive,
-		"plural":      plural,
+		"asset":        static.url,
+		"euros":        money.Format,
+		"eurosSigned":  money.FormatSigned,
+		"amountInput":  money.FormatInput,
+		"navActive":    navActive,
+		"plural":       plural,
+		"datetime":     func(t time.Time) string { return t.In(time.Local).Format("02/01/2006 à 15h04") },
+		"columnLetter": columnLetter,
+		"columnChoice": columnChoice,
 	})
 	if err != nil {
 		return nil, err
@@ -63,6 +69,8 @@ func New(cfg config.Config, database *db.DB, authService *auth.Service, ledgerSe
 		db:             database,
 		auth:           authService,
 		ledger:         ledgerService,
+		importer:       importService,
+		maxUpload:      cfg.MaxUploadBytes(),
 		pages:          pages,
 		assets:         static,
 		secureCookies:  cfg.SecureCookies(),
@@ -78,28 +86,40 @@ func New(cfg config.Config, database *db.DB, authService *auth.Service, ledgerSe
 	mux.HandleFunc("POST /login", s.login)
 	mux.HandleFunc("POST /logout", s.logout)
 	for pattern, h := range map[string]http.HandlerFunc{
-		"GET /{$}":                        s.dashboard,
-		"POST /preferences/theme":         s.setTheme,
-		"GET /operations":                 s.operationsPage,
-		"GET /operations/nouvelle":        s.newOperationPage,
-		"POST /operations":                s.createOperation,
-		"GET /operations/{id}":            s.editOperationPage,
-		"POST /operations/{id}":           s.updateOperation,
-		"POST /operations/{id}/supprimer": s.deleteOperation,
-		"POST /operations/lot":            s.batchOperations,
-		"GET /comptes":                    s.accountsPage,
-		"GET /comptes/nouveau":            s.newAccountPage,
-		"POST /comptes":                   s.createAccount,
-		"GET /comptes/{id}":               s.editAccountPage,
-		"POST /comptes/{id}":              s.updateAccount,
-		"POST /comptes/{id}/archiver":     s.archiveAccount,
-		"POST /comptes/{id}/supprimer":    s.deleteAccount,
-		"GET /categories":                 s.categoriesPage,
-		"GET /categories/nouvelle":        s.newCategoryPage,
-		"POST /categories":                s.createCategory,
-		"GET /categories/{id}":            s.editCategoryPage,
-		"POST /categories/{id}":           s.updateCategory,
-		"POST /categories/{id}/supprimer": s.deleteCategory,
+		"GET /{$}":                             s.dashboard,
+		"POST /preferences/theme":              s.setTheme,
+		"GET /operations":                      s.operationsPage,
+		"GET /operations/nouvelle":             s.newOperationPage,
+		"POST /operations":                     s.createOperation,
+		"GET /operations/{id}":                 s.editOperationPage,
+		"POST /operations/{id}":                s.updateOperation,
+		"POST /operations/{id}/supprimer":      s.deleteOperation,
+		"POST /operations/lot":                 s.batchOperations,
+		"GET /comptes":                         s.accountsPage,
+		"GET /comptes/nouveau":                 s.newAccountPage,
+		"POST /comptes":                        s.createAccount,
+		"GET /comptes/{id}":                    s.editAccountPage,
+		"POST /comptes/{id}":                   s.updateAccount,
+		"POST /comptes/{id}/archiver":          s.archiveAccount,
+		"POST /comptes/{id}/supprimer":         s.deleteAccount,
+		"GET /categories":                      s.categoriesPage,
+		"GET /categories/nouvelle":             s.newCategoryPage,
+		"POST /categories":                     s.createCategory,
+		"GET /categories/{id}":                 s.editCategoryPage,
+		"POST /categories/{id}":                s.updateCategory,
+		"POST /categories/{id}/supprimer":      s.deleteCategory,
+		"GET /comptes/{id}/rapprochement":      s.reconcilePage,
+		"POST /comptes/{id}/rapprochement":     s.saveReconcile,
+		"GET /import":                          s.importPage,
+		"POST /import":                         s.uploadImport,
+		"GET /import/historique":               s.importHistory,
+		"POST /import/historique/{id}/annuler": s.undoImport,
+		"GET /import/{token}":                  s.draftPage,
+		"GET /import/{token}/colonnes":         s.mappingPage,
+		"POST /import/{token}/colonnes":        s.saveMapping,
+		"POST /import/{token}/selection":       s.selectLines,
+		"POST /import/{token}/valider":         s.commitImport,
+		"POST /import/{token}/abandonner":      s.cancelImport,
 	} {
 		mux.Handle(pattern, s.requireUser(h))
 	}

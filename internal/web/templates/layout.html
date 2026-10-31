@@ -71,6 +71,10 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>
     <span>Opérations</span>
   </a>
+  <a href="/import"{{if navActive .Path "/import"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+    <span>Importer</span>
+  </a>
   <a href="/comptes"{{if navActive .Path "/comptes"}} aria-current="page"{{end}}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4M4 7.5V17a2 2 0 0 0 2 2h14V9H6.5A2.5 2.5 0 0 1 4 7.5zM16 14h.01"/></svg>
     <span>Comptes</span>
@@ -99,3 +103,12 @@
 
 {{/* Pastille de couleur d'une catégorie (attribut SVG : compatible CSP). */}}
 {{define "dot"}}<svg class="dot" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="{{.}}"/></svg>{{end}}
+
+{{/* Étapes de l'import ; le paramètre est l'étape courante (1 à 3). */}}
+{{define "steps"}}
+<ol class="steps" aria-label="Étapes de l'import">
+  <li{{if eq . 1}} aria-current="step"{{end}}><span class="step-num">1</span> <span class="step-label">Fichier</span></li>
+  <li{{if eq . 2}} aria-current="step"{{end}}><span class="step-num">2</span> <span class="step-label">Vérification</span></li>
+  <li{{if eq . 3}} aria-current="step"{{end}}><span class="step-num">3</span> <span class="step-label">Rapprochement</span></li>
+</ol>
+{{end}}

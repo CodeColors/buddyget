@@ -201,6 +201,9 @@ a { color: var(--link); }
   padding: 1rem 1rem calc(var(--tabbar-h) + 56px + 2rem + env(safe-area-inset-bottom));
 }
 .page > h1, .page-head h1, .section-head h2 { margin: 0; }
+/* Un élément de grille ne doit pas s'élargir à la taille d'un contenu
+   défilant (tableau d'aperçu) : il le contient. */
+.page > * { min-width: 0; }
 
 .page-centered {
   justify-items: center;
@@ -446,6 +449,7 @@ details.more[open] { display: grid; gap: .5rem; }
   cursor: pointer;
 }
 .btn:hover { background: var(--border); }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
 .btn-primary { color: var(--on-primary); background: var(--primary); }
 .btn-primary:hover { background: var(--primary-hover); }
 .btn-danger { color: var(--on-danger); background: var(--danger); }
@@ -530,7 +534,7 @@ details.more[open] { display: grid; gap: .5rem; }
   cursor: pointer;
 }
 
-.tx-link {
+.tx-link, .tx-main {
   display: grid;
   grid-area: link;
   align-content: center;
@@ -564,6 +568,79 @@ details.more[open] { display: grid; gap: .5rem; }
 }
 
 .pager { display: flex; align-items: center; justify-content: center; gap: 1rem; }
+
+/* Import : étapes, aperçu brut, onglets, résumé */
+
+.steps {
+  display: flex;
+  gap: .5rem;
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: .875rem;
+  list-style: none;
+}
+.steps li { display: flex; align-items: center; gap: .375rem; }
+.steps .step-label { white-space: nowrap; }
+.steps .step-num {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  font-weight: 700;
+  background: var(--hover);
+  border-radius: 50%;
+}
+.steps [aria-current="step"] { color: var(--text); font-weight: 600; }
+.steps [aria-current="step"] .step-num { color: var(--on-primary); background: var(--primary); }
+
+/* Sur un écran étroit, seule l'étape courante garde son intitulé visible. */
+@media (max-width: 479px) {
+  .steps li:not([aria-current]) .step-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+.table-scroll { max-width: 100%; overflow-x: auto; }
+.raw { border-collapse: collapse; font-size: .875rem; white-space: nowrap; }
+.raw th, .raw td { padding: .375rem .625rem; text-align: left; border-bottom: 1px solid var(--border); }
+.raw thead th, .raw tbody th { color: var(--muted); font-weight: 600; }
+.raw .is-header td { font-weight: 700; background: var(--hover); }
+
+.mapping-form:has(input[name="amount_mode"][value="debit-credit"]:checked) .if-single-amount,
+.mapping-form:has(input[name="amount_mode"][value="montant"]:checked) .if-debit-credit {
+  display: none;
+}
+
+.tabs { display: flex; flex-wrap: wrap; gap: .25rem; border-bottom: 1px solid var(--border); }
+.tabs a {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 .75rem;
+  color: var(--muted);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.tabs a[aria-current="page"] { color: var(--primary); border-bottom-color: var(--primary); }
+
+.summary-card { display: grid; gap: .75rem; }
+.counts { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; margin: 0; }
+.counts strong { font-size: 1.25rem; }
+
+.badge-error { color: var(--danger-text); background: var(--danger-bg); }
+
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .75rem; margin: 0 0 1rem; }
+.figures div { display: grid; gap: .125rem; }
+.figures dt { color: var(--muted); font-size: .875rem; }
+.figures dd { margin: 0; font-size: 1.25rem; }
+.reconcile { display: grid; justify-items: start; gap: .5rem; }
 
 @media (min-width: 768px) {
   /* En-tête et navigation alignés sur le bord du contenu centré. */

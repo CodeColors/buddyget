@@ -22,12 +22,14 @@ type Config struct {
 	BaseURL *url.URL
 	// TrustedProxies liste les réseaux dont l'en-tête X-Forwarded-For est cru.
 	TrustedProxies []netip.Prefix
+	// MaxUploadMB borne la taille d'un fichier importé.
+	MaxUploadMB int
 }
 
 // Load construit la configuration à partir de getenv (os.Getenv en
 // production). Toutes les erreurs sont signalées en une seule fois.
 func Load(getenv func(string) string) (Config, error) {
-	cfg := Config{Port: 8080, DataDir: "/data", LogLevel: slog.LevelInfo}
+	cfg := Config{Port: 8080, DataDir: "/data", LogLevel: slog.LevelInfo, MaxUploadMB: 10}
 	var errs []error
 
 	if v := getenv("PORT"); v != "" {
@@ -36,6 +38,14 @@ func Load(getenv func(string) string) (Config, error) {
 			errs = append(errs, fmt.Errorf("PORT %q invalide : entier entre 1 et 65535 attendu", v))
 		} else {
 			cfg.Port = p
+		}
+	}
+	if v := getenv("MAX_UPLOAD_MB"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 100 {
+			errs = append(errs, fmt.Errorf("MAX_UPLOAD_MB %q invalide : entier entre 1 et 100 attendu", v))
+		} else {
+			cfg.MaxUploadMB = n
 		}
 	}
 	if v := getenv("DATA_DIR"); v != "" {
@@ -65,6 +75,9 @@ func Load(getenv func(string) string) (Config, error) {
 
 // Addr renvoie l'adresse d'écoute du serveur HTTP.
 func (c Config) Addr() string { return ":" + strconv.Itoa(c.Port) }
+
+// MaxUploadBytes renvoie la taille maximale d'un fichier importé.
+func (c Config) MaxUploadBytes() int64 { return int64(c.MaxUploadMB) << 20 }
 
 // DBPath renvoie le chemin du fichier SQLite.
 func (c Config) DBPath() string { return filepath.Join(c.DataDir, "buddyget.db") }
