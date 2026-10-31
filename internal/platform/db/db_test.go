@@ -153,3 +153,19 @@ func countMigrations(t *testing.T) int {
 	}
 	return len(entries)
 }
+
+func TestIsUniqueViolation(t *testing.T) {
+	conn := openTest(t)
+	ctx := t.Context()
+	if _, err := conn.ExecContext(ctx, "CREATE TABLE u (x TEXT UNIQUE) STRICT; INSERT INTO u VALUES ('a')"); err != nil {
+		t.Fatal(err)
+	}
+	_, err := conn.ExecContext(ctx, "INSERT INTO u VALUES ('a')")
+	if !IsUniqueViolation(err) {
+		t.Errorf("violation d'unicité non reconnue : %v", err)
+	}
+	_, err = conn.ExecContext(ctx, "INSERT INTO inexistante VALUES (1)")
+	if err == nil || IsUniqueViolation(err) {
+		t.Errorf("autre erreur prise pour une violation d'unicité : %v", err)
+	}
+}

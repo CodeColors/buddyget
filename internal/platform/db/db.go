@@ -52,6 +52,20 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	return &DB{W: w, R: r}, nil
 }
 
+// Tx exécute fn dans une transaction d'écriture, validée si fn réussit et
+// annulée sinon. Les lectures de contrôle faites dans fn voient l'état
+// exact sur lequel portent les écritures.
+func (d *DB) Tx(ctx context.Context, fn func(*sql.Tx) error) error {
+	tx, err := d.W.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+	return tx.Commit()
+}
+
 // Close ferme les deux pools ; la dernière fermeture rapatrie le WAL dans
 // le fichier principal.
 func (d *DB) Close() error {
