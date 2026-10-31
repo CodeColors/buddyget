@@ -1,0 +1,13 @@
+# Société Générale : export CSV ou Excel des opérations d'un compte.
+#
+# PROVISOIRE : établi sans export réel (aucun fichier fourni à ce jour).
+# Pour l'ajuster, copiez ce fichier dans /data/profiles/sg.yaml et modifiez
+# les intitulés : chaque donnée accepte plusieurs intitulés possibles, la
+# casse et les accents sont ignorés.
+nom: Société Générale
+colonnes:
+  date: ["Date de l'opération"]
+  # La première colonne non vide l'emporte : le détail est plus parlant.
+  libelle: ["Détail de l'écriture", "Libellé"]
+  montant: ["Montant de l'opération"]
+format_date: JJ/MM/AAAA

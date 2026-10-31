@@ -1,0 +1,9 @@
+# Profil générique : reconnaît les intitulés usuels. Il est essayé après
+# tous les autres profils.
+nom: Générique
+colonnes:
+  date: ["Date", "Date opération", "Date d'opération", "Date de l'opération", "Date comptable"]
+  libelle: ["Libellé", "Libellé opération", "Description", "Désignation", "Intitulé", "Opération", "Nature"]
+  montant: ["Montant", "Montant (EUR)", "Montant en euros", "Somme", "Valeur"]
+  debit: ["Débit", "Débit (EUR)", "Débits", "Sortie"]
+  credit: ["Crédit", "Crédit (EUR)", "Crédits", "Entrée"]

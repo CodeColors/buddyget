@@ -7,7 +7,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
+	"runtime/debug"
 	"time"
 
 	_ "modernc.org/sqlite" // pilote "sqlite"
@@ -64,6 +66,17 @@ func (d *DB) Tx(ctx context.Context, fn func(*sql.Tx) error) error {
 		return errors.Join(err, tx.Rollback())
 	}
 	return tx.Commit()
+}
+
+// ReleaseMemory rend au système la mémoire de travail laissée par une
+// opération lourde et ponctuelle (import de milliers de lignes) : SQLite
+// libère le cache de la connexion d'écriture, Go son tas inutilisé. Sans
+// cela, rien ne la reprendrait au repos, faute d'activité.
+func (d *DB) ReleaseMemory(ctx context.Context) {
+	if _, err := d.W.ExecContext(ctx, "PRAGMA shrink_memory"); err != nil {
+		slog.WarnContext(ctx, "libération de la mémoire SQLite", "err", err)
+	}
+	debug.FreeOSMemory()
 }
 
 // Close ferme les deux pools ; la dernière fermeture rapatrie le WAL dans
