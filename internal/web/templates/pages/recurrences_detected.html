@@ -1,0 +1,37 @@
+{{define "content"}}
+<h1>Récurrences détectées</h1>
+<p class="muted">Ces séries reviennent régulièrement dans vos opérations (date à ±3 jours, montant à ±10 %). Seules celles que vous validez entreront dans le prévisionnel.</p>
+{{- if .Data}}
+<ul class="pairs" aria-label="Séries détectées">
+  {{- range $i, $c := .Data}}
+  <li class="card candidate">
+    <div class="candidate-head">
+      <span class="tx-label">{{.Label}}</span>
+      <span class="amount{{if gt .Amount 0}} positive{{end}}">{{if .Estimated}}≈ {{end}}{{eurosSigned .Amount}}</span>
+    </div>
+    <p class="row-meta">{{.Period.Label}}{{if .LastDay}}, le dernier jour{{end}} · {{.AccountName}}{{with .CategoryName}} · {{.}}{{end}}</p>
+    <p class="row-meta">{{.Occurrences}} occurrences du {{.First.Format}} au {{.Last.Format}} · prochaine attendue le {{.Next.Format}}</p>
+    <div class="confidence">
+      <label for="confiance-{{$i}}">Confiance</label>
+      <meter id="confiance-{{$i}}" min="0" max="100" low="60" high="80" optimum="100" value="{{.Score}}">{{.Score}} %</meter>
+      <span>{{.Score}} %</span>
+    </div>
+    <div class="actions">
+      <form method="post" action="/recurrences/detectees/valider">
+        <input type="hidden" name="signature" value="{{.Signature}}">
+        <button class="btn btn-primary" type="submit">Valider<span class="sr-only"> « {{.Label}} »</span></button>
+      </form>
+      <a class="btn" href="/recurrences/nouvelle?serie={{.Signature}}">Modifier<span class="sr-only"> « {{.Label}} »</span></a>
+      <form method="post" action="/recurrences/detectees/rejeter">
+        <input type="hidden" name="signature" value="{{.Signature}}">
+        <button class="btn" type="submit">Rejeter<span class="sr-only"> « {{.Label}} »</span></button>
+      </form>
+    </div>
+  </li>
+  {{- end}}
+</ul>
+{{- else}}
+<p class="card empty muted">Aucune nouvelle série détectée. Il faut au moins trois occurrences régulières, encore en cours.</p>
+{{- end}}
+<p><a href="/recurrences">Retour aux récurrences</a></p>
+{{end}}

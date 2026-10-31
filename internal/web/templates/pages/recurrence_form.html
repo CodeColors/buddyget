@@ -1,0 +1,106 @@
+{{define "content"}}
+{{- with .Data}}
+<section class="card form-card" aria-labelledby="titre">
+  <h1 id="titre">{{$.Title}}</h1>
+  {{- if eq .Origin "detectee"}}{{if not .ID}}<p class="muted">Proposée d'après vos opérations : ajustez-la avant de l'enregistrer.</p>{{end}}{{end}}
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  {{- if not .Accounts}}
+  <p class="muted">Créez d'abord un compte.</p>
+  <a class="btn btn-primary" href="/comptes/nouveau">Créer un compte</a>
+  {{- else}}
+  <form class="form recurrence-form" method="post" action="{{if .ID}}/recurrences/{{.ID}}{{else}}/recurrences{{end}}">
+    {{- if not .ID}}
+    <input type="hidden" name="origin" value="{{.Origin}}">
+    {{- with .Series}}<input type="hidden" name="serie" value="{{.}}">{{end}}
+    {{- end}}
+    <fieldset class="field">
+      <legend class="sr-only">Sens</legend>
+      <div class="segmented">
+        <label><input type="radio" name="type" value="depense"{{if eq .Type "depense"}} checked{{end}}><span>Dépense</span></label>
+        <label><input type="radio" name="type" value="revenu"{{if eq .Type "revenu"}} checked{{end}}><span>Revenu</span></label>
+      </div>
+    </fieldset>
+    <div class="field-row">
+      <div class="field">
+        <label for="amount">Montant (€)</label>
+        <input id="amount" name="amount" value="{{.Amount}}" inputmode="decimal" autocomplete="off" placeholder="0,00" required>
+      </div>
+      <div class="field">
+        <label for="label">Libellé</label>
+        <input id="label" name="label" value="{{.Label}}" maxlength="200" autocomplete="off" required>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" name="estimated" value="1"{{if .Estimated}} checked{{end}}> Montant variable : c'est une estimation</label>
+    <div class="field-row">
+      <div class="field">
+        <label for="period">Périodicité</label>
+        <select id="period" name="period">
+          {{- range .PeriodChoices}}<option value="{{$.Data.PeriodValue .}}"{{if eq ($.Data.PeriodValue .) $.Data.Period}} selected{{end}}>{{.Label}}</option>{{end}}
+          <option value="autre"{{if eq .Period "autre"}} selected{{end}}>Personnalisée…</option>
+        </select>
+      </div>
+      <div class="field if-custom-period">
+        <label for="custom_count">Tous les</label>
+        <div class="inline-fields">
+          <input id="custom_count" name="custom_count" type="number" min="1" max="730" value="{{.CustomCount}}" inputmode="numeric" aria-label="Nombre">
+          <select name="custom_unit" aria-label="Unité">
+            {{- range .Units}}<option value="{{.}}"{{if eq . $.Data.CustomUnit}} selected{{end}}>{{.}}{{if ne . "mois"}}s{{end}}</option>{{end}}
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="start">Première échéance</label>
+        <input id="start" name="start" type="date" value="{{.Start}}" required aria-describedby="start-aide">
+        <p id="start-aide" class="hint">Elle fixe le jour des échéances suivantes (le 31 devient le 30 ou le 28 selon le mois).</p>
+      </div>
+      <div class="field">
+        <label for="end">Dernière échéance <span class="optional">(facultatif)</span></label>
+        <input id="end" name="end" type="date" value="{{.End}}">
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" name="last_day" value="1"{{if .LastDay}} checked{{end}}> Toujours le dernier jour du mois</label>
+    <div class="field-row">
+      <div class="field">
+        <label for="account">Compte</label>
+        <select id="account" name="account">
+          {{- range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.AccountID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field">
+        <label for="category">Catégorie</label>
+        <select id="category" name="category">
+          <option value="0">Sans catégorie</option>
+          {{- range .Categories}}
+          <optgroup label="{{.Kind.Label}}">
+            {{- range .Categories}}<option value="{{.ID}}"{{if eq .ID $.Data.CategoryID}} selected{{end}}>{{.FullName}}</option>{{end}}
+          </optgroup>
+          {{- end}}
+        </select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Enregistrer</button>
+      <a class="btn" href="/recurrences">Annuler</a>
+    </div>
+  </form>
+  {{- end}}
+</section>
+{{- if .ID}}
+<section class="card danger-zone" aria-labelledby="gestion">
+  <h2 id="gestion">Suspension et suppression</h2>
+  <p class="muted">Une récurrence suspendue n'entre plus dans le prévisionnel mais reste enregistrée.</p>
+  <div class="actions">
+    <form method="post" action="/recurrences/{{.ID}}/activer">
+      <input type="hidden" name="active" value="{{not .Active}}">
+      <button class="btn" type="submit">{{if .Active}}Suspendre{{else}}Réactiver{{end}}</button>
+    </form>
+    <form method="post" action="/recurrences/{{.ID}}/supprimer" data-confirm="Supprimer cette récurrence ?">
+      <button class="btn btn-danger" type="submit">Supprimer</button>
+    </form>
+  </div>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

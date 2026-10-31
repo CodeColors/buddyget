@@ -18,6 +18,7 @@ import (
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/db"
+	"github.com/codecolors/buddyget/internal/recurring"
 )
 
 const password = "un mot de passe solide"
@@ -39,7 +40,10 @@ func newTestEnv(t *testing.T) *testEnv {
 	svc := auth.NewService(d)
 	dataDir := t.TempDir()
 	rules := categorize.NewService(d)
-	h, err := New(config.Config{MaxUploadMB: 1}, d, svc, ledger.NewService(d), rules, importer.NewService(d, dataDir, 1<<20, rules))
+	h, err := New(config.Config{MaxUploadMB: 1}, d, Services{
+		Auth: svc, Ledger: ledger.NewService(d), Rules: rules,
+		Importer: importer.NewService(d, dataDir, 1<<20, rules), Recurring: recurring.NewService(d),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

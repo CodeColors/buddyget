@@ -182,10 +182,13 @@ a { color: var(--link); }
   gap: 2px;
   min-height: var(--tabbar-h);
   color: var(--muted);
-  font-size: .8125rem;
+  font-size: .75rem;
+  white-space: nowrap;
   text-decoration: none;
 }
 .tabbar a:hover { color: var(--text); }
+.tabbar .nav-secondary { display: none; }
+.nav-more svg { stroke-width: 3.5; }
 .tabbar a[aria-current="page"] { color: var(--primary); font-weight: 600; }
 
 /* Contenu : l'espace bas laisse la place à la barre d'onglets et au bouton
@@ -660,6 +663,21 @@ details.more[open] { display: grid; gap: .5rem; }
 .figures dd { margin: 0; font-size: 1.25rem; }
 .reconcile { display: grid; justify-items: start; gap: .5rem; }
 
+/* Récurrences */
+
+.candidate { display: grid; gap: .5rem; }
+.candidate p { margin: 0; }
+.candidate-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
+.candidate-head .tx-label { white-space: normal; }
+.confidence { display: flex; align-items: center; gap: .5rem; font-size: .875rem; }
+.confidence label { font-weight: 400; color: var(--muted); }
+.confidence meter { flex: 1; max-width: 12rem; height: 1rem; }
+
+.inline-fields { display: flex; gap: .5rem; }
+.inline-fields input { max-width: 6rem; }
+
+.recurrence-form:not(:has(#period option[value="autre"]:checked)) .if-custom-period { display: none; }
+
 @media (min-width: 768px) {
   /* En-tête et navigation alignés sur le bord du contenu centré. */
   .topbar, .tabbar { padding-inline: max(1.5rem, (100% - var(--content-max)) / 2 + 1.5rem); }
@@ -681,6 +699,8 @@ details.more[open] { display: grid; gap: .5rem; }
     border-bottom: 2px solid transparent;
   }
   .tabbar a[aria-current="page"] { border-bottom-color: var(--primary); }
+  .tabbar .nav-secondary { display: flex; }
+  .tabbar .nav-more { display: none; }
 
   .page { padding: 1.5rem 1.5rem calc(56px + 3rem); }
   .page-centered { padding-top: 4rem; }
@@ -705,4 +725,9 @@ details.more[open] { display: grid; gap: .5rem; }
   .tx-meta { display: contents; }
   .tx-date { grid-area: date; }
   .tx-account { grid-area: account; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* Tablette : toutes les rubriques tiennent sur une ligne sans leurs icônes. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .tabbar a svg { display: none; }
 }

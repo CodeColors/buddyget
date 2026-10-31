@@ -22,6 +22,7 @@ import (
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/platform/money"
 	"github.com/codecolors/buddyget/internal/platform/validation"
+	"github.com/codecolors/buddyget/internal/recurring"
 )
 
 const (
@@ -33,6 +34,15 @@ const (
 // fichiers, qui auront leur propre limite).
 const maxFormBytes = 64 << 10
 
+// Services regroupe les services du domaine utilisés par l'interface.
+type Services struct {
+	Auth      *auth.Service
+	Ledger    *ledger.Service
+	Rules     *categorize.Service
+	Importer  *importer.Service
+	Recurring *recurring.Service
+}
+
 // Server regroupe les dépendances des handlers.
 type Server struct {
 	db             *db.DB
@@ -40,6 +50,7 @@ type Server struct {
 	ledger         *ledger.Service
 	rules          *categorize.Service
 	importer       *importer.Service
+	recurring      *recurring.Service
 	maxUpload      int64
 	pages          *renderer
 	assets         assets
@@ -48,8 +59,7 @@ type Server struct {
 }
 
 // New construit le gestionnaire HTTP complet de l'application.
-func New(cfg config.Config, database *db.DB, authService *auth.Service, ledgerService *ledger.Service,
-	rulesService *categorize.Service, importService *importer.Service) (http.Handler, error) {
+func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error) {
 	static, err := loadAssets()
 	if err != nil {
 		return nil, err
@@ -70,10 +80,11 @@ func New(cfg config.Config, database *db.DB, authService *auth.Service, ledgerSe
 	}
 	s := &Server{
 		db:             database,
-		auth:           authService,
-		ledger:         ledgerService,
-		rules:          rulesService,
-		importer:       importService,
+		auth:           svc.Auth,
+		ledger:         svc.Ledger,
+		rules:          svc.Rules,
+		importer:       svc.Importer,
+		recurring:      svc.Recurring,
 		maxUpload:      cfg.MaxUploadBytes(),
 		pages:          pages,
 		assets:         static,
@@ -135,6 +146,17 @@ func New(cfg config.Config, database *db.DB, authService *auth.Service, ledgerSe
 		"POST /operations/virements/relier":    s.linkTransfer,
 		"POST /operations/virements/ignorer":   s.dismissTransfer,
 		"POST /operations/{id}/delier":         s.unlinkTransfer,
+		"GET /recurrences":                     s.recurrencesPage,
+		"GET /recurrences/detectees":           s.detectedPage,
+		"POST /recurrences/detectees/valider":  s.acceptDetected,
+		"POST /recurrences/detectees/rejeter":  s.dismissDetected,
+		"GET /recurrences/nouvelle":            s.newRecurrencePage,
+		"POST /recurrences":                    s.createRecurrence,
+		"GET /recurrences/{id}":                s.editRecurrencePage,
+		"POST /recurrences/{id}":               s.updateRecurrence,
+		"POST /recurrences/{id}/activer":       s.toggleRecurrence,
+		"POST /recurrences/{id}/supprimer":     s.deleteRecurrence,
+		"GET /plus":                            s.morePage,
 	} {
 		mux.Handle(pattern, s.requireUser(h))
 	}
@@ -205,7 +227,8 @@ func (s *Server) inputError(w http.ResponseWriter, r *http.Request, err error) (
 	if msg, ok := validation.Message(err); ok {
 		return msg, true
 	}
-	if errors.Is(err, ledger.ErrNotFound) || errors.Is(err, categorize.ErrNotFound) || errors.Is(err, importer.ErrNotFound) {
+	if errors.Is(err, ledger.ErrNotFound) || errors.Is(err, categorize.ErrNotFound) || errors.Is(err, importer.ErrNotFound) ||
+		errors.Is(err, recurring.ErrNotFound) {
 		s.notFound(w, r)
 	} else {
 		s.serverError(w, r, err)
