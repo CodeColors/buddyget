@@ -1,0 +1,84 @@
+// Package db ouvre la base SQLite (sans CGO), applique les réglages adaptés
+// à un NAS peu puissant et exécute les migrations embarquées.
+package db
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"net/url"
+	"time"
+
+	_ "modernc.org/sqlite" // pilote "sqlite"
+)
+
+// readPoolSize borne le nombre de connexions de lecture simultanées.
+const readPoolSize = 4
+
+// pragmas communs à toutes les connexions. cache_size est en Kio quand il
+// est négatif : 2 Mio par connexion au maximum.
+var pragmas = []string{
+	"busy_timeout(5000)",
+	"foreign_keys(1)",
+	"synchronous(NORMAL)",
+	"cache_size(-2000)",
+}
+
+// DB sépare l'unique connexion d'écriture (SQLite sérialise de toute façon
+// les écritures) d'un petit pool de lecture, qui profite du mode WAL.
+type DB struct {
+	W *sql.DB
+	R *sql.DB
+}
+
+// Open ouvre (ou crée) la base au chemin donné, active le mode WAL et
+// applique les migrations en attente.
+func Open(ctx context.Context, path string) (*DB, error) {
+	w, err := open(path, false)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := w.ExecContext(ctx, "PRAGMA journal_mode = WAL"); err != nil {
+		return nil, errors.Join(fmt.Errorf("activation du mode WAL : %w", err), w.Close())
+	}
+	if err := migrate(ctx, w, migrations); err != nil {
+		return nil, errors.Join(err, w.Close())
+	}
+	r, err := open(path, true)
+	if err != nil {
+		return nil, errors.Join(err, w.Close())
+	}
+	return &DB{W: w, R: r}, nil
+}
+
+// Close ferme les deux pools ; la dernière fermeture rapatrie le WAL dans
+// le fichier principal.
+func (d *DB) Close() error {
+	return errors.Join(d.R.Close(), d.W.Close())
+}
+
+func open(path string, readOnly bool) (*sql.DB, error) {
+	q := url.Values{"_pragma": pragmas}
+	if readOnly {
+		q.Add("_pragma", "query_only(1)")
+	} else {
+		// Les transactions d'écriture prennent le verrou dès BEGIN :
+		// pas d'échec tardif lors de la promotion lecture → écriture.
+		q.Set("_txlock", "immediate")
+	}
+	dsn := url.URL{Scheme: "file", Path: path, RawQuery: q.Encode()}
+	conn, err := sql.Open("sqlite", dsn.String())
+	if err != nil {
+		return nil, fmt.Errorf("ouverture de %s : %w", path, err)
+	}
+	if readOnly {
+		conn.SetMaxOpenConns(readPoolSize)
+		conn.SetMaxIdleConns(readPoolSize)
+		// Au repos, les connexions de lecture (et leur cache) sont libérées.
+		conn.SetConnMaxIdleTime(5 * time.Minute)
+	} else {
+		conn.SetMaxOpenConns(1)
+	}
+	return conn, nil
+}
