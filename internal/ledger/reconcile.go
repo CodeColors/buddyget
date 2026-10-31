@@ -66,3 +66,33 @@ func (s *Service) Reconciliation(ctx context.Context, accountID int64) (Reconcil
 	).Scan(&r.Computed, &r.Uncleared)
 	return r, err
 }
+
+// Uncleared totalise les opérations non pointées d'un compte.
+type Uncleared struct {
+	Count int
+	Sum   int64
+}
+
+// UnclearedByAccount totalise, par compte, les opérations non pointées
+// comptées dans le solde au soir du jour on : retranchées de ce solde, elles
+// donnent le solde pointé.
+func (s *Service) UnclearedByAccount(ctx context.Context, on calendar.Date) (map[int64]Uncleared, error) {
+	rows, err := s.db.R.QueryContext(ctx, `
+		SELECT t.account_id, count(*), sum(t.amount) FROM transactions t JOIN accounts a ON a.id = t.account_id
+		WHERE t.cleared = 0 AND t.date >= a.opening_date AND t.date <= ?
+		GROUP BY t.account_id`, on)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[int64]Uncleared{}
+	for rows.Next() {
+		var id int64
+		var u Uncleared
+		if err := rows.Scan(&id, &u.Count, &u.Sum); err != nil {
+			return nil, err
+		}
+		out[id] = u
+	}
+	return out, rows.Err()
+}

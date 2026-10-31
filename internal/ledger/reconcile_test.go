@@ -3,6 +3,8 @@ package ledger
 import (
 	"errors"
 	"testing"
+
+	"github.com/codecolors/buddyget/internal/platform/calendar"
 )
 
 func TestReconciliation(t *testing.T) {
@@ -32,5 +34,11 @@ func TestReconciliation(t *testing.T) {
 	}
 	if _, err := s.Reconciliation(ctx, 999); !errors.Is(err, ErrNotFound) {
 		t.Errorf("compte inconnu : %v", err)
+	}
+
+	for on, want := range map[string]Uncleared{"2026-10-31": {1, -60_00}, "2026-11-30": {2, -65_00}} {
+		if u, err := s.UnclearedByAccount(ctx, calendar.Date(on)); err != nil || u[id] != want {
+			t.Errorf("non pointées au %s : %+v, %v", on, u, err)
+		}
 	}
 }
