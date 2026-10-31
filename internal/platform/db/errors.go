@@ -12,3 +12,9 @@ func IsUniqueViolation(err error) bool {
 	var e *sqlite.Error
 	return errors.As(err, &e) && e.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE
 }
+
+// IsForeignKeyViolation indique qu'une écriture désigne une ligne absente.
+func IsForeignKeyViolation(err error) bool {
+	var e *sqlite.Error
+	return errors.As(err, &e) && e.Code() == sqlite3.SQLITE_CONSTRAINT_FOREIGNKEY
+}

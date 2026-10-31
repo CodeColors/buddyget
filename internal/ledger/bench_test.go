@@ -61,3 +61,28 @@ func BenchmarkAccounts(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkTransferCandidates cherche les virements parmi 20 000 opérations,
+// dont un millier de paires possibles entre deux comptes.
+func BenchmarkTransferCandidates(b *testing.B) {
+	s := benchService(b)
+	ctx := b.Context()
+	livret := mustAccount(b, s, "Livret", 0, "2021-01-01")
+	err := s.db.Tx(ctx, func(tx *sql.Tx) error {
+		for i := range 1000 {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO transactions (account_id, date, label, amount) VALUES (?, ?, 'VIR RECU', ?)`,
+				livret, calendar.FromTime(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, i*20*5/55)), int64(i*20%9000+100)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	for b.Loop() {
+		if _, err := s.TransferCandidates(ctx, 100); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

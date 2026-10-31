@@ -165,7 +165,19 @@ func TestIsUniqueViolation(t *testing.T) {
 		t.Errorf("violation d'unicité non reconnue : %v", err)
 	}
 	_, err = conn.ExecContext(ctx, "INSERT INTO inexistante VALUES (1)")
-	if err == nil || IsUniqueViolation(err) {
-		t.Errorf("autre erreur prise pour une violation d'unicité : %v", err)
+	if err == nil || IsUniqueViolation(err) || IsForeignKeyViolation(err) {
+		t.Errorf("autre erreur prise pour une violation de contrainte : %v", err)
+	}
+}
+
+func TestIsForeignKeyViolation(t *testing.T) {
+	d, err := Open(t.Context(), filepath.Join(t.TempDir(), "fk.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = d.Close() }()
+	_, err = d.W.ExecContext(t.Context(), "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (x'00', 999, 0)")
+	if !IsForeignKeyViolation(err) || IsUniqueViolation(err) {
+		t.Errorf("violation de clé étrangère non reconnue : %v", err)
 	}
 }
