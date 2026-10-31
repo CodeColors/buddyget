@@ -84,8 +84,10 @@ deux thèmes.
 
 ### Front-end : rien d'inutile embarqué
 Une bibliothèque n'est vendorisée qu'au jalon où elle sert pour la première
-fois (HTMX au jalon 2, uPlot au prévisionnel). La politique CSP interdit tout
-script ou style en ligne et toute ressource externe.
+fois (HTMX au jalon 2). La courbe du prévisionnel est un SVG rendu côté
+serveur : uPlot, prévu au plan, n'a pas été nécessaire (voir le jalon 6). La
+politique CSP interdit tout script ou style en ligne et toute ressource
+externe.
 
 Les fichiers statiques sont embarqués, servis depuis la mémoire, et leur URL
 porte l'empreinte du contenu (`/static/app.css?v=…`) : cache navigateur d'un
@@ -328,8 +330,8 @@ mensuelle, bimestrielle, trimestrielle, semestrielle, annuelle et
 personnalisée. Chaque échéance se calcule depuis la date de départ, sans
 dérive : une série du 31 tombe le 28 ou le 29 février puis de nouveau le 31
 mars ; l'option « dernier jour du mois » couvre les salaires de fin de mois.
-Le report au jour ouvré suivant ou précédent relève du prévisionnel
-(jalon 6), avec le calendrier des jours fériés.
+Chaque récurrence précise en outre le report d'une échéance tombant un jour
+non ouvré (voir le jalon 6).
 
 ### Détection
 - Groupe : compte, sens (entrée ou sortie) et libellé normalisé sans les
@@ -364,13 +366,80 @@ proposée, même si le libellé est modifié. Une série rejetée est mémorisé
 supprimée ; seules les récurrences actives entreront dans le prévisionnel.
 
 ### Navigation à cinq onglets
-Avec les récurrences, la barre d'onglets mobile passe à cinq entrées
-(Accueil, Opérations, Importer, Récurrences, Plus) ; « Plus » mène à une
-page qui liste les écrans secondaires (comptes, catégories, règles,
-virements, historique des imports). Au-delà de 768 px, toutes les rubriques
+La barre d'onglets mobile compte cinq entrées (Accueil, Opérations,
+Prévisionnel, Importer, Plus) ; « Plus » mène à une page qui liste les
+écrans secondaires (récurrences, comptes, catégories, règles, virements,
+historique des imports). Le prévisionnel a pris au jalon 6 la place des
+récurrences, consultées moins souvent et accessibles depuis son écran. Au-delà de 768 px, toutes les rubriques
 s'affichent et « Plus » disparaît ; entre 768 et 1023 px, sans leurs icônes.
 Le tout en CSS, sans script.
 
 ### Construction de l'interface
 `web.New` reçoit les services du domaine regroupés dans `web.Services`
 plutôt qu'en paramètres successifs.
+
+## Prévisionnel (jalon 6)
+
+### Un moteur pur, un service qui le nourrit
+`forecast.Compute` est une fonction pure et déterministe : solde de départ,
+mouvements datés, estimation mensuelle des dépenses variables et seuil en
+entrée ; solde jour par jour, lignes avec solde cumulé, point bas, périodes
+sous le seuil et totaux en sortie. Le service rassemble les données (soldes
+et non pointées par `ledger`, récurrences par `recurring`) puis l'appelle.
+Les scénarios « et si » (jalon 10) ajouteront ou retireront des mouvements
+avant ce même appel : aucun second moteur.
+
+### Ce qui entre dans le calcul
+- **Solde de départ** : solde au soir d'aujourd'hui de tous les comptes
+  courants actifs (ou du compte choisi). Au choix, le solde **pointé** : les
+  opérations non pointées en sont retirées et comptées le lendemain, une
+  ligne par compte, pour que le solde prévu reste juste.
+- **Échéances des récurrences actives** après aujourd'hui, à leur date
+  effective. Une échéance du jour est supposée déjà passée.
+- **Opérations planifiées** (datées après aujourd'hui), sauf les virements
+  entre deux comptes couverts, sans effet sur leur total.
+- **Dépenses variables** : moyenne mensuelle, par catégorie, des dépenses
+  des 3, 6 ou 12 derniers mois complets (3 par défaut, désactivable), hors
+  virements internes et hors opérations d'une série couverte par une
+  récurrence (même signature). Les mois antérieurs à la date du solde
+  initial du compte le plus ancien ne comptent pas. L'estimation est répartie
+  jour par jour au prorata de la longueur de chaque mois, en centimes cumulés
+  arrondis (aucune dérive d'arrondi).
+- Le même jour, les revenus passent avant les dépenses.
+- Les totaux expliquent l'écart : solde de départ + revenus + dépenses
+  récurrentes + dépenses planifiées + dépenses variables = solde prévu.
+
+### Jours non ouvrés
+Samedis, dimanches et les onze jours fériés légaux (Pâques calculé, sans
+dépendance ; les jours propres à l'Alsace-Moselle ne sont pas comptés).
+Chaque récurrence choisit le report de ses échéances : jour ouvré suivant
+(par défaut, comme la plupart des prélèvements), précédent (salaires) ou
+aucun. Une échéance garde sa date théorique, qui l'identifie, et sa date
+effective, qui la place dans le calcul.
+
+### Exclusion ponctuelle
+Une échéance écartée reste affichée, barrée, sans peser sur le solde ; elle
+est repérée par la récurrence et sa date théorique (`forecast_exclusions`),
+et le reste même si la règle de report change. Les exclusions passées sont
+purgées à l'écriture suivante. Les simulations plus larges passeront par les
+scénarios.
+
+### Réglages communs au foyer
+Seuil d'alerte (0 € par défaut, négatif pour un découvert autorisé), solde
+de départ (toutes les opérations ou pointées seulement) et profondeur de la
+moyenne sont enregistrés dans `forecast_settings` (une ligne) : les alertes
+du jalon 8 reprendront ce seuil.
+
+### Horizon et date cible
+24 mois au plus. Par défaut, trois mois ; des raccourcis proposent la fin du
+mois, 3 et 6 mois, 1 et 2 ans. La requête est un GET (`compte`, `date`) :
+l'adresse d'un prévisionnel se garde en favori.
+
+### Courbe en SVG rendu côté serveur
+Le tracé en escalier est calculé en Go dans un repère de 1000 × 1000 étiré à
+la largeur de l'écran (`preserveAspectRatio="none"`, traits non déformés par
+`vector-effect`) ; textes et point bas sont placés en pourcentages, donc
+jamais déformés. Couleurs par classes CSS : les deux thèmes s'appliquent sans
+code. Aucun script, compatible avec la CSP ; la liste des échéances sert
+d'alternative textuelle. uPlot (≈ 50 Ko) n'apportait que l'interactivité au
+survol, superflue ici.

@@ -11,7 +11,7 @@ Date : 31/10/2026. Réf. : [cahier-des-charges.md](cahier-des-charges.md). Les �
 | Exports SG / BNP | Fichiers réels anonymisés fournis par l'utilisateur avant le jalon 3 |
 | Licence | AGPL-3.0 |
 
-**Avancement** : jalons 1 à 5 livrés le 31/10/2026 (profils SG et BNP provisoires, faute d'exports réels).
+**Avancement** : jalons 1 à 6 livrés le 31/10/2026 (profils SG et BNP provisoires, faute d'exports réels).
 
 ## 1. Principes directeurs
 
@@ -29,7 +29,7 @@ Date : 31/10/2026. Réf. : [cahier-des-charges.md](cahier-des-charges.md). Les �
 | SQLite | `modernc.org/sqlite`, WAL, `busy_timeout`, `synchronous=NORMAL`, 1 connexion écriture + pool lecture limité, `cache_size` borné |
 | Migrations | migrateur embarqué maison (~60 lignes, `embed` + table `schema_migrations`), pas de goose |
 | Routage | `http.ServeMux` (motifs Go 1.22), middlewares maison (session, logs sans données sensibles), CSRF par `http.CrossOriginProtection` |
-| Front | `html/template` + HTMX + Alpine.js + uPlot (le plus léger), CSS maison à variables (clair/sombre), sans build Node |
+| Front | `html/template` + HTMX, graphiques SVG rendus côté serveur (Alpine.js et uPlot écartés, voir DECISIONS.md), CSS maison à variables (clair/sombre), sans build Node |
 | Mots de passe | argon2id (`x/crypto`), m=19 Mio, t=2, p=1 (minimum OWASP, adapté CPU faible) |
 | Profils d'import | YAML embarqués, surchargeables dans `/data/profiles/` |
 | XLSX / XLS | `excelize` (lecture en flux `Rows()`) / `extrame/xls` |
@@ -68,7 +68,7 @@ buddyget/
 │   ├── scheduler/           # tâche quotidienne unique
 │   └── web/                 # serveur, middlewares, handlers par écran
 │       ├── templates/       # layout, partials HTMX, pages
-│       └── static/          # htmx, alpine, uplot (vendorisés), css, icônes, manifest PWA
+│       └── static/          # htmx (vendorisé), css, app.js, icône, manifest PWA
 ├── testdata/                # sg/, bnp/, generique/ (anonymisés)
 ├── e2e/                     # Playwright (dev/CI uniquement) : 360/768/1280 px × clair/sombre
 ├── docs/                    # ARCHITECTURE.md, DECISIONS.md, PERFORMANCE.md, accessibilite/

@@ -114,10 +114,26 @@ alloués. La première version évaluait les six périodicités pour chaque sér
 (135 ms) ; n'évaluer que celles proches de l'écart médian entre occurrences
 a divisé le temps par près de trois sans changer les résultats.
 
+## Jalon 6 : 31/10/2026
+
+Même machine. Prévisionnel à **24 mois** sur deux comptes courants riches de
+**cinq ans d'historique** (20 000 opérations, aucune pointée) et de 30
+récurrences (hebdomadaires, mensuelles, trimestrielles), avec le cas le plus
+coûteux : moyenne des dépenses variables sur 12 mois et solde pointé.
+
+| Opération | Durée | Mémoire allouée |
+|---|---|---|
+| Calcul complet (lecture en base comprise), 731 jours, ≈ 1 650 lignes | 27 ms | 2,2 Mo |
+
+L'objectif du cahier des charges est de 500 ms sur le NAS ; la marge est de
+l'ordre de 18 fois sur cette machine, à confirmer sur le matériel cible
+(jalon 12). La page (courbe SVG comprise) ne pèse que quelques dizaines de
+kilo-octets avant compression.
+
 ## Méthode
 
 ```bash
-go test -run '^$' -bench . -benchmem ./internal/ledger/ ./internal/importer/ ./internal/categorize/ ./internal/recurring/
+go test -run '^$' -bench . -benchmem ./internal/ledger/ ./internal/importer/ ./internal/categorize/ ./internal/recurring/ ./internal/forecast/
 
 make build
 DATA_DIR=/tmp/bg PORT=8080 ./bin/buddyget &

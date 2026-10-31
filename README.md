@@ -36,6 +36,11 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
 - Virements entre vos comptes repérés dans les relevés (même montant, dates
   proches) et proposés au rapprochement, pour ne fausser ni les dépenses ni
   les revenus
+- Prévisionnel à la date de votre choix (jusqu'à deux ans) : solde prévu,
+  courbe jour par jour, point bas, périodes sous un seuil d'alerte, détail du
+  calcul ligne par ligne ; échéances reportées au jour ouvré (week-ends et
+  jours fériés), dépenses courantes estimées sur la moyenne des derniers mois,
+  échéance écartée en un clic, solde pointé au choix
 
 ## Avancement
 
@@ -46,7 +51,8 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
 | 3 | Import CSV / XLSX / XLS, profils SG / BNP / générique, déduplication, annulation, rapprochement | ✅ (profils SG et BNP à vérifier sur des exports réels) |
 | 4 | Règles de catégorisation (en un clic, rétroactives, à l'import), virements internes détectés | ✅ |
 | 5 | Récurrences : détection avec score de confiance, validation, saisie manuelle | ✅ |
-| 6 – 12 | Prévisionnel, épargne, budgets, alertes, rapports, exports, sauvegardes | à venir |
+| 6 | Prévisionnel : courbe, point bas, seuil, jours non ouvrés, dépenses variables, exclusion ponctuelle | ✅ |
+| 7 – 12 | Épargne, budgets, alertes, rapports, exports, sauvegardes | à venir |
 
 Le détail est dans [docs/PLAN.md](docs/PLAN.md) et le cahier des charges dans
 [docs/cahier-des-charges.md](docs/cahier-des-charges.md).
