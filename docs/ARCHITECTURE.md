@@ -32,7 +32,9 @@ internal/
 │   └── validation/    erreur de saisie commune (message destiné à l'utilisateur)
 ├── auth/              comptes, argon2id, limitation des tentatives, sessions, thème
 ├── ledger/            grand livre : comptes, catégories, opérations, virements,
-│                      recherche (Filter), édition par lot, rapprochement
+│                      recherche (Filter), édition par lot, rapprochement,
+│                      détection des virements internes
+├── categorize/        règles de catégorisation : moteur, application rétroactive
 ├── importer/          import : lecteurs CSV/XLSX/XLS, profils, Mapping, déduplication,
 │   │                  brouillon, validation, historique, annulation
 │   └── profiles/      sg.yaml, bnp.yaml, generique.yaml (embarqués)
@@ -43,7 +45,7 @@ e2e/                   tests Playwright (développement et CI uniquement)
 testdata/              relevés d'exemple (synthétiques, voir testdata/README.md)
 ```
 
-Les packages métier suivants (`categorize`, `recurring`,
+Les packages métier suivants (`recurring`,
 `forecast`, `savings`, `budget`, `alerts`…) s'ajoutent jalon par jalon sur ce
 modèle : un service par domaine, appelé par les handlers.
 
@@ -86,7 +88,9 @@ peuvent pas créer deux premiers comptes.
 | `transfers` | lien entre les deux opérations d'un virement interne |
 | `transactions_fts` | index plein texte (FTS5) du libellé et de la note, tenu à jour par déclencheurs |
 | `imports` | historique des imports validés : fichier, profil, décomptes, annulation |
-| `import_drafts`, `import_lines` | imports en cours : fichier déposé, correspondance, lignes interprétées et sélection |
+| `import_drafts`, `import_lines` | imports en cours : fichier déposé, correspondance, lignes interprétées, catégorie suggérée et sélection |
+| `category_rules` | règles : motif, « contient » ou expression régulière, catégorie, priorité |
+| `transfer_dismissals` | paires écartées de la détection des virements internes |
 
 Une opération importée porte `import_id` (annulation) et `import_hash`
 (empreinte unique par compte, garde-fou contre les doublons). Le compte porte
@@ -108,6 +112,8 @@ table des opérations.
 | `/import/{jeton}`, `/import/{jeton}/colonnes` | étape 2 : choix des colonnes si besoin, aperçu et sélection, validation |
 | `/comptes/{id}/rapprochement` | étape 3 : solde de la banque, écart, opérations non pointées |
 | `/import/historique` | imports validés, annulation |
+| `/regles`, `/regles/nouvelle`, `/regles/{id}` | règles de catégorisation, application aux opérations sans catégorie |
+| `/operations/virements` | virements internes possibles : relier ou écarter |
 
 ### Chemin d'un import
 
@@ -116,7 +122,9 @@ dépôt ─► fichier copié dans DATA_DIR/imports/<jeton> ─► format (signa
       ─► 30 premières lignes ─► profil reconnu ? ─┬─ oui ─► Mapping
                                                   └─ non ─► choix des colonnes ─► Mapping
 Mapping ─► lecture en flux ─► lignes interprétées + empreintes ─► import_lines (par lots)
+        (catégorie suggérée par les règles)
 aperçu (pages de 100) ─► sélection ─► INSERT … SELECT dans transactions ─► imports
+                                              └─► virements internes possibles signalés
 ```
 
 Toute action renvoie (redirection 303) vers la page d'origine avec un message

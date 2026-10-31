@@ -275,3 +275,47 @@ date ; l'écart renvoie vers la liste des opérations non pointées jusqu'à
 cette date. La vue de pointage rapide (jalon 9) réutilisera ce même solde.
 C'est la troisième étape de l'assistant d'import, aussi accessible depuis
 chaque compte.
+
+## Règles et virements internes (jalon 4)
+
+### Un seul mécanisme de catégorisation automatique
+Le package `categorize` porte les règles ; il sert à la fois à l'import
+(catégorie suggérée à la mise en attente, visible dans l'aperçu, enregistrée
+à la validation) et à l'application rétroactive. Aucune autre forme de
+suggestion (par exemple d'après l'historique) n'existe.
+
+- « Contient » compare la forme normalisée du libellé et du motif (casse,
+  accents et espaces ignorés, `text.Fold`) ; une expression régulière (RE2,
+  sans risque d'emballement) s'applique au libellé tel quel, casse ignorée.
+- Ordre d'évaluation : priorité décroissante, puis motif le plus long (le
+  plus précis), puis le plus ancien ; la première règle qui s'applique
+  l'emporte.
+- L'application rétroactive ne touche par défaut que les opérations sans
+  catégorie ; l'option « y compris celles déjà catégorisées » est explicite.
+  Les jambes de virement ne sont jamais catégorisées.
+- Elle se fait en Go (lecture en flux des libellés, mise à jour groupée par
+  catégorie) : SQLite ne connaît pas `text.Fold`, et stocker un libellé
+  normalisé n'aurait servi qu'à cela.
+- Règle « en un clic » : la page d'une opération propose une règle
+  préremplie (deux premiers mots significatifs du libellé, sans références,
+  dates ni mots ajoutés par la banque) et la catégorie de l'opération.
+  L'édition par lot peut aussi créer la règle « le libellé contient le
+  texte recherché ».
+- Les règles vivent sous `/regles` (et non `/categories/regles`, que le
+  routeur confondrait avec `/categories/{id}`).
+
+### Virements internes
+- Candidat : une sortie et une entrée de même montant sur deux comptes
+  différents, à trois jours d'écart au plus, aucune n'étant déjà reliée.
+  Les paires sont proposées, jamais reliées d'office : deux montants égaux
+  peuvent être une coïncidence.
+- Relier une paire réutilise le lien des virements saisis (table
+  `transfers`) : les deux opérations perdent leur catégorie et ne comptent
+  plus ni en dépense ni en revenu.
+- « Ce n'est pas un virement » écarte la paire durablement
+  (`transfer_dismissals`) ; défaire un virement relié l'écarte aussi.
+- L'annulation d'un import défait d'abord les virements auxquels ses
+  opérations participent (`ledger.UnlinkTransfers`, même mécanisme), pour ne
+  jamais laisser un virement à une seule jambe.
+- La liste des opérations et la fin d'un import signalent les paires à
+  vérifier ; le décompte ne charge pas les opérations.

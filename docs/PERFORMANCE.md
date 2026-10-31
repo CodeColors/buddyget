@@ -93,10 +93,23 @@ représentait que 9 Mo, le reste étant le cache et les tampons de SQLite.
 au système) est appelé après la mise en attente, la validation et
 l'annulation d'un import.
 
+## Jalon 4 : 31/10/2026
+
+Même machine, **20 000 opérations** :
+
+| Opération | Durée | Mémoire allouée |
+|---|---|---|
+| Application de 50 règles (dont 5 expressions régulières) à toutes les opérations | 78 ms | 18 Mo |
+| Recherche des virements internes possibles (1 000 crédits candidats) | 19 ms | 0,2 Mo |
+
+La recherche des virements est refaite à chaque affichage complet de la liste
+des opérations (pas lors des mises à jour de la recherche instantanée) ; sa
+durée sur le NAS reste à mesurer (jalon 12).
+
 ## Méthode
 
 ```bash
-go test -run '^$' -bench . -benchmem ./internal/ledger/ ./internal/importer/
+go test -run '^$' -bench . -benchmem ./internal/ledger/ ./internal/importer/ ./internal/categorize/
 
 make build
 DATA_DIR=/tmp/bg PORT=8080 ./bin/buddyget &
