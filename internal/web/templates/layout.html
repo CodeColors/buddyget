@@ -68,7 +68,9 @@
 </header>
 {{- if .User}}
 <nav class="tabbar" aria-label="Navigation principale">
-  {{- $secondary := or (navActive .Path "/budgets") (navActive .Path "/alertes") (navActive .Path "/epargne") (navActive .Path "/recurrences") (navActive .Path "/comptes") (navActive .Path "/categories") (navActive .Path "/regles") (navActive .Path "/plus")}}
+  {{- /* Rubriques visibles dès 1024 px ; sur un écran plus étroit, « Plus » y mène. */}}
+  {{- $secondary := or (navActive .Path "/budgets") (navActive .Path "/epargne") (navActive .Path "/rapports")}}
+  {{- $more := or (navActive .Path "/plus") (navActive .Path "/recurrences") (navActive .Path "/abonnements") (navActive .Path "/comptes") (navActive .Path "/categories") (navActive .Path "/regles") (navActive .Path "/etiquettes") (navActive .Path "/alertes")}}
   <a href="/"{{if navActive .Path "/"}} aria-current="page"{{end}}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg>
     <span>Accueil</span>
@@ -93,19 +95,11 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11a7 6 0 0 1 13-2h2v4l-2 1v3h-3v-2H9v2H6v-3a6 6 0 0 1-1-3zM15 10h.01"/></svg>
     <span>Épargne</span>
   </a>
-  <a class="nav-secondary" href="/recurrences"{{if navActive .Path "/recurrences"}} aria-current="page"{{end}}>
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m17 3 3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3m13-2v2a3 3 0 0 1-3 3H4"/></svg>
-    <span>Récurrences</span>
+  <a class="nav-secondary" href="/rapports"{{if navActive .Path "/rapports"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11m7 9V5m7 15v-7M3 20h18"/></svg>
+    <span>Rapports</span>
   </a>
-  <a class="nav-secondary" href="/comptes"{{if navActive .Path "/comptes"}} aria-current="page"{{end}}>
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4M4 7.5V17a2 2 0 0 0 2 2h14V9H6.5A2.5 2.5 0 0 1 4 7.5zM16 14h.01"/></svg>
-    <span>Comptes</span>
-  </a>
-  <a class="nav-secondary" href="/categories"{{if or (navActive .Path "/categories") (navActive .Path "/regles")}} aria-current="page"{{end}}>
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5V4h8.5l9 9-8.5 8.5zM8 8h.01"/></svg>
-    <span>Catégories</span>
-  </a>
-  <a class="nav-more" href="/plus"{{if $secondary}} aria-current="page"{{end}}>
+  <a class="nav-more{{if $secondary}} is-current-narrow{{end}}" href="/plus"{{if $more}} aria-current="page"{{end}}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01"/></svg>
     <span>Plus</span>
   </a>

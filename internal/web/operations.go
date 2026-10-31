@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/codecolors/buddyget/internal/attachments"
 	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/calendar"
@@ -29,6 +30,7 @@ func parseFilter(q url.Values) (ledger.Filter, string) {
 		Query:     q.Get("q"),
 		AccountID: idParam(q.Get("compte")),
 		Cleared:   ledger.Cleared(q.Get("pointage")),
+		Tag:       q.Get("etiquette"),
 		Sort:      ledger.Sort(q.Get("tri")),
 	}
 	if c := q.Get("categorie"); c == "aucune" {
@@ -81,6 +83,7 @@ type operationsView struct {
 	NextURL    string
 	Accounts   []ledger.AccountBalance
 	Categories []ledger.KindGroup
+	Tags       []ledger.Tag
 	Today      calendar.Date
 }
 
@@ -97,7 +100,7 @@ func (v operationsView) Searching() bool {
 // FiltersOpen indique qu'un critère du panneau de filtres est actif, pour
 // l'afficher déplié.
 func (v operationsView) FiltersOpen() bool {
-	for _, k := range []string{"compte", "categorie", "du", "au", "min", "max", "pointage", "tri"} {
+	for _, k := range []string{"compte", "categorie", "etiquette", "du", "au", "min", "max", "pointage", "tri"} {
 		if v.Q.Get(k) != "" {
 			return true
 		}
@@ -140,6 +143,10 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v.Categories = ledger.GroupByKind(cats)
+	if v.Tags, err = s.ledger.Tags(r.Context()); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	if v.Transfers, err = s.transferCount(r); err != nil {
 		s.serverError(w, r, err)
 		return
@@ -178,6 +185,7 @@ type operationForm struct {
 	ToAccountID int64
 	CategoryID  int64
 	Note        string
+	Tags        string // étiquettes séparées par des virgules
 	Cleared     bool
 	Back        string // page de retour après enregistrement
 	Error       string
@@ -188,8 +196,13 @@ type operationForm struct {
 	Accounts   []ledger.AccountBalance
 	Categories []ledger.KindGroup
 	Labels     []string
+	TagNames   []string
 	// RulePattern est le motif proposé pour la règle « en un clic ».
 	RulePattern string
+	// Modèles de saisie (nouvelle opération), pièces jointes (opération
+	// existante).
+	Templates   []ledger.QuickTemplate
+	Attachments []attachments.Attachment
 }
 
 func (f operationForm) title() string {
@@ -220,7 +233,21 @@ func (s *Server) withOptions(r *http.Request, f operationForm) (operationForm, e
 		return f, err
 	}
 	f.Categories = ledger.GroupByKind(cats)
-	f.Labels, err = s.ledger.RecentLabels(ctx, 50)
+	if f.Labels, err = s.ledger.RecentLabels(ctx, 50); err != nil {
+		return f, err
+	}
+	tags, err := s.ledger.Tags(ctx)
+	for _, t := range tags {
+		f.TagNames = append(f.TagNames, t.Name)
+	}
+	if err != nil {
+		return f, err
+	}
+	if f.ID == 0 {
+		f.Templates, err = s.ledger.Templates(ctx)
+	} else {
+		f.Attachments, err = s.attachments.List(ctx, f.ID)
+	}
 	return f, err
 }
 
@@ -233,6 +260,8 @@ func (s *Server) renderOperationForm(w http.ResponseWriter, r *http.Request, sta
 	s.render(w, r, status, "operation_form", f.title(), f)
 }
 
+// newOperationPage ouvre une saisie vierge, ou la copie d'une opération
+// (?dupliquer=<id>, ou « derniere » pour la dernière saisie) datée du jour.
 func (s *Server) newOperationPage(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	f := operationForm{
@@ -240,6 +269,25 @@ func (s *Server) newOperationPage(w http.ResponseWriter, r *http.Request) {
 		Date:      q.Get("date"),
 		AccountID: idParam(q.Get("compte")),
 		Back:      q.Get("retour"),
+	}
+	if from := q.Get("dupliquer"); from != "" {
+		var t ledger.Transaction
+		var found bool
+		var err error
+		if from == "derniere" {
+			t, found, err = s.ledger.LastEntered(r.Context())
+		} else {
+			t, err = s.ledger.Transaction(r.Context(), idParam(from))
+			found = err == nil
+		}
+		if err != nil {
+			s.inputError(w, r, err)
+			return
+		}
+		if found {
+			f = formFromTransaction(t)
+			f.ID, f.TransferID, f.Cleared, f.Date, f.RulePattern = 0, 0, false, "", ""
+		}
 	}
 	if f.Back == "" {
 		f.Back = backFromReferer(r)
@@ -273,10 +321,17 @@ func (s *Server) editOperationPage(w http.ResponseWriter, r *http.Request) {
 		s.inputError(w, r, err)
 		return
 	}
+	f := formFromTransaction(t)
+	f.Back = backFromReferer(r)
+	s.renderOperationForm(w, r, http.StatusOK, f)
+}
+
+// formFromTransaction prépare le formulaire d'une opération existante.
+func formFromTransaction(t ledger.Transaction) operationForm {
 	f := operationForm{
 		ID: t.ID, TransferID: t.TransferID, Label: t.Label, Date: string(t.Date),
-		AccountID: t.AccountID, CategoryID: t.CategoryID, Note: t.Note, Cleared: t.Cleared,
-		Amount: money.FormatInput(t.Amount), Back: backFromReferer(r), RulePattern: categorize.SuggestPattern(t.Label),
+		AccountID: t.AccountID, CategoryID: t.CategoryID, Note: t.Note, Cleared: t.Cleared, Tags: strings.Join(t.Tags, ", "),
+		Amount: money.FormatInput(t.Amount), RulePattern: categorize.SuggestPattern(t.Label),
 	}
 	switch {
 	case t.IsTransfer() && t.Amount < 0:
@@ -288,7 +343,7 @@ func (s *Server) editOperationPage(w http.ResponseWriter, r *http.Request) {
 	default:
 		f.Type = typeExpense
 	}
-	s.renderOperationForm(w, r, http.StatusOK, f)
+	return f
 }
 
 // backFromReferer retient la page d'où vient l'utilisateur (par exemple la
@@ -329,6 +384,7 @@ func (s *Server) saveOperation(w http.ResponseWriter, r *http.Request, id int64)
 		ToAccountID: formID(r, "to_account"),
 		CategoryID:  formID(r, "category"),
 		Note:        r.PostFormValue("note"),
+		Tags:        r.PostFormValue("tags"),
 		Cleared:     r.PostFormValue("cleared") != "",
 		Back:        localPath(r.PostFormValue("back")),
 	}
@@ -430,7 +486,11 @@ func (s *Server) storeOperation(r *http.Request, f operationForm, amount int64, 
 	if f.Type == typeExpense {
 		amount = -amount
 	}
-	in := ledger.TransactionInput{AccountID: f.AccountID, Date: date, Label: f.Label, Amount: amount, CategoryID: f.CategoryID, Note: f.Note, Cleared: f.Cleared}
+	tags, err := ledger.ParseTags(f.Tags)
+	if err != nil {
+		return err
+	}
+	in := ledger.TransactionInput{AccountID: f.AccountID, Date: date, Label: f.Label, Amount: amount, CategoryID: f.CategoryID, Note: f.Note, Cleared: f.Cleared, Tags: tags}
 	if f.ID == 0 {
 		_, err := s.ledger.CreateTransaction(ctx, in)
 		return err
@@ -482,6 +542,7 @@ func (s *Server) batchOperations(w http.ResponseWriter, r *http.Request) {
 		ch.SetCategory, ch.CategoryID = true, idParam(c)
 	}
 	ch.AccountID = idParam(r.PostFormValue("compte"))
+	ch.AddTag, ch.RemoveTag = r.PostFormValue("ajouter_etiquette"), r.PostFormValue("retirer_etiquette")
 
 	res, err := s.ledger.BatchUpdate(r.Context(), sel, ch)
 	if err != nil {

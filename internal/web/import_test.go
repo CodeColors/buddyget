@@ -15,10 +15,20 @@ import (
 // upload dépose un fichier par le formulaire d'import (compte puis fichier).
 func (e *testEnv) upload(account, name string, data []byte) result {
 	e.t.Helper()
+	return e.postFile("/import", url.Values{"account": {account}}, name, data)
+}
+
+// postFile envoie un formulaire multipart : les champs, puis le fichier.
+func (e *testEnv) postFile(path string, fields url.Values, name string, data []byte) result {
+	e.t.Helper()
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
-	if err := mw.WriteField("account", account); err != nil {
-		e.t.Fatal(err)
+	for k, vs := range fields {
+		for _, v := range vs {
+			if err := mw.WriteField(k, v); err != nil {
+				e.t.Fatal(err)
+			}
+		}
 	}
 	fw, err := mw.CreateFormFile("file", name)
 	if err != nil {
@@ -30,7 +40,7 @@ func (e *testEnv) upload(account, name string, data []byte) result {
 	if err := mw.Close(); err != nil {
 		e.t.Fatal(err)
 	}
-	req, err := http.NewRequestWithContext(e.t.Context(), http.MethodPost, e.srv.URL+"/import", &body)
+	req, err := http.NewRequestWithContext(e.t.Context(), http.MethodPost, e.srv.URL+path, &body)
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -92,10 +102,26 @@ func TestImportWizard(t *testing.T) {
 	// Rapprochement : 1 000 − 4,20 × 2 − 78,32 + 2 450 − 3,50 = 3 359,78.
 	e.expectRedirect("POST", "/comptes/"+account+"/rapprochement", url.Values{"balance": {"3 239,78"}, "date": {"2026-10-31"}, "import": {"1"}}, "/comptes/"+account+"/rapprochement?import=1")
 	body = e.expectFlash("/comptes/"+account+"/rapprochement?import=1", "Solde bancaire enregistré.")
-	for _, want := range []string{"3 359,78 €", "−120,00 €", "Voir les 5 opérations non pointées", "pointage=non"} {
+	for _, want := range []string{"3 359,78 €", "−120,00 €", "Reste à pointer", "Solde pointé"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("rapprochement : %q absent", want)
 		}
+	}
+	if n := strings.Count(body, `class="tx pointage"`); n != 5 {
+		t.Errorf("%d opérations à pointer, attendu 5", n)
+	}
+
+	// Pointage d'un geste (HTMX) : la ligne et l'écart sont renvoyés.
+	reconcile := "/comptes/" + account + "/rapprochement"
+	op := regexp.MustCompile(`action="/operations/(\d+)/pointer"`).FindStringSubmatch(body)[1]
+	res = e.do("POST", "/operations/"+op+"/pointer", url.Values{"cleared": {"1"}, "back": {reconcile}}, "HX-Request", "true")
+	if res.status != http.StatusOK || !strings.Contains(res.body, `aria-pressed="true"`) || !strings.Contains(res.body, `id="ecart" hx-swap-oob="true"`) {
+		t.Errorf("pointage HTMX : %d", res.status)
+	}
+	// Sans script, retour à la page : l'opération pointée n'y figure plus.
+	e.expectRedirect("POST", "/operations/"+op+"/pointer", url.Values{"cleared": {"1"}, "back": {reconcile}}, reconcile)
+	if body = e.expectFlash(reconcile, "Opération pointée."); strings.Count(body, `class="tx pointage"`) != 4 {
+		t.Error("l'opération pointée quitte la liste")
 	}
 
 	// Historique et annulation.

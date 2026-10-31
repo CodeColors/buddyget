@@ -1,0 +1,31 @@
+{{define "content"}}
+<h1>Étiquettes</h1>
+<p class="muted">Les étiquettes complètent les catégories : « vacances 2027 », « déductible »… Ajoutez-les à la saisie d'une opération, ou par lot depuis la liste des opérations.</p>
+{{- if .Data}}
+<ul class="rows" aria-label="Étiquettes">
+  {{- range .Data}}
+  <li class="row tag-row">
+    <a class="row-link" href="/operations?etiquette={{.Name}}">
+      <span class="row-title">{{.Name}}</span>
+      <span class="row-meta">{{plural .Count "opération" "opérations"}}</span>
+    </a>
+    <details class="more">
+      <summary>Gérer<span class="sr-only"> « {{.Name}} »</span></summary>
+      <form class="inline-form" method="post" action="/etiquettes/{{.ID}}">
+        <div class="field">
+          <label for="tag-{{.ID}}">Nouveau nom</label>
+          <input id="tag-{{.ID}}" name="name" value="{{.Name}}" maxlength="40" required autocomplete="off">
+        </div>
+        <button class="btn" type="submit">Renommer</button>
+      </form>
+      <form method="post" action="/etiquettes/{{.ID}}/supprimer" data-confirm="Retirer « {{.Name}} » de toutes ses opérations ?">
+        <button class="btn btn-danger" type="submit">Retirer de toutes les opérations</button>
+      </form>
+    </details>
+  </li>
+  {{- end}}
+</ul>
+{{- else}}
+<p class="card empty muted">Aucune étiquette pour l'instant.</p>
+{{- end}}
+{{end}}

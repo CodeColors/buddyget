@@ -222,7 +222,7 @@ a { color: var(--link); }
 .tabbar a:hover { color: var(--text); }
 .tabbar .nav-secondary { display: none; }
 .nav-more svg { stroke-width: 3.5; }
-.tabbar a[aria-current="page"] { color: var(--primary); font-weight: 600; }
+.tabbar a[aria-current="page"], .tabbar a.is-current-narrow { color: var(--primary); font-weight: 600; }
 
 /* Contenu : l'espace bas laisse la place à la barre d'onglets et au bouton
    flottant sur mobile. */
@@ -729,6 +729,55 @@ details.more[open] { display: grid; gap: .5rem; }
 
 /* Budgets et alertes */
 
+.badge-tag { color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.warning-text { color: var(--warning-text); }
+.quick-entry { display: grid; gap: .5rem; margin-bottom: 1rem; }
+.quick-entry .chips { margin: 0; padding: 0; list-style: none; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  min-height: var(--tap);
+  padding: 0 1rem;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  background: var(--hover);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--input-border); }
+[data-dictate][aria-pressed="true"] { color: var(--on-primary); background: var(--primary); }
+.check-btn {
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  color: transparent;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.check-btn svg {
+  width: 26px;
+  height: 26px;
+  padding: 2px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  border: 2px solid var(--input-border);
+  border-radius: 6px;
+}
+.check-btn[aria-pressed="true"] { color: var(--on-primary); }
+.check-btn[aria-pressed="true"] svg { background: var(--positive); border-color: var(--positive); }
+.pointage { touch-action: pan-y; }
+.pointage.is-cleared .tx-label { color: var(--muted); }
+.tag-row { flex-wrap: wrap; }
+.tag-row details { flex-basis: 100%; }
+
 .month-nav { display: flex; align-items: center; gap: .75rem; }
 .month-nav h2 { flex: 1; margin: 0; text-align: center; }
 .month-nav h2::first-letter { text-transform: uppercase; }
@@ -881,7 +930,7 @@ details.more[open] { display: grid; gap: .5rem; }
     font-size: .9375rem;
     border-bottom: 2px solid transparent;
   }
-  .tabbar a[aria-current="page"] { border-bottom-color: var(--primary); }
+  .tabbar a[aria-current="page"], .tabbar a.is-current-narrow { border-bottom-color: var(--primary); }
 
   .page { padding: 1.5rem 1.5rem calc(56px + 3rem); }
   .page-centered { padding-top: 4rem; }
@@ -920,7 +969,10 @@ details.more[open] { display: grid; gap: .5rem; }
    inutile), une échéance du prévisionnel par ligne. */
 @media (min-width: 1024px) {
   .tabbar .nav-secondary { display: flex; }
-  .tabbar .nav-more { display: none; }
+  /* Budgets, Épargne et Rapports sont dans la barre : « Plus » ne les
+     signale plus, et sa page ne les répète pas. */
+  .tabbar .nav-more.is-current-narrow:not([aria-current]) { color: var(--muted); font-weight: 400; border-bottom-color: transparent; }
+  .nav-secondary-entry { display: none; }
 
   .fc-line {
     grid-template-columns: 6.5rem minmax(0, 1fr) minmax(0, 14rem) 8.5rem 8.5rem var(--tap);

@@ -21,6 +21,7 @@ import (
 	_ "time/tzdata" // base des fuseaux embarquée : l'image scratch n'en a pas (TZ)
 
 	"github.com/codecolors/buddyget/internal/alerts"
+	"github.com/codecolors/buddyget/internal/attachments"
 	"github.com/codecolors/buddyget/internal/auth"
 	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/categorize"
@@ -31,6 +32,7 @@ import (
 	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/recurring"
+	"github.com/codecolors/buddyget/internal/reports"
 	"github.com/codecolors/buddyget/internal/savings"
 	"github.com/codecolors/buddyget/internal/scheduler"
 	"github.com/codecolors/buddyget/internal/web"
@@ -86,16 +88,19 @@ func run() error {
 		baseURL = cfg.BaseURL.String()
 	}
 	alertCenter := alerts.NewService(database, accounts, recurrences, savingsAccounts, budgets, forecasts, baseURL)
+	files := attachments.NewService(database, cfg.DataDir, cfg.MaxUploadBytes(), cfg.AttachmentsQuotaBytes())
 	handler, err := web.New(cfg, database, web.Services{
-		Auth:      auth.NewService(database),
-		Ledger:    accounts,
-		Rules:     rules,
-		Importer:  importer.NewService(database, cfg.DataDir, cfg.MaxUploadBytes(), rules),
-		Recurring: recurrences,
-		Savings:   savingsAccounts,
-		Budgets:   budgets,
-		Forecast:  forecasts,
-		Alerts:    alertCenter,
+		Auth:        auth.NewService(database),
+		Ledger:      accounts,
+		Rules:       rules,
+		Importer:    importer.NewService(database, cfg.DataDir, cfg.MaxUploadBytes(), rules),
+		Recurring:   recurrences,
+		Savings:     savingsAccounts,
+		Budgets:     budgets,
+		Forecast:    forecasts,
+		Alerts:      alertCenter,
+		Reports:     reports.NewService(database, accounts),
+		Attachments: files,
 	})
 	if err != nil {
 		return err
@@ -130,6 +135,13 @@ func run() error {
 				return err
 			}},
 			scheduler.Job{Name: "alertes", Run: alertCenter.Daily},
+			scheduler.Job{Name: "pièces jointes orphelines", Run: func(ctx context.Context, _ calendar.Date) error {
+				n, err := files.Sweep(ctx)
+				if n > 0 {
+					slog.Info("pièces jointes orphelines supprimées", "fichiers", n)
+				}
+				return err
+			}},
 		)
 	})
 	defer func() {

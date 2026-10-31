@@ -1,0 +1,95 @@
+{{define "content"}}
+{{- with .Data}}
+<h1>Rapports</h1>
+<nav class="tabs" aria-label="Type de rapport">
+  <a href="/rapports"{{if not .Annual}} aria-current="page"{{end}}>Mensuel</a>
+  <a href="/rapports?annee={{slice (print .From) 0 4}}"{{if .Annual}} aria-current="page"{{end}}>Annuel</a>
+</nav>
+<nav class="month-nav" aria-label="Période">
+  <a class="btn" href="{{.Prev}}"><span aria-hidden="true">‹</span><span class="sr-only">Période précédente</span></a>
+  <h2>{{.Period}}</h2>
+  <a class="btn" href="{{.Next}}"><span aria-hidden="true">›</span><span class="sr-only">Période suivante</span></a>
+</nav>
+
+<section class="card forecast-summary" aria-labelledby="synthese">
+  <h2 id="synthese" class="sr-only">Synthèse</h2>
+  <dl class="figures">
+    <div><dt>Revenus</dt><dd class="amount">{{euros .Income}}</dd></div>
+    <div><dt>Dépenses</dt><dd class="amount">{{euros .Expenses}}</dd></div>
+    <div><dt>Épargné</dt><dd class="amount{{if lt .Saved 0}} negative{{end}}">{{eurosSigned .Saved}}</dd></div>
+    {{- if gt .Income 0}}<div><dt>Taux d'épargne</dt><dd>{{.SavingsRate}} %</dd></div>{{end}}
+  </dl>
+  {{- if .HasPrevious}}
+  <p class="hint">{{if .Annual}}Année{{else}}Mois{{end}} précédent : {{euros .Previous.Income}} de revenus, {{euros .Previous.Expenses}} de dépenses.</p>
+  {{- end}}
+  <p class="hint">Virements entre vos comptes et versements d'épargne exclus. <a href="/budgets">Budget et dépenses sur 12 mois</a></p>
+</section>
+
+{{- with .Chart}}
+<figure class="card chart">
+  <figcaption id="mois-titre">Dépenses mois par mois</figcaption>
+  {{template "bar-chart" .}}
+  <details class="more">
+    <summary>Voir le tableau</summary>
+    <div class="table-scroll">
+      <table class="raw">
+        <thead><tr><th scope="col">Mois</th><th scope="col">Revenus</th><th scope="col">Dépenses</th><th scope="col">Solde</th></tr></thead>
+        <tbody>
+          {{- range $.Data.Months}}
+          <tr><th scope="row">{{.Month.MonthLabel}}</th><td class="amount">{{euros .Income}}</td><td class="amount">{{euros .Expenses}}</td><td class="amount">{{eurosSigned (sub .Income .Expenses)}}</td></tr>
+          {{- end}}
+        </tbody>
+      </table>
+    </div>
+  </details>
+</figure>
+{{- end}}
+
+<section aria-labelledby="par-categorie">
+  <h2 id="par-categorie">Dépenses par catégorie</h2>
+  {{- if .Categories}}
+  <ul class="rows envelopes" aria-label="Dépenses par catégorie">
+    {{- range .Categories}}
+    <li class="row">
+      <div class="envelope">
+        <div class="envelope-head">
+          <span class="row-title">{{with .Color}}{{template "dot" .}}{{end}}{{or .Name "Sans catégorie"}}</span>
+          <span class="amount">{{euros .Amount}}</span>
+        </div>
+        <svg class="gauge gauge-ok" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect class="gauge-track" width="100" height="4"/><rect class="gauge-fill" width="{{.Share}}" height="4"/></svg>
+        <p class="row-meta">{{.Share}} % des dépenses{{if gt .Previous 0}} · {{if ge .Change 0}}+{{end}}{{.Change}} % par rapport à {{euros .Previous}}{{end}}</p>
+      </div>
+    </li>
+    {{- end}}
+  </ul>
+  {{- else}}
+  <p class="card empty muted">Aucune dépense sur la période.</p>
+  {{- end}}
+</section>
+
+{{- if .Merchants}}
+<section aria-labelledby="commercants">
+  <h2 id="commercants">Principaux commerçants</h2>
+  <ol class="rows rows-split" aria-label="Principaux commerçants">
+    {{- range .Merchants}}
+    <li class="row"><span class="row-title">{{.Name}}<span class="row-meta"> · {{plural .Count "achat" "achats"}}</span></span><span class="amount">{{euros .Amount}}</span></li>
+    {{- end}}
+  </ol>
+</section>
+{{- end}}
+
+{{- if .Tags}}
+<section aria-labelledby="par-etiquette">
+  <h2 id="par-etiquette">Par étiquette</h2>
+  <ul class="rows rows-split" aria-label="Par étiquette">
+    {{- range .Tags}}
+    <li class="row">
+      <a class="row-title" href="/operations?etiquette={{.Name}}">{{.Name}}</a>
+      <span><span class="amount">{{euros .Expenses}}</span>{{if .Income}} <span class="row-meta">(revenus {{euros .Income}})</span>{{end}}</span>
+    </li>
+    {{- end}}
+  </ul>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

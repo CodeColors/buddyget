@@ -32,6 +32,15 @@
           {{- end}}
         </select>
       </div>
+      {{- if .Tags}}
+      <div class="field">
+        <label for="f-etiquette">Étiquette</label>
+        <select id="f-etiquette" name="etiquette">
+          <option value="">Toutes</option>
+          {{- range .Tags}}<option value="{{.Name}}"{{if eq .Name ($.Data.Q.Get "etiquette")}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      {{- end}}
       <div class="field">
         <label for="f-du">Du</label>
         <input id="f-du" name="du" type="date" value="{{.Q.Get "du"}}">
@@ -102,6 +111,15 @@
           {{- range .Accounts}}{{if not .Archived}}<option value="{{.ID}}">{{.Name}}</option>{{end}}{{end}}
         </select>
       </div>
+      <div class="field">
+        <label for="lot-ajout">Ajouter l'étiquette</label>
+        <input id="lot-ajout" name="ajouter_etiquette" list="lot-etiquettes" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="lot-retrait">Retirer l'étiquette</label>
+        <input id="lot-retrait" name="retirer_etiquette" list="lot-etiquettes" autocomplete="off">
+      </div>
+      <datalist id="lot-etiquettes">{{range .Tags}}<option value="{{.Name}}">{{end}}</datalist>
     </div>
     <label class="check"><input type="checkbox" name="regle" value="1"> Créer aussi une règle : les libellés contenant le texte recherché iront dans cette catégorie</label>
     <p class="hint">Les virements entre comptes ne sont jamais modifiés par lot.</p>
@@ -132,7 +150,7 @@
         </span>
       </a>
       <span class="tx-meta">
-        <span class="tx-date">{{.Date.Format}}{{if gt .Date $.Data.Today}} <span class="badge">À venir</span>{{end}}{{if .InterestYear}} <span class="badge">Intérêts</span>{{end}}</span>
+        <span class="tx-date">{{.Date.Format}}{{if gt .Date $.Data.Today}} <span class="badge">À venir</span>{{end}}{{if .InterestYear}} <span class="badge">Intérêts</span>{{end}}{{range .Tags}} <span class="badge badge-tag">{{.}}</span>{{end}}</span>
         <span class="tx-account">{{.AccountName}}</span>
       </span>
       <span class="tx-amount">

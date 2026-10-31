@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/codecolors/buddyget/internal/alerts"
+	"github.com/codecolors/buddyget/internal/attachments"
 	"github.com/codecolors/buddyget/internal/auth"
 	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/categorize"
@@ -27,6 +28,7 @@ import (
 	"github.com/codecolors/buddyget/internal/platform/money"
 	"github.com/codecolors/buddyget/internal/platform/validation"
 	"github.com/codecolors/buddyget/internal/recurring"
+	"github.com/codecolors/buddyget/internal/reports"
 	"github.com/codecolors/buddyget/internal/savings"
 )
 
@@ -41,15 +43,17 @@ const maxFormBytes = 64 << 10
 
 // Services regroupe les services du domaine utilisés par l'interface.
 type Services struct {
-	Auth      *auth.Service
-	Ledger    *ledger.Service
-	Rules     *categorize.Service
-	Importer  *importer.Service
-	Recurring *recurring.Service
-	Savings   *savings.Service
-	Budgets   *budget.Service
-	Forecast  *forecast.Service
-	Alerts    *alerts.Service
+	Auth        *auth.Service
+	Ledger      *ledger.Service
+	Rules       *categorize.Service
+	Importer    *importer.Service
+	Recurring   *recurring.Service
+	Savings     *savings.Service
+	Budgets     *budget.Service
+	Forecast    *forecast.Service
+	Alerts      *alerts.Service
+	Reports     *reports.Service
+	Attachments *attachments.Service
 }
 
 // Server regroupe les dépendances des handlers.
@@ -64,6 +68,8 @@ type Server struct {
 	budgets        *budget.Service
 	forecast       *forecast.Service
 	alerts         *alerts.Service
+	reports        *reports.Service
+	attachments    *attachments.Service
 	maxUpload      int64
 	pages          *renderer
 	assets         assets
@@ -107,6 +113,8 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		budgets:        svc.Budgets,
 		forecast:       svc.Forecast,
 		alerts:         svc.Alerts,
+		reports:        svc.Reports,
+		attachments:    svc.Attachments,
 		maxUpload:      cfg.MaxUploadBytes(),
 		pages:          pages,
 		assets:         static,
@@ -194,6 +202,18 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		"POST /alertes/reglages":               s.saveAlertSettings,
 		"POST /alertes/canaux":                 s.saveChannels,
 		"POST /alertes/essai":                  s.testChannels,
+		"POST /operations/{id}/pointer":        s.toggleCleared,
+		"POST /operations/{id}/modele":         s.saveTemplate,
+		"POST /modeles/{id}/utiliser":          s.useTemplate,
+		"POST /modeles/{id}/supprimer":         s.deleteTemplate,
+		"POST /operations/{id}/pieces":         s.uploadAttachment,
+		"GET /pieces/{id}":                     s.serveAttachment,
+		"POST /pieces/{id}/supprimer":          s.deleteAttachment,
+		"GET /etiquettes":                      s.tagsPage,
+		"POST /etiquettes/{id}":                s.renameTag,
+		"POST /etiquettes/{id}/supprimer":      s.deleteTag,
+		"GET /abonnements":                     s.subscriptionsPage,
+		"GET /rapports":                        s.reportsPage,
 		"GET /plus":                            s.morePage,
 	} {
 		var handler http.Handler = h
@@ -275,7 +295,7 @@ func (s *Server) inputError(w http.ResponseWriter, r *http.Request, err error) (
 		return msg, true
 	}
 	if errors.Is(err, ledger.ErrNotFound) || errors.Is(err, categorize.ErrNotFound) || errors.Is(err, importer.ErrNotFound) ||
-		errors.Is(err, recurring.ErrNotFound) {
+		errors.Is(err, recurring.ErrNotFound) || errors.Is(err, attachments.ErrNotFound) {
 		s.notFound(w, r)
 	} else {
 		s.serverError(w, r, err)

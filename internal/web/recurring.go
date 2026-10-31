@@ -136,25 +136,26 @@ func periodValue(p calendar.Period) string {
 
 // recurrenceForm est la donnée du formulaire de récurrence, en texte saisi.
 type recurrenceForm struct {
-	ID          int64
-	Active      bool
-	Origin      recurring.Origin
-	Series      string // signature de la série détectée d'origine
-	Type        string // depense, revenu ou virement (versement programmé)
-	Amount      string
-	Label       string
-	AccountID   int64
-	ToAccountID int64
-	CategoryID  int64
-	Period      string // valeur d'un choix, ou customPeriod
-	CustomCount int
-	CustomUnit  calendar.Unit
-	LastDay     bool
-	Shift       calendar.Shift
-	Estimated   bool
-	Start       string
-	End         string
-	Error       string
+	ID           int64
+	Active       bool
+	Origin       recurring.Origin
+	Series       string // signature de la série détectée d'origine
+	Type         string // depense, revenu ou virement (versement programmé)
+	Amount       string
+	Label        string
+	AccountID    int64
+	ToAccountID  int64
+	CategoryID   int64
+	Period       string // valeur d'un choix, ou customPeriod
+	CustomCount  int
+	CustomUnit   calendar.Unit
+	LastDay      bool
+	Shift        calendar.Shift
+	Estimated    bool
+	Subscription bool
+	Start        string
+	End          string
+	Error        string
 
 	PeriodChoices []calendar.Period
 	Units         []calendar.Unit
@@ -177,7 +178,7 @@ func (f recurrenceForm) PeriodValue(p calendar.Period) string { return periodVal
 func formFromRule(id int64, in recurring.RuleInput) recurrenceForm {
 	f := recurrenceForm{
 		ID: id, Origin: in.Origin, Series: in.Signature, Type: typeExpense, Amount: money.FormatInput(in.Amount), Label: in.Label,
-		AccountID: in.AccountID, ToAccountID: in.ToAccountID, CategoryID: in.CategoryID, LastDay: in.LastDay, Shift: in.Shift, Estimated: in.Estimated,
+		AccountID: in.AccountID, ToAccountID: in.ToAccountID, CategoryID: in.CategoryID, Subscription: in.Subscription, LastDay: in.LastDay, Shift: in.Shift, Estimated: in.Estimated,
 		Start: string(in.Start), End: string(in.End), CustomCount: in.Period.Count, CustomUnit: in.Period.Unit,
 		Period: customPeriod,
 	}
@@ -250,7 +251,7 @@ func (s *Server) editRecurrencePage(w http.ResponseWriter, r *http.Request) {
 	}
 	f := formFromRule(id, recurring.RuleInput{
 		Label: rule.Label, AccountID: rule.AccountID, ToAccountID: rule.ToAccountID, Amount: rule.Amount, Estimated: rule.Estimated, Period: rule.Period,
-		LastDay: rule.LastDay, Shift: rule.Shift, Start: rule.Start, End: rule.End, CategoryID: rule.CategoryID, Origin: rule.Origin,
+		LastDay: rule.LastDay, Shift: rule.Shift, Start: rule.Start, Subscription: rule.Subscription, End: rule.End, CategoryID: rule.CategoryID, Origin: rule.Origin,
 	})
 	f.Active = rule.Active
 	s.renderRecurrenceForm(w, r, http.StatusOK, f)
@@ -279,7 +280,8 @@ func (s *Server) saveRecurrence(w http.ResponseWriter, r *http.Request, id int64
 		ID: id, Type: r.PostFormValue("type"), Amount: r.PostFormValue("amount"), Label: r.PostFormValue("label"),
 		AccountID: formID(r, "account"), CategoryID: formID(r, "category"), Period: r.PostFormValue("period"),
 		CustomCount: count, CustomUnit: calendar.Unit(r.PostFormValue("custom_unit")),
-		LastDay: r.PostFormValue("last_day") != "", Shift: calendar.Shift(r.PostFormValue("business_day")), Estimated: r.PostFormValue("estimated") != "",
+		LastDay: r.PostFormValue("last_day") != "", Shift: calendar.Shift(r.PostFormValue("business_day")),
+		Subscription: r.PostFormValue("subscription") != "", Estimated: r.PostFormValue("estimated") != "",
 		Start: r.PostFormValue("start"), End: r.PostFormValue("end"), Origin: recurring.Manual,
 	}
 	if f.Type == typeTransfer {
@@ -325,7 +327,7 @@ func (s *Server) storeRecurrence(r *http.Request, f recurrenceForm) error {
 	}
 	in := recurring.RuleInput{
 		Label: f.Label, AccountID: f.AccountID, ToAccountID: f.ToAccountID, Amount: amount, Estimated: f.Estimated, Period: period,
-		LastDay: f.LastDay, Shift: f.Shift, Start: start, End: end, CategoryID: f.CategoryID, Origin: f.Origin, Signature: f.Series,
+		LastDay: f.LastDay, Shift: f.Shift, Start: start, End: end, Subscription: f.Subscription, CategoryID: f.CategoryID, Origin: f.Origin, Signature: f.Series,
 	}
 	if f.ID == 0 {
 		_, err = s.recurring.CreateRule(r.Context(), in)

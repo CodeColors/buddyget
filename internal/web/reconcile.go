@@ -11,7 +11,8 @@ import (
 )
 
 // reconcileView est la donnée du rapprochement d'un compte avec la banque
-// (troisième étape d'un import, ou accès direct depuis le compte).
+// (troisième étape d'un import, ou accès direct depuis le compte) et de son
+// pointage : c'est l'unique mécanisme de vérification.
 type reconcileView struct {
 	R            ledger.Reconciliation
 	Balance      string
@@ -19,6 +20,8 @@ type reconcileView struct {
 	FromImport   bool
 	UnclearedURL string
 	Error        string
+	Rows         []pointageRow // opérations à pointer jusqu'à la date du relevé
+	More         int           // opérations à pointer au-delà de la première page
 }
 
 func (s *Server) reconcilePage(w http.ResponseWriter, r *http.Request) {
@@ -44,8 +47,20 @@ func (s *Server) renderReconcile(w http.ResponseWriter, r *http.Request, status 
 		if v.Balance == "" {
 			v.Balance = formatBalance(rec.BankBalance)
 		}
-		q := url.Values{"compte": {strconv.FormatInt(id, 10)}, "pointage": {"non"}, "au": {string(rec.BankDate)}}
+		// Seules comptent les opérations datées du solde initial au relevé.
+		from := rec.Account.OpeningDate
+		q := url.Values{"compte": {strconv.FormatInt(id, 10)}, "pointage": {"non"}, "du": {string(from)}, "au": {string(rec.BankDate)}}
 		v.UnclearedURL = "/operations?" + q.Encode()
+		page, err := s.ledger.Search(r.Context(), ledger.Filter{AccountID: id, From: from, To: rec.BankDate, Cleared: ledger.ClearedNo, Sort: ledger.SortDateAsc}, 0)
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		back := r.URL.Path
+		for _, t := range page.Items {
+			v.Rows = append(v.Rows, pointageRow{T: t, R: rec, Back: back})
+		}
+		v.More = page.Count - len(page.Items)
 	}
 	s.render(w, r, status, "reconcile", "Rapprochement", v)
 }

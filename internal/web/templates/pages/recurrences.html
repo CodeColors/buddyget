@@ -4,6 +4,7 @@
   <h1>Récurrences</h1>
   <a class="btn btn-primary" href="/recurrences/nouvelle">Nouvelle récurrence</a>
 </div>
+<p><a href="/abonnements">Abonnements : coût mensuel et annuel</a></p>
 {{- if .Detected}}
 <p class="notice"><a href="/recurrences/detectees">{{plural .Detected "série détectée" "séries détectées"}} dans vos opérations</a> : validez-les pour qu'elles entrent dans le prévisionnel.</p>
 {{- end}}
@@ -27,7 +28,7 @@
 {{define "recurrence-row"}}
 <li class="row">
   <a class="row-link" href="/recurrences/{{.ID}}">
-    <span class="row-title">{{.Label}}{{if eq .Origin "detectee"}} <span class="badge">Détectée</span>{{end}}</span>
+    <span class="row-title">{{.Label}}{{if eq .Origin "detectee"}} <span class="badge">Détectée</span>{{end}}{{if .Subscription}} <span class="badge">Abonnement</span>{{end}}</span>
     <span class="row-meta">{{.Period.Label}}{{if .LastDay}}, le dernier jour{{end}} · {{.AccountName}}{{with .ToAccountName}} → {{.}}{{end}}{{with .CategoryName}} · {{.}}{{end}}</span>
     <span class="row-meta">{{if not .Active}}Suspendue{{else if .Finished}}Terminée le {{.End.Format}}{{else}}Prochaine échéance le {{.Next.Due.Format}}{{end}}</span>
   </a>
