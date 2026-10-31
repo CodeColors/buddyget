@@ -326,6 +326,31 @@ test('virement interne détecté puis relié', async () => {
   }, session);
 });
 
+test('récurrence détectée puis validée sur mobile', async () => {
+  await withPage(360, 'light', async (page) => {
+    // Trois mois d'abonnement, jusqu'à aujourd'hui.
+    const today = new Date();
+    for (let i = 2; i >= 0; i--) {
+      const d = new Date(Date.UTC(today.getFullYear(), today.getMonth() - i, Math.min(today.getDate(), 28)));
+      const res = await page.request.post(`${BASE}/operations`, {
+        form: { type: 'depense', amount: '9,99', label: 'SPOTIFY P1234', date: d.toISOString().slice(0, 10), account: '1', back: '/operations' },
+        maxRedirects: 0,
+      });
+      assert.equal(res.status(), 303);
+    }
+    await page.goto(`${BASE}/recurrences`);
+    await page.getByRole('link', { name: /séries? détectées?/ }).first().click();
+    const card = page.locator('.candidate').filter({ hasText: 'SPOTIFY' });
+    await card.waitFor();
+    await checkLayout(page, 'récurrences détectées', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'recurrences-detectees-360-light.png'), fullPage: true });
+    await card.getByRole('button', { name: /^Valider/ }).click();
+    await page.getByRole('status').filter({ hasText: 'Récurrence validée.' }).waitFor();
+    await page.goto(`${BASE}/recurrences`);
+    await page.getByText('SPOTIFY P1234').waitFor();
+  }, session);
+});
+
 const SCREENS = [
   ['tableau-de-bord', '/'],
   ['operations', '/operations'],
@@ -336,6 +361,9 @@ const SCREENS = [
   ['historique-imports', '/import/historique'],
   ['regles', '/regles'],
   ['virements', '/operations/virements'],
+  ['recurrences', '/recurrences'],
+  ['recurrence-saisie', '/recurrences/nouvelle'],
+  ['plus', '/plus'],
 ];
 
 for (const scheme of SCHEMES) {
