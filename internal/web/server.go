@@ -24,6 +24,7 @@ import (
 	"github.com/codecolors/buddyget/internal/platform/money"
 	"github.com/codecolors/buddyget/internal/platform/validation"
 	"github.com/codecolors/buddyget/internal/recurring"
+	"github.com/codecolors/buddyget/internal/savings"
 )
 
 const (
@@ -42,6 +43,7 @@ type Services struct {
 	Rules     *categorize.Service
 	Importer  *importer.Service
 	Recurring *recurring.Service
+	Savings   *savings.Service
 	Forecast  *forecast.Service
 }
 
@@ -53,6 +55,7 @@ type Server struct {
 	rules          *categorize.Service
 	importer       *importer.Service
 	recurring      *recurring.Service
+	savings        *savings.Service
 	forecast       *forecast.Service
 	maxUpload      int64
 	pages          *renderer
@@ -72,6 +75,8 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		"euros":        money.Format,
 		"eurosSigned":  money.FormatSigned,
 		"amountInput":  money.FormatInput,
+		"neg":          func(v int64) int64 { return -v },
+		"percent":      func(hundredths int) string { return money.FormatInput(int64(hundredths)) + "\u00a0%" },
 		"navActive":    navActive,
 		"plural":       plural,
 		"datetime":     func(t time.Time) string { return t.In(time.Local).Format("02/01/2006 à 15h04") },
@@ -88,6 +93,7 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		rules:          svc.Rules,
 		importer:       svc.Importer,
 		recurring:      svc.Recurring,
+		savings:        svc.Savings,
 		forecast:       svc.Forecast,
 		maxUpload:      cfg.MaxUploadBytes(),
 		pages:          pages,
@@ -163,6 +169,8 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		"GET /previsionnel":                    s.forecastPage,
 		"POST /previsionnel/exclusions":        s.excludeOccurrence,
 		"POST /previsionnel/reglages":          s.saveForecastSettings,
+		"GET /epargne":                         s.savingsPage,
+		"POST /epargne/{id}/interets":          s.recordInterest,
 		"GET /plus":                            s.morePage,
 	} {
 		mux.Handle(pattern, s.requireUser(h))

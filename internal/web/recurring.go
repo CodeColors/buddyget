@@ -140,10 +140,11 @@ type recurrenceForm struct {
 	Active      bool
 	Origin      recurring.Origin
 	Series      string // signature de la série détectée d'origine
-	Type        string // depense ou revenu
+	Type        string // depense, revenu ou virement (versement programmé)
 	Amount      string
 	Label       string
 	AccountID   int64
+	ToAccountID int64
 	CategoryID  int64
 	Period      string // valeur d'un choix, ou customPeriod
 	CustomCount int
@@ -176,11 +177,14 @@ func (f recurrenceForm) PeriodValue(p calendar.Period) string { return periodVal
 func formFromRule(id int64, in recurring.RuleInput) recurrenceForm {
 	f := recurrenceForm{
 		ID: id, Origin: in.Origin, Series: in.Signature, Type: typeExpense, Amount: money.FormatInput(in.Amount), Label: in.Label,
-		AccountID: in.AccountID, CategoryID: in.CategoryID, LastDay: in.LastDay, Shift: in.Shift, Estimated: in.Estimated,
+		AccountID: in.AccountID, ToAccountID: in.ToAccountID, CategoryID: in.CategoryID, LastDay: in.LastDay, Shift: in.Shift, Estimated: in.Estimated,
 		Start: string(in.Start), End: string(in.End), CustomCount: in.Period.Count, CustomUnit: in.Period.Unit,
 		Period: customPeriod,
 	}
-	if in.Amount > 0 {
+	switch {
+	case in.ToAccountID != 0:
+		f.Type = typeTransfer
+	case in.Amount > 0:
 		f.Type = typeIncome
 	}
 	for _, p := range periodChoices {
@@ -212,10 +216,12 @@ func (s *Server) renderRecurrenceForm(w http.ResponseWriter, r *http.Request, st
 	s.render(w, r, status, "recurrence_form", f.title(), f)
 }
 
-// newRecurrencePage ouvre un formulaire vierge, ou prérempli d'après une
-// série détectée (« Modifier » avant de valider).
+// newRecurrencePage ouvre un formulaire vierge, prérempli d'après une série
+// détectée (« Modifier » avant de valider), ou un versement programmé vers
+// un compte (?vers=).
 func (s *Server) newRecurrencePage(w http.ResponseWriter, r *http.Request) {
-	in := recurring.RuleInput{Period: calendar.Monthly, Shift: calendar.NextBusinessDay, Start: calendar.Today(), Origin: recurring.Manual}
+	in := recurring.RuleInput{Period: calendar.Monthly, Shift: calendar.NextBusinessDay, Start: calendar.Today(), Origin: recurring.Manual,
+		ToAccountID: formID(r, "vers")}
 	if sig := r.URL.Query().Get("serie"); sig != "" {
 		c, err := s.recurring.Candidate(r.Context(), sig, calendar.Today())
 		if err != nil {
@@ -243,7 +249,7 @@ func (s *Server) editRecurrencePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f := formFromRule(id, recurring.RuleInput{
-		Label: rule.Label, AccountID: rule.AccountID, Amount: rule.Amount, Estimated: rule.Estimated, Period: rule.Period,
+		Label: rule.Label, AccountID: rule.AccountID, ToAccountID: rule.ToAccountID, Amount: rule.Amount, Estimated: rule.Estimated, Period: rule.Period,
 		LastDay: rule.LastDay, Shift: rule.Shift, Start: rule.Start, End: rule.End, CategoryID: rule.CategoryID, Origin: rule.Origin,
 	})
 	f.Active = rule.Active
@@ -275,6 +281,9 @@ func (s *Server) saveRecurrence(w http.ResponseWriter, r *http.Request, id int64
 		CustomCount: count, CustomUnit: calendar.Unit(r.PostFormValue("custom_unit")),
 		LastDay: r.PostFormValue("last_day") != "", Shift: calendar.Shift(r.PostFormValue("business_day")), Estimated: r.PostFormValue("estimated") != "",
 		Start: r.PostFormValue("start"), End: r.PostFormValue("end"), Origin: recurring.Manual,
+	}
+	if f.Type == typeTransfer {
+		f.ToAccountID = formID(r, "to_account")
 	}
 	if r.PostFormValue("origin") == string(recurring.Detected) {
 		f.Origin, f.Series = recurring.Detected, r.PostFormValue("serie")
@@ -315,7 +324,7 @@ func (s *Server) storeRecurrence(r *http.Request, f recurrenceForm) error {
 		}
 	}
 	in := recurring.RuleInput{
-		Label: f.Label, AccountID: f.AccountID, Amount: amount, Estimated: f.Estimated, Period: period,
+		Label: f.Label, AccountID: f.AccountID, ToAccountID: f.ToAccountID, Amount: amount, Estimated: f.Estimated, Period: period,
 		LastDay: f.LastDay, Shift: f.Shift, Start: start, End: end, CategoryID: f.CategoryID, Origin: f.Origin, Signature: f.Series,
 	}
 	if f.ID == 0 {

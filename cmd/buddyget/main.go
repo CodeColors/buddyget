@@ -81,6 +81,7 @@ func run() error {
 		Rules:     rules,
 		Importer:  importer.NewService(database, cfg.DataDir, cfg.MaxUploadBytes(), rules),
 		Recurring: recurrences,
+		Savings:   savingsAccounts,
 		Forecast:  forecast.NewService(database, accounts, recurrences, savingsAccounts),
 	})
 	if err != nil {

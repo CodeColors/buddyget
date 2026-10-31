@@ -46,7 +46,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	h, err := New(config.Config{MaxUploadMB: 1}, d, Services{
 		Auth: svc, Ledger: accounts, Rules: rules,
 		Importer: importer.NewService(d, dataDir, 1<<20, rules), Recurring: recurrences,
-		Forecast: forecast.NewService(d, accounts, recurrences, savingsAccounts),
+		Savings: savingsAccounts, Forecast: forecast.NewService(d, accounts, recurrences, savingsAccounts),
 	})
 	if err != nil {
 		t.Fatal(err)

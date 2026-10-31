@@ -676,7 +676,28 @@ details.more[open] { display: grid; gap: .5rem; }
 .inline-fields { display: flex; gap: .5rem; }
 .inline-fields input { max-width: 6rem; }
 
-.recurrence-form:not(:has(#period option[value="autre"]:checked)) .if-custom-period { display: none; }
+.recurrence-form:not(:has(#period option[value="autre"]:checked)) .if-custom-period,
+.recurrence-form:not(:has(input[name="type"][value="virement"]:checked)) .if-transfer {
+  display: none;
+}
+
+/* Épargne */
+
+.account-form:not(:has(#kind option[value="epargne"]:checked)) .if-savings,
+.account-form:not(:has(input[name="lock"][value="date"]:checked)) .if-lock-date,
+.account-form:not(:has(input[name="lock"][value="duree"]:checked)) .if-lock-months,
+.account-form:has(input[name="lock"][value="aucun"]:checked) .if-locked {
+  display: none;
+}
+.savings-fields { display: grid; gap: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.savings-fields > legend { font-size: 1.125rem; }
+.savings-card { display: grid; gap: .75rem; }
+.forecast-summary .figures, .savings-card .figures { grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); }
+.savings-card p, .savings-card .figures { margin: 0; }
+.savings-card .candidate-head a { color: var(--text); }
+.deposit-list { margin: 0; padding-left: 1.25rem; color: var(--muted); font-size: .875rem; }
+.inline-form { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin-bottom: 1rem; }
+.inline-form .field { flex: 1 1 12rem; }
 
 /* Prévisionnel */
 
@@ -796,8 +817,6 @@ details.more[open] { display: grid; gap: .5rem; }
     border-bottom: 2px solid transparent;
   }
   .tabbar a[aria-current="page"] { border-bottom-color: var(--primary); }
-  .tabbar .nav-secondary { display: flex; }
-  .tabbar .nav-more { display: none; }
 
   .page { padding: 1.5rem 1.5rem calc(56px + 3rem); }
   .page-centered { padding-top: 4rem; }
@@ -826,8 +845,12 @@ details.more[open] { display: grid; gap: .5rem; }
   .chart-svg { height: 18rem; }
 }
 
-/* Ordinateur : une échéance par ligne, en colonnes. */
+/* Ordinateur : toutes les rubriques sur une ligne (« Plus » devient
+   inutile), une échéance du prévisionnel par ligne. */
 @media (min-width: 1024px) {
+  .tabbar .nav-secondary { display: flex; }
+  .tabbar .nav-more { display: none; }
+
   .fc-line {
     grid-template-columns: 6.5rem minmax(0, 1fr) minmax(0, 14rem) 8.5rem 8.5rem var(--tap);
     grid-template-areas: "date label meta amount balance action";
@@ -835,9 +858,4 @@ details.more[open] { display: grid; gap: .5rem; }
     padding-block: .125rem;
   }
   .fc-balance { font-size: 1rem; }
-}
-
-/* Tablette : toutes les rubriques tiennent sur une ligne sans leurs icônes. */
-@media (min-width: 768px) and (max-width: 1023px) {
-  .tabbar a svg { display: none; }
 }

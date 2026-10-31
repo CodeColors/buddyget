@@ -181,6 +181,9 @@ type operationForm struct {
 	Cleared     bool
 	Back        string // page de retour après enregistrement
 	Error       string
+	// Warning signale un retrait sur des fonds d'épargne bloqués : la saisie
+	// n'est enregistrée qu'une fois confirmée.
+	Warning string
 
 	Accounts   []ledger.AccountBalance
 	Categories []ledger.KindGroup
@@ -344,7 +347,23 @@ func (s *Server) saveOperation(w http.ResponseWriter, r *http.Request, id int64)
 			f.Type = typeExpense
 		}
 	}
-	if err := s.storeOperation(r, f); err != nil {
+	amount, date, err := f.values()
+	if err == nil && id == 0 && r.PostFormValue("confirm_unlock") == "" {
+		warning, err := s.unlockWarning(r, f, amount, date)
+		if err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+		if warning != "" {
+			f.Warning = warning
+			s.renderOperationForm(w, r, http.StatusConflict, f)
+			return
+		}
+	}
+	if err == nil {
+		err = s.storeOperation(r, f, amount, date)
+	}
+	if err != nil {
 		if msg, ok := s.inputError(w, r, err); ok {
 			f.Error = msg
 			s.renderOperationForm(w, r, http.StatusUnprocessableEntity, f)
@@ -364,24 +383,46 @@ func (s *Server) saveOperation(w http.ResponseWriter, r *http.Request, id int64)
 	s.redirect(w, r, f.Back, msg)
 }
 
-// storeOperation convertit la saisie et l'enregistre (création ou
-// modification, opération simple ou virement).
-func (s *Server) storeOperation(r *http.Request, f operationForm) error {
+// values lit le montant (valeur absolue) et la date saisis.
+func (f operationForm) values() (int64, calendar.Date, error) {
 	amount, err := money.Parse(f.Amount)
 	if err != nil {
-		return err
+		return 0, "", err
 	}
-	amount = max(amount, -amount)
 	date, err := calendar.Parse(f.Date)
-	if err != nil {
-		return err
-	}
-	ctx := r.Context()
+	return max(amount, -amount), date, err
+}
 
+// unlockWarning décrit le retrait anticipé que constitue une dépense ou un
+// virement au-delà des fonds disponibles d'un compte d'épargne bloqué ;
+// vide sinon.
+func (s *Server) unlockWarning(r *http.Request, f operationForm, amount int64, date calendar.Date) (string, error) {
+	if f.Type == typeIncome {
+		return "", nil
+	}
+	a, st, ok, err := s.savings.Availability(r.Context(), f.AccountID, date)
+	if err != nil || !ok || !st.Locked() || amount <= a.Available {
+		return "", err
+	}
+	msg := "Retrait anticipé : il dépasse les " + money.Format(a.Available) + " disponibles sur ce compte"
+	if a.NextUnlock != "" {
+		msg += " (" + money.Format(a.Blocked) + " bloqués, prochain déblocage le " + a.NextUnlock.Format() + ")"
+	}
+	msg += "."
+	if st.Penalty > 0 {
+		msg += " Pénalité estimée : " + money.Format(st.PenaltyOn(amount-max(a.Available, 0))) + "."
+	}
+	return msg, nil
+}
+
+// storeOperation enregistre la saisie (création ou modification, opération
+// simple ou virement) ; amount est la valeur absolue du montant.
+func (s *Server) storeOperation(r *http.Request, f operationForm, amount int64, date calendar.Date) error {
+	ctx := r.Context()
 	if f.Type == typeTransfer {
 		in := ledger.TransferInput{FromAccountID: f.AccountID, ToAccountID: f.ToAccountID, Date: date, Label: f.Label, Amount: amount, Note: f.Note}
 		if f.ID == 0 {
-			_, err = s.ledger.CreateTransfer(ctx, in)
+			_, err := s.ledger.CreateTransfer(ctx, in)
 			return err
 		}
 		return s.ledger.UpdateTransfer(ctx, f.TransferID, in)
@@ -391,7 +432,7 @@ func (s *Server) storeOperation(r *http.Request, f operationForm) error {
 	}
 	in := ledger.TransactionInput{AccountID: f.AccountID, Date: date, Label: f.Label, Amount: amount, CategoryID: f.CategoryID, Note: f.Note, Cleared: f.Cleared}
 	if f.ID == 0 {
-		_, err = s.ledger.CreateTransaction(ctx, in)
+		_, err := s.ledger.CreateTransaction(ctx, in)
 		return err
 	}
 	return s.ledger.UpdateTransaction(ctx, f.ID, in)

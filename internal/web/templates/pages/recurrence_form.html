@@ -18,6 +18,7 @@
       <div class="segmented">
         <label><input type="radio" name="type" value="depense"{{if eq .Type "depense"}} checked{{end}}><span>Dépense</span></label>
         <label><input type="radio" name="type" value="revenu"{{if eq .Type "revenu"}} checked{{end}}><span>Revenu</span></label>
+        <label><input type="radio" name="type" value="virement"{{if eq .Type "virement"}} checked{{end}}><span>Virement</span></label>
       </div>
     </fieldset>
     <div class="field-row">
@@ -72,6 +73,12 @@
         <label for="account">Compte</label>
         <select id="account" name="account">
           {{- range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.AccountID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field if-transfer">
+        <label for="to_account">Vers le compte</label>
+        <select id="to_account" name="to_account">
+          {{- range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.ToAccountID}} selected{{end}}>{{.Name}}</option>{{end}}
         </select>
       </div>
       <div class="field">

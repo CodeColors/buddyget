@@ -12,8 +12,12 @@ import (
 	"github.com/codecolors/buddyget/internal/platform/money"
 )
 
+// savingsScope désigne, comme compte du prévisionnel, toute l'épargne.
+const savingsScope = "epargne"
+
 // forecastView est la donnée de l'écran du prévisionnel.
 type forecastView struct {
+	Scope     string // compte choisi : vide (comptes courants), savingsScope ou identifiant
 	AccountID int64
 	Target    string // date cible saisie
 	Today     calendar.Date
@@ -50,7 +54,7 @@ type forecastMonth struct {
 func (s *Server) forecastPage(w http.ResponseWriter, r *http.Request) {
 	today := calendar.Today()
 	v := forecastView{
-		AccountID: formID(r, "compte"), Target: r.FormValue("date"), Today: today,
+		Scope: r.FormValue("compte"), AccountID: formID(r, "compte"), Target: r.FormValue("date"), Today: today,
 		MaxTarget: forecast.MaxTarget(today), AverageChoices: forecast.AverageChoices,
 	}
 	if v.Target == "" {
@@ -70,8 +74,8 @@ func (s *Server) forecastPage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	v.Shortcuts = shortcuts(today, v.AccountID, v.Target)
-	v.Self = forecastURL(v.AccountID, v.Target)
+	v.Shortcuts = shortcuts(today, v.Scope, v.Target)
+	v.Self = forecastURL(v.Scope, v.Target)
 
 	status := http.StatusOK
 	if err := s.computeForecast(r, &v); err != nil {
@@ -89,7 +93,7 @@ func (s *Server) computeForecast(r *http.Request, v *forecastView) error {
 	if err != nil {
 		return err
 	}
-	report, err := s.forecast.Forecast(r.Context(), forecast.Query{AccountID: v.AccountID, Target: target}, v.Today)
+	report, err := s.forecast.Forecast(r.Context(), forecast.Query{AccountID: v.AccountID, Savings: v.Scope == savingsScope, Target: target}, v.Today)
 	if err != nil {
 		return err
 	}
@@ -101,7 +105,7 @@ func (s *Server) computeForecast(r *http.Request, v *forecastView) error {
 
 // shortcuts propose la fin du mois (du suivant, le dernier jour) et des
 // horizons de trois mois à deux ans.
-func shortcuts(today calendar.Date, accountID int64, current string) []targetShortcut {
+func shortcuts(today calendar.Date, scope, current string) []targetShortcut {
 	t := today.Time()
 	monthEnd := t.AddDate(0, 1, -t.Day())
 	if calendar.FromTime(monthEnd) == today {
@@ -119,7 +123,7 @@ func shortcuts(today calendar.Date, accountID int64, current string) []targetSho
 	}
 	out := make([]targetShortcut, len(targets))
 	for i, tg := range targets {
-		out[i] = targetShortcut{Label: tg.label, URL: forecastURL(accountID, string(tg.date)), Current: string(tg.date) == current}
+		out[i] = targetShortcut{Label: tg.label, URL: forecastURL(scope, string(tg.date)), Current: string(tg.date) == current}
 	}
 	return out
 }
@@ -151,10 +155,10 @@ func forecastBack(r *http.Request) string {
 	return "/previsionnel"
 }
 
-func forecastURL(accountID int64, target string) string {
+func forecastURL(scope, target string) string {
 	q := url.Values{"date": {target}}
-	if accountID != 0 {
-		q.Set("compte", strconv.FormatInt(accountID, 10))
+	if scope != "" {
+		q.Set("compte", scope)
 	}
 	return "/previsionnel?" + q.Encode()
 }

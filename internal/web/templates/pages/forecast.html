@@ -11,6 +11,7 @@
       <label for="compte">Comptes</label>
       <select id="compte" name="compte">
         <option value="">Tous les comptes courants</option>
+        <option value="epargne"{{if eq .Scope "epargne"}} selected{{end}}>Toute l'épargne</option>
         {{- range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.AccountID}} selected{{end}}>{{.Name}}</option>{{end}}
       </select>
     </div>
@@ -55,27 +56,7 @@
 {{- with $.Data.Chart}}
 <figure class="card chart">
   <figcaption id="courbe-titre">Solde jour par jour jusqu'au {{$.Data.Report.Target.Format}}</figcaption>
-  <svg class="chart-svg" role="img" aria-labelledby="courbe-titre courbe-desc">
-    <desc id="courbe-desc">Point bas de {{euros $.Data.Report.Low.Balance}} le {{$.Data.Report.Low.Date.Format}}. Le détail des échéances suit le graphique.</desc>
-    <svg y="{{.Top}}%" width="100%" height="{{.Height}}%" viewBox="0 0 1000 1000" preserveAspectRatio="none">
-      {{- range .Below}}
-      <rect class="chart-below" x="{{printf "%.1f" .X}}" y="0" width="{{printf "%.1f" .W}}" height="1000"/>
-      {{- end}}
-      {{- range .YTicks}}
-      <line class="chart-grid" x1="0" x2="1000" y1="{{printf "%.1f" .Pos}}" y2="{{printf "%.1f" .Pos}}" vector-effect="non-scaling-stroke"/>
-      {{- end}}
-      <path class="chart-area" d="{{.Area}}"/>
-      <line class="chart-threshold" x1="0" x2="1000" y1="{{printf "%.1f" .Threshold}}" y2="{{printf "%.1f" .Threshold}}" vector-effect="non-scaling-stroke"/>
-      <path class="chart-line" d="{{.Line}}" vector-effect="non-scaling-stroke"/>
-    </svg>
-    {{- range .YTicks}}
-    <text class="chart-label" x="4" y="{{printf "%.1f" .Pct}}%" dy="-4">{{.Label}}</text>
-    {{- end}}
-    {{- range .XTicks}}
-    <text class="chart-label chart-x" x="{{printf "%.1f" .Pct}}%" y="100%" dy="-4">{{.Label}}</text>
-    {{- end}}
-    <circle class="chart-low" cx="{{printf "%.1f" .LowX}}%" cy="{{printf "%.1f" .LowY}}%" r="5"/>
-  </svg>
+  {{template "chart" .}}
 </figure>
 {{- end}}
 

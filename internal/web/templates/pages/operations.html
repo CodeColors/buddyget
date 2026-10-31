@@ -132,7 +132,7 @@
         </span>
       </a>
       <span class="tx-meta">
-        <span class="tx-date">{{.Date.Format}}{{if gt .Date $.Data.Today}} <span class="badge">À venir</span>{{end}}</span>
+        <span class="tx-date">{{.Date.Format}}{{if gt .Date $.Data.Today}} <span class="badge">À venir</span>{{end}}{{if .InterestYear}} <span class="badge">Intérêts</span>{{end}}</span>
         <span class="tx-account">{{.AccountName}}</span>
       </span>
       <span class="tx-amount">
