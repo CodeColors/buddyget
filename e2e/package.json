@@ -1,0 +1,12 @@
+{
+  "name": "buddyget-e2e",
+  "private": true,
+  "description": "Tests de bout en bout de BuddyGet (développement et CI uniquement)",
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
