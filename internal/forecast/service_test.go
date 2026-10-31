@@ -11,6 +11,7 @@ import (
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/platform/validation"
 	"github.com/codecolors/buddyget/internal/recurring"
+	"github.com/codecolors/buddyget/internal/savings"
 )
 
 const today calendar.Date = "2026-10-31"
@@ -21,6 +22,7 @@ type env struct {
 	s         *Service
 	ledger    *ledger.Service
 	recurring *recurring.Service
+	savings   *savings.Service
 }
 
 func newEnv(t testing.TB) *env {
@@ -31,7 +33,8 @@ func newEnv(t testing.TB) *env {
 	}
 	t.Cleanup(func() { _ = d.Close() })
 	l, r := ledger.NewService(d), recurring.NewService(d)
-	return &env{t: t, db: d, s: NewService(d, l, r), ledger: l, recurring: r}
+	sv := savings.NewService(d, l)
+	return &env{t: t, db: d, s: NewService(d, l, r, sv), ledger: l, recurring: r, savings: sv}
 }
 
 func (e *env) account(name string, kind ledger.AccountKind, opening int64) int64 {
@@ -290,4 +293,60 @@ func TestAverageWindow(t *testing.T) {
 func isInputError(err error) bool {
 	_, ok := validation.Message(err)
 	return ok
+}
+
+func TestForecastSavings(t *testing.T) {
+	e := newEnv(t)
+	courant := e.account("Courant", ledger.AccountCurrent, 1000_00)
+	livret := e.account("Livret A", ledger.AccountSavings, 10_000_00)
+	if err := e.savings.Save(t.Context(), savings.Settings{AccountID: livret, Product: savings.LivretA, Rate: 300, Method: savings.Fortnight}, today); err != nil {
+		t.Fatal(err)
+	}
+	e.rule(recurring.RuleInput{Label: "Épargne", AccountID: courant, ToAccountID: livret, Amount: -100_00, Period: calendar.Monthly,
+		Shift: calendar.NoShift, Start: "2026-11-05"})
+
+	r := e.forecast(Query{Savings: true, Target: "2027-01-31"})
+	type line struct {
+		date   calendar.Date
+		amount int64
+		kind   Kind
+	}
+	var got []line
+	for _, l := range r.Lines {
+		got = append(got, line{l.Date, l.Amount, l.Kind})
+	}
+	// Intérêts 2026 : 10 000 € de juillet à décembre (12 quinzaines), 100 €
+	// sur 3 quinzaines, 100 € sur une.
+	want := []line{
+		{"2026-11-05", 100_00, Recurring}, {"2026-12-05", 100_00, Recurring},
+		{"2026-12-31", 150_50, Interest}, {"2027-01-05", 100_00, Recurring},
+	}
+	if !slices.Equal(got, want) || r.Opening != 10_000_00 || r.Closing != 10_450_50 {
+		t.Errorf("épargne : %+v, %d → %d", got, r.Opening, r.Closing)
+	}
+	if r.Lines[2].Label != "Intérêts 2026" || !r.Lines[2].Estimated || r.Totals.Income != 450_50 {
+		t.Errorf("intérêts estimés : %+v, revenus %d", r.Lines[2], r.Totals.Income)
+	}
+
+	// Côté compte courant, le versement est une dépense.
+	r = e.forecast(Query{Target: "2026-11-30"})
+	if len(r.Lines) != 1 || r.Lines[0].Amount != -100_00 || r.Lines[0].AccountName != "Courant" {
+		t.Errorf("compte courant : %+v", r.Lines)
+	}
+	if _, err := newEnv(t).s.Forecast(t.Context(), Query{Savings: true, Target: "2026-12-31"}, today); !isInputError(err) {
+		t.Errorf("sans compte d'épargne : %v", err)
+	}
+}
+
+func TestTransferLegs(t *testing.T) {
+	rule := recurring.Rule{ID: 1, Label: "Épargne", AccountID: 1, ToAccountID: 2, Amount: -100_00}
+	if l := legs(rule, map[int64]string{1: "Courant", 2: "Livret"}); len(l) != 0 {
+		t.Errorf("deux comptes couverts : %+v", l)
+	}
+	if l := legs(rule, map[int64]string{2: "Livret"}); len(l) != 1 || l[0].Amount != 100_00 || l[0].AccountID != 2 {
+		t.Errorf("compte destinataire : %+v", l)
+	}
+	if l := legs(recurring.Rule{AccountID: 1, Amount: -5_00}, map[int64]string{2: "Livret"}); len(l) != 0 {
+		t.Errorf("compte non couvert : %+v", l)
+	}
 }

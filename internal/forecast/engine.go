@@ -21,6 +21,7 @@ const (
 	Recurring Kind = iota + 1 // échéance d'une récurrence active
 	Planned                   // opération saisie à une date future
 	Pending                   // opérations passées non pointées (solde pointé)
+	Interest                  // intérêts d'épargne estimés, crédités au 31/12
 )
 
 // Label décrit la nature d'un mouvement.
@@ -30,6 +31,8 @@ func (k Kind) Label() string {
 		return "Récurrence"
 	case Planned:
 		return "Planifiée"
+	case Interest:
+		return "Intérêts estimés"
 	}
 	return "Non pointées"
 }
@@ -40,6 +43,7 @@ type Event struct {
 	Label       string
 	Amount      int64
 	Kind        Kind
+	AccountID   int64
 	AccountName string
 	Estimated   bool // montant estimé (récurrence à montant variable)
 	// Échéance d'une récurrence : la règle et la date théorique, qui

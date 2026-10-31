@@ -18,6 +18,7 @@ import (
 	"github.com/codecolors/buddyget/internal/platform/money"
 	"github.com/codecolors/buddyget/internal/platform/validation"
 	"github.com/codecolors/buddyget/internal/recurring"
+	"github.com/codecolors/buddyget/internal/savings"
 )
 
 // MaxMonths borne l'horizon du prévisionnel.
@@ -34,9 +35,11 @@ type Settings struct {
 	AverageMonths int   // profondeur de la moyenne glissante (0 : sans)
 }
 
-// Query décrit le prévisionnel demandé.
+// Query décrit le prévisionnel demandé : un compte, sinon tous les comptes
+// d'épargne actifs (Savings), sinon tous les comptes courants actifs.
 type Query struct {
-	AccountID int64 // 0 : tous les comptes courants actifs
+	AccountID int64
+	Savings   bool
 	Target    calendar.Date
 }
 
@@ -72,11 +75,12 @@ type Service struct {
 	db        *db.DB
 	ledger    *ledger.Service
 	recurring *recurring.Service
+	savings   *savings.Service
 }
 
 // NewService crée le service du prévisionnel.
-func NewService(d *db.DB, l *ledger.Service, r *recurring.Service) *Service {
-	return &Service{db: d, ledger: l, recurring: r}
+func NewService(d *db.DB, l *ledger.Service, r *recurring.Service, sv *savings.Service) *Service {
+	return &Service{db: d, ledger: l, recurring: r, savings: sv}
 }
 
 // MaxTarget renvoie la date cible la plus lointaine admise.
@@ -138,7 +142,7 @@ func (s *Service) Forecast(ctx context.Context, q Query, today calendar.Date) (R
 	if r.Settings, err = s.Settings(ctx); err != nil {
 		return r, err
 	}
-	if err := s.selectAccounts(ctx, &r, q.AccountID, today); err != nil {
+	if err := s.selectAccounts(ctx, &r, q, today); err != nil {
 		return r, err
 	}
 	names := map[int64]string{}
@@ -162,6 +166,9 @@ func (s *Service) Forecast(ctx context.Context, q Query, today calendar.Date) (R
 	if err := s.planned(ctx, &in, names); err != nil {
 		return r, err
 	}
+	if err := s.interest(ctx, &in, names); err != nil {
+		return r, err
+	}
 	if in.Variable, err = s.variable(ctx, &r, rules, names, today); err != nil {
 		return r, err
 	}
@@ -169,22 +176,28 @@ func (s *Service) Forecast(ctx context.Context, q Query, today calendar.Date) (R
 	return r, nil
 }
 
-// selectAccounts retient le compte demandé, ou les comptes courants actifs.
-func (s *Service) selectAccounts(ctx context.Context, r *Report, accountID int64, today calendar.Date) error {
+// selectAccounts retient les comptes couverts par le prévisionnel.
+func (s *Service) selectAccounts(ctx context.Context, r *Report, q Query, today calendar.Date) error {
 	accounts, err := s.ledger.Accounts(ctx, today)
 	if err != nil {
 		return err
 	}
+	kind := ledger.AccountCurrent
+	if q.Savings {
+		kind = ledger.AccountSavings
+	}
 	for _, a := range accounts {
-		if accountID == a.ID || accountID == 0 && !a.Archived && a.Kind == ledger.AccountCurrent {
+		if q.AccountID == a.ID || q.AccountID == 0 && !a.Archived && a.Kind == kind {
 			r.Accounts = append(r.Accounts, a)
 		}
 	}
 	switch {
 	case len(r.Accounts) > 0:
 		return nil
-	case accountID != 0:
+	case q.AccountID != 0:
 		return ledger.ErrNotFound
+	case q.Savings:
+		return validation.Error("Aucun compte d'épargne : créez-en un ou choisissez un compte.")
 	}
 	return validation.Error("Aucun compte courant : choisissez un compte.")
 }
@@ -203,7 +216,7 @@ func (s *Service) pending(ctx context.Context, in *Input, names map[int64]string
 			if u.Count > 1 {
 				label = fmt.Sprintf("%d opérations non pointées", u.Count)
 			}
-			in.Events = append(in.Events, Event{Date: in.Today.AddDays(1), Label: label, Amount: u.Sum, Kind: Pending, AccountName: name})
+			in.Events = append(in.Events, Event{Date: in.Today.AddDays(1), Label: label, Amount: u.Sum, Kind: Pending, AccountID: id, AccountName: name})
 		}
 	}
 	return nil
@@ -233,21 +246,45 @@ func (s *Service) occurrences(ctx context.Context, in *Input, rules []recurring.
 		return err
 	}
 	for _, rule := range rules {
-		name, ok := names[rule.AccountID]
-		if !rule.Active || !ok {
+		if !rule.Active {
 			continue
 		}
-		for o := range rule.Occurrences(in.Today.AddDays(1)) {
-			if o.Due > in.Target {
-				break
+		for _, leg := range legs(rule, names) {
+			for o := range rule.Occurrences(in.Today.AddDays(1)) {
+				if o.Due > in.Target {
+					break
+				}
+				e := leg
+				e.Date, e.Nominal, e.Excluded = o.Due, o.Nominal, excluded[key{rule.ID, o.Nominal}]
+				in.Events = append(in.Events, e)
 			}
-			in.Events = append(in.Events, Event{
-				Date: o.Due, Label: rule.Label, Amount: rule.Amount, Kind: Recurring, AccountName: name,
-				Estimated: rule.Estimated, RuleID: rule.ID, Nominal: o.Nominal, Excluded: excluded[key{rule.ID, o.Nominal}],
-			})
 		}
 	}
 	return nil
+}
+
+// legs renvoie les mouvements d'une échéance sur les comptes couverts : un
+// seul pour une dépense ou un revenu ; pour un versement programmé, le débit
+// et le crédit, sauf s'ils s'annulent (deux comptes couverts).
+func legs(rule recurring.Rule, names map[int64]string) []Event {
+	base := Event{Label: rule.Label, Kind: Recurring, Estimated: rule.Estimated, RuleID: rule.ID}
+	var out []Event
+	from, fromOK := names[rule.AccountID]
+	to, toOK := names[rule.ToAccountID]
+	if fromOK && toOK {
+		return nil
+	}
+	if fromOK {
+		e := base
+		e.Amount, e.AccountID, e.AccountName = rule.Amount, rule.AccountID, from
+		out = append(out, e)
+	}
+	if toOK {
+		e := base
+		e.Amount, e.AccountID, e.AccountName = -rule.Amount, rule.ToAccountID, to
+		out = append(out, e)
+	}
+	return out
 }
 
 // planned ajoute les opérations saisies à une date future, sauf les
@@ -274,10 +311,42 @@ func (s *Service) planned(ctx context.Context, in *Input, names map[int64]string
 		if err := rows.Scan(&account, &e.Date, &e.Label, &e.Amount); err != nil {
 			return err
 		}
-		e.AccountName = names[account]
+		e.AccountID, e.AccountName = account, names[account]
 		in.Events = append(in.Events, e)
 	}
 	return rows.Err()
+}
+
+// interest ajoute les intérêts estimés des comptes d'épargne rémunérés,
+// crédités chaque 31 décembre de l'horizon, d'après leurs mouvements passés
+// et les mouvements prévus (hors échéances écartées).
+func (s *Service) interest(ctx context.Context, in *Input, names map[int64]string) error {
+	all, err := s.savings.AllSettings(ctx)
+	if err != nil {
+		return err
+	}
+	for id, name := range names {
+		st, ok := all[id]
+		if !ok || !st.EarnsInterest() {
+			continue
+		}
+		moves, err := s.savings.Moves(ctx, id)
+		if err != nil {
+			return err
+		}
+		for _, e := range in.Events {
+			if e.AccountID == id && !e.Excluded {
+				moves = append(moves, savings.Move{Date: e.Date, Amount: e.Amount})
+			}
+		}
+		for _, m := range savings.ProjectInterest(st, moves, in.Today, in.Target) {
+			in.Events = append(in.Events, Event{
+				Date: m.Date, Label: fmt.Sprintf("Intérêts %d", m.Date.Time().Year()), Amount: m.Amount,
+				Kind: Interest, AccountID: id, AccountName: name, Estimated: true,
+			})
+		}
+	}
+	return nil
 }
 
 // variable estime les dépenses variables mensuelles : moyenne, par
