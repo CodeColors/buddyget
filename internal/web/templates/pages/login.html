@@ -1,0 +1,17 @@
+{{define "content"}}
+<section class="card auth-card" aria-labelledby="titre">
+  <h1 id="titre">Connexion</h1>
+  {{with .Data.Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form" method="post" action="/login">
+    <div class="field">
+      <label for="username">Identifiant</label>
+      <input id="username" name="username" value="{{.Data.Username}}" autocomplete="username" autocapitalize="none" spellcheck="false" required{{if not .Data.Username}} autofocus{{end}}>
+    </div>
+    <div class="field">
+      <label for="password">Mot de passe</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required{{if .Data.Username}} autofocus{{end}}>
+    </div>
+    <button class="btn btn-primary" type="submit">Se connecter</button>
+  </form>
+</section>
+{{end}}
