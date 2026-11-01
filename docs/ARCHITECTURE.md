@@ -19,8 +19,9 @@ fichier SQLite du dossier `DATA_DIR`.
 ## Packages
 
 ```
-cmd/buddyget/          point d'entrée : configuration, base, serveur, arrêt propre,
-                       sous-commande healthcheck
+cmd/buddyget/          point d'entrée : configuration, restauration en attente, base,
+                       serveur, tâche quotidienne, arrêt propre ; sous-commandes
+                       healthcheck et reset-password
 internal/
 ├── config/            variables d'environnement → Config validée
 ├── platform/
@@ -33,7 +34,8 @@ internal/
 │   │                  jours fériés et report au jour ouvré
 │   ├── text/          forme de comparaison des textes (casse, accents, espaces)
 │   └── validation/    erreur de saisie commune (message destiné à l'utilisateur)
-├── auth/              comptes, argon2id, limitation des tentatives, sessions, thème
+├── auth/              utilisateurs, argon2id, limitation des tentatives, sessions,
+│                      thème, changement et réinitialisation du mot de passe
 ├── ledger/            grand livre : comptes, catégories, opérations, virements,
 │                      recherche (Filter), édition par lot, étiquettes, modèles
 │                      de saisie, rapprochement et pointage, virements internes
@@ -178,7 +180,9 @@ table des opérations.
 | `/partage`, `/partage/membres/{id}` | partage du foyer : qui doit combien, opérations partagées, remboursements (`POST /partage/remboursements`), membres |
 | `/exports` | exports : `/exports/operations` (CSV, critères de `/operations`), `/exports/rapport` (`?mois=` ou `?annee=`, `&format=csv`), `/exports/dossier` (ZIP, `&pieces=1`) |
 | `/sauvegardes` | sauvegardes : maintenant (`POST`), réglages, téléchargement (`/sauvegardes/fichiers/{nom}`), restauration (`POST /sauvegardes/restaurer`) |
-| `/plus` | écrans secondaires |
+| `/parametres` | réglages : comptes, utilisateurs, membres, notifications, sauvegardes, catégories, règles, étiquettes |
+| `/utilisateurs` | comptes de connexion : ajout, changement de mot de passe (`POST /utilisateurs/mot-de-passe`), suppression |
+| `/plus` | écrans secondaires, par usage : suivre, prévoir, foyer et données |
 
 ### Chemin d'un import
 

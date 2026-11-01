@@ -3,6 +3,32 @@
 Cibles (cahier des charges, section 2) : RAM au repos < 64 Mo (objectif
 30 Mo), image < 50 Mo, démarrage < 3 s, pages < 150 Ko hors graphiques.
 
+## Bilan v1.0 : 01/11/2026
+
+Binaire final (21 Mo, base des fuseaux et certificats racines embarqués),
+même machine de développement, base de démonstration (comptes, opérations,
+récurrences, enveloppe, membres, crédit, projet, scénario, sauvegarde).
+
+| Contrainte (section 2) | Cible | Mesure v1.0 | Où |
+|---|---|---|---|
+| RAM au repos | < 64 Mo (objectif 30) | 30 Mo après démarrage, 36 Mo après la visite de 11 écrans | ci-dessous ; contrôlée par la CI dans le conteneur, échec au-delà de 64 Mo |
+| RAM pendant un import de 5 000 lignes | < 150 Mo | pic de 41 Mo (CSV) à 48 Mo (XLSX) pour 10 000 lignes | jalon 3 |
+| CPU au repos | ~0 % | un seul minuteur quotidien, aucune interrogation périodique | jalon 7 |
+| Image Docker | < 50 Mo | ≈ 21 Mo (`scratch` + binaire) | CI, échec au-delà de 50 Mo |
+| Démarrage | < 3 s | 30 ms (base existante) | ci-dessous |
+| Architectures | amd64 et arm64 | construites ; démarrage arm64 vérifié sous émulation | CI |
+| Pages | < 150 Ko hors graphiques | 7 à 25 Ko de HTML ; CSS 7 Ko et HTMX 17 Ko compressés, en cache un an | ci-dessous |
+| Prévisionnel à 24 mois | < 500 ms | 35 ms ; 73 ms avec un scénario comparé | jalons 6 et 10 |
+
+Pages de la base de démonstration (HTML non compressé) : tableau de bord
+7 Ko, opérations 19 Ko, prévisionnel 22 Ko, épargne 9 Ko, rapports 7 Ko,
+crédit avec tableau d'amortissement 24 Ko, partage 9 Ko, sauvegardes 10 Ko.
+
+Pics ponctuels, tous sous la limite de 128 Mo du conteneur et suivis d'un
+retour de la mémoire au système : connexion (argon2id) 56 Mo pour 10
+connexions simultanées, sauvegarde chiffrée 64 Mo, réduction d'une photo de
+12 Mpx 38 Mo alloués.
+
 ## Jalon 1 : 31/10/2026
 
 Binaire `CGO_ENABLED=0 go build -trimpath -ldflags="-s -w"`, Go 1.27.3,

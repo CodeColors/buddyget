@@ -1,7 +1,8 @@
 # BuddyGet
 
 Gestion du budget du foyer, auto-hébergée, pensée pour un NAS Synology peu
-puissant : un seul conteneur, une base SQLite, moins de 20 Mo de RAM au repos.
+puissant : un seul conteneur de 21 Mo, une base SQLite, une trentaine de Mo
+de RAM au repos.
 
 - Import des relevés Société Générale et BNP Paribas (CSV, XLS, XLSX)
 - Saisie manuelle rapide, sur ordinateur comme sur téléphone
@@ -12,7 +13,7 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
 (sauf les notifications par e-mail ou webhook et la copie des sauvegardes
 vers un serveur WebDAV, si vous les activez).
 
-### Disponible aujourd'hui
+### Fonctionnalités
 
 - Comptes (courant, épargne, espèces…) avec solde initial, archivage, IBAN masqué
 - Catégories sur deux niveaux, avec un jeu par défaut modifiable
@@ -79,6 +80,8 @@ vers un serveur WebDAV, si vous les activez).
   ou CSV, dossier ZIP pour un comptable ou les impôts avec les pièces jointes
 - Sauvegardes chiffrées, automatiques chaque nuit avec rotation, copie vers
   un dossier ou un serveur WebDAV, restauration en quelques clics
+- Paramètres : comptes de connexion pour chaque personne du foyer,
+  changement de mot de passe, et recours en ligne de commande en cas d'oubli
 
 ## Avancement
 
@@ -95,7 +98,7 @@ vers un serveur WebDAV, si vous les activez).
 | 9 | Abonnements, rapports, étiquettes, pièces jointes, saisie rapide, pointage | ✅ |
 | 10 | Scénarios « et si », projets et cagnottes, lissage des dépenses annuelles, crédits | ✅ |
 | 11 | Partage du foyer, exports CSV / PDF / ZIP, sauvegardes chiffrées, copie externe, restauration | ✅ |
-| 12 | Durcissement, contrôles complets, documentation finale : v1.0 | à venir |
+| 12 | Durcissement, paramètres et utilisateurs, accessibilité, documentation finale | ✅ **v1.0** |
 
 Le détail est dans [docs/PLAN.md](docs/PLAN.md) et le cahier des charges dans
 [docs/cahier-des-charges.md](docs/cahier-des-charges.md).
@@ -151,6 +154,25 @@ version en cours de développement.
      `X-Forwarded-For` avec la valeur `$proxy_add_x_forwarded_for`.
 3. Recréez le projet pour appliquer les changements.
 
+### 5. Premiers pas
+
+1. Créez le premier compte de connexion (identifiant et mot de passe de
+   12 caractères au moins), puis, dans **Plus → Paramètres → Utilisateurs**,
+   un compte pour chaque personne du foyer.
+2. **Comptes** : ajoutez vos comptes courants et d'épargne avec leur solde à
+   une date (le solde du relevé, par exemple) ; les modèles Livret A, LDDS,
+   LEP, PEL… préremplissent taux et plafonds.
+3. **Importer** : déposez l'export de votre banque (CSV, XLS ou XLSX) ;
+   vérifiez l'aperçu, validez, puis rapprochez le solde avec celui de la
+   banque.
+4. **Plus → Récurrences** : validez les séries détectées (loyer, salaire,
+   abonnements) ; le **Prévisionnel** est alors complet.
+5. **Plus → Paramètres → Sauvegardes** : activez la sauvegarde de nuit et,
+   idéalement, `BACKUP_PASSPHRASE` et une copie hors du NAS.
+
+Sur le téléphone, ouvrez l'adresse dans le navigateur puis « Ajouter à
+l'écran d'accueil » : BuddyGet s'ouvre comme une application.
+
 ### Mise à jour
 
 1. **Container Manager → Projet → buddyget → Action → Arrêter**.
@@ -201,6 +223,35 @@ remplacent le compte provisoire.
 `tar xzf` pour une archive non chiffrée) donne `buddyget.db` et le dossier
 `attachments`, à replacer dans le dossier de données, BuddyGet arrêté.
 
+### Mot de passe oublié
+
+En SSH sur le NAS (**Panneau de configuration → Terminal et SNMP → Activer
+le service SSH**), puis :
+
+```bash
+sudo docker exec buddyget /buddyget reset-password <identifiant>
+```
+
+La commande affiche un nouveau mot de passe aléatoire et ferme les sessions
+de ce compte ; changez-le après connexion (**Plus → Paramètres →
+Utilisateurs**).
+
+### Dépannage
+
+| Symptôme | Cause probable et solution |
+|---|---|
+| Le conteneur s'arrête aussitôt, journal « permission denied » sur `/data` | Le dossier n'appartient pas à l'UID:GID de la ligne `user` : corrigez la ligne (`id <utilisateur>` en SSH) ou les droits du dossier dans File Station. |
+| Le port 8080 est déjà utilisé | Changez la partie gauche de `ports` (par exemple `8090:8080`) et l'adresse du proxy inversé. |
+| « Accès refusé » à l'image au téléchargement | Le registre `ghcr.io` n'est pas configuré ou le jeton a expiré (étape 2). |
+| La connexion échoue derrière le proxy inversé | `BASE_URL` doit correspondre exactement à l'adresse publique (schéma `https://` compris). |
+| Trop de tentatives de connexion | Après 5 échecs, les essais sont suspendus 15 minutes pour cette adresse et cet identifiant. |
+| Les dates ou la tâche de nuit sont décalées | `TZ: Europe/Paris` manque dans `environment`. |
+| Une sauvegarde chiffrée ne se restaure pas | La phrase de passe doit être la même que lors de la sauvegarde ; l'écran Sauvegardes affiche aussi le dernier échec. |
+
+Les journaux sont dans **Container Manager → Conteneur → buddyget →
+Journal** ; ils ne contiennent ni libellé ni montant. `LOG_LEVEL: debug`
+ajoute le détail des requêtes.
+
 ## Ajouter ou ajuster un profil d'import
 
 Un profil décrit un format d'export : pour chaque donnée, les intitulés de
@@ -240,7 +291,7 @@ Toutes les options sont des variables d'environnement facultatives.
 | `PORT` | `8080` | port d'écoute HTTP |
 | `DATA_DIR` | `/data` | dossier de la base de données |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn` ou `error` |
-| `TZ` | UTC | fuseau des journaux (`Europe/Paris`) |
+| `TZ` | UTC | fuseau horaire : date du jour, tâche de nuit, journaux (`Europe/Paris`) |
 | `BASE_URL` | — | adresse publique, ex. `https://budget.mondomaine.fr` ; en HTTPS, active les cookies `Secure` |
 | `TRUSTED_PROXIES` | — | adresses ou réseaux CIDR (séparés par des virgules) dont l'en-tête `X-Forwarded-For` est cru |
 | `MAX_UPLOAD_MB` | `10` | taille maximale d'un fichier déposé : relevé importé ou pièce jointe (1 à 100) |
@@ -264,8 +315,10 @@ make e2e    # parcours Playwright à 360, 768 et 1280 px, thèmes clair et sombr
 Les captures des tests d'interface sont écrites dans `e2e/screenshots/` et
 publiées comme artefact par la CI. L'architecture est décrite dans
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), les choix techniques dans
-[docs/DECISIONS.md](docs/DECISIONS.md) et les mesures dans
-[docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+[docs/DECISIONS.md](docs/DECISIONS.md), les mesures dans
+[docs/PERFORMANCE.md](docs/PERFORMANCE.md), l'accessibilité dans
+[docs/ACCESSIBILITE.md](docs/ACCESSIBILITE.md) et la vérification des
+critères d'acceptation dans [docs/RECETTE.md](docs/RECETTE.md).
 
 ## Licence
 

@@ -798,3 +798,49 @@ l'écran Budgets (lien depuis le rapport). Les rapports s'exportent en PDF ou en
   relance. Les données remplacées sont mises de côté dans
   `avant-restauration`.
 
+## Durcissement et v1.0 (jalon 12)
+
+### Image
+- L'image `scratch` n'a ni magasin de certificats ni base des fuseaux. La
+  base des fuseaux était embarquée depuis le jalon 1 (`time/tzdata`) ; les
+  certificats racines le sont désormais aussi
+  (`golang.org/x/crypto/x509roots/fallback`, utilisés seulement faute de
+  magasin système) : sans eux, les notifications SMTP chiffrées, le webhook
+  et la copie WebDAV en HTTPS échouaient dans le conteneur. Le fuseau
+  appliqué est écrit au démarrage.
+- La CI échoue si la mémoire au repos dépasse 64 Mo, si le fuseau `TZ`
+  n'est pas appliqué, ou si l'image arm64 ne démarre pas (émulation QEMU).
+
+### HTTP
+- Les délais du serveur (lecture 30 s, écriture 60 s) protègent des clients
+  lents ; les transferts volumineux (dépôt d'un relevé, d'une pièce jointe
+  ou d'une sauvegarde, exports, sauvegarde manuelle, téléchargement d'une
+  archive) les prolongent à 30 minutes pour leur seule requête
+  (`http.ResponseController`).
+- En-têtes ajoutés : `Permissions-Policy` (caméra, géolocalisation,
+  paiement et USB refusés ; micro permis au site pour la dictée) et, quand
+  `BASE_URL` est en HTTPS, `Strict-Transport-Security` (180 jours, sans les
+  sous-domaines).
+
+### Utilisateurs
+- Plusieurs comptes de connexion, aux droits identiques sur les données du
+  foyer (pas de rôles : un foyer, des personnes de confiance). Changer son
+  mot de passe exige l'actuel et ferme ses autres sessions ; on ne supprime
+  pas son propre compte, il en reste donc toujours un.
+- Mot de passe oublié : `buddyget reset-password <identifiant>` (par
+  `docker exec`, BuddyGet en marche) attribue un mot de passe aléatoire et
+  ferme les sessions. L'accès au NAS en SSH fait office de preuve
+  d'identité ; aucune réinitialisation par e-mail (aucun service sortant par
+  défaut).
+
+### Navigation
+- « Plus » est regroupé en trois sections (Suivre, Prévoir, Foyer et
+  données) ; les réglages (comptes, utilisateurs, membres, notifications,
+  sauvegardes, catégories, règles, étiquettes) passent dans « Paramètres ».
+
+### Accessibilité
+- Audit Lighthouse consigné dans `ACCESSIBILITE.md` ; axe-core vérifie
+  chaque écran dans les tests de bout en bout (WCAG 2.1 A et AA), ce qui a
+  fait apparaître les zones de tableau défilantes non atteignables au
+  clavier, corrigées.
+
