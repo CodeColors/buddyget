@@ -22,6 +22,7 @@ const (
 	Planned                   // opération saisie à une date future
 	Pending                   // opérations passées non pointées (solde pointé)
 	Interest                  // intérêts d'épargne estimés, crédités au 31/12
+	Provision                 // lissage : provision mensuelle, utilisée à l'échéance
 )
 
 // Label décrit la nature d'un mouvement.
@@ -33,6 +34,8 @@ func (k Kind) Label() string {
 		return "Planifiée"
 	case Interest:
 		return "Intérêts estimés"
+	case Provision:
+		return "Lissage"
 	}
 	return "Non pointées"
 }
@@ -47,6 +50,7 @@ type Event struct {
 	AccountName string
 	Estimated   bool // montant estimé (récurrence à montant variable)
 	Transfer    bool // virement avec un compte du foyer hors du prévisionnel
+	Scenario    bool // ajouté ou modifié par le scénario appliqué
 	// Échéance d'une récurrence : la règle et la date théorique, qui
 	// identifient l'échéance pour l'écarter ponctuellement.
 	RuleID   int64
@@ -85,11 +89,12 @@ type Range struct {
 }
 
 // Totals ventile l'écart entre solde actuel et solde prévu : Opening +
-// Income + Recurring + Other + Variable = Closing.
+// Income + Recurring + Other + Provision + Variable = Closing.
 type Totals struct {
 	Income    int64 // revenus attendus
 	Recurring int64 // dépenses récurrentes
 	Other     int64 // dépenses planifiées et non pointées
+	Provision int64 // provisions des dépenses lissées, nettes de leur utilisation
 	Variable  int64 // dépenses variables estimées
 }
 
@@ -151,6 +156,8 @@ func Compute(in Input) Result {
 
 func (t *Totals) add(e Event) {
 	switch {
+	case e.Kind == Provision:
+		t.Provision += e.Amount
 	case e.Amount > 0:
 		t.Income += e.Amount
 	case e.Kind == Recurring:

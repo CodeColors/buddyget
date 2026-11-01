@@ -8,11 +8,13 @@ import (
 
 	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/ledger"
+	"github.com/codecolors/buddyget/internal/loans"
 	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/platform/validation"
 	"github.com/codecolors/buddyget/internal/recurring"
 	"github.com/codecolors/buddyget/internal/savings"
+	"github.com/codecolors/buddyget/internal/scenarios"
 )
 
 const today calendar.Date = "2026-10-31"
@@ -25,6 +27,8 @@ type env struct {
 	recurring *recurring.Service
 	savings   *savings.Service
 	budgets   *budget.Service
+	loans     *loans.Service
+	scenarios *scenarios.Service
 }
 
 func newEnv(t testing.TB) *env {
@@ -36,7 +40,10 @@ func newEnv(t testing.TB) *env {
 	t.Cleanup(func() { _ = d.Close() })
 	l, r := ledger.NewService(d), recurring.NewService(d)
 	sv, b := savings.NewService(d, l), budget.NewService(d, l)
-	return &env{t: t, db: d, s: NewService(d, l, r, sv, b), ledger: l, recurring: r, savings: sv, budgets: b}
+	lo := loans.NewService(d, r)
+	sc := scenarios.NewService(d, l, r, lo)
+	s := NewService(d, Deps{Ledger: l, Recurring: r, Savings: sv, Budgets: b, Loans: lo, Scenarios: sc})
+	return &env{t: t, db: d, s: s, ledger: l, recurring: r, savings: sv, budgets: b, loans: lo, scenarios: sc}
 }
 
 func (e *env) account(name string, kind ledger.AccountKind, opening int64) int64 {

@@ -29,11 +29,13 @@ import (
 	"github.com/codecolors/buddyget/internal/forecast"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
+	"github.com/codecolors/buddyget/internal/loans"
 	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/recurring"
 	"github.com/codecolors/buddyget/internal/reports"
 	"github.com/codecolors/buddyget/internal/savings"
+	"github.com/codecolors/buddyget/internal/scenarios"
 	"github.com/codecolors/buddyget/internal/scheduler"
 	"github.com/codecolors/buddyget/internal/web"
 )
@@ -82,7 +84,11 @@ func run() error {
 
 	accounts, rules, recurrences := ledger.NewService(database), categorize.NewService(database), recurring.NewService(database)
 	savingsAccounts, budgets := savings.NewService(database, accounts), budget.NewService(database, accounts)
-	forecasts := forecast.NewService(database, accounts, recurrences, savingsAccounts, budgets)
+	credits := loans.NewService(database, recurrences)
+	whatIfs := scenarios.NewService(database, accounts, recurrences, credits)
+	forecasts := forecast.NewService(database, forecast.Deps{
+		Ledger: accounts, Recurring: recurrences, Savings: savingsAccounts, Budgets: budgets, Loans: credits, Scenarios: whatIfs,
+	})
 	baseURL := ""
 	if cfg.BaseURL != nil {
 		baseURL = cfg.BaseURL.String()

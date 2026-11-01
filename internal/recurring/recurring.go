@@ -12,6 +12,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/platform/money"
@@ -53,6 +54,29 @@ type Rule struct {
 	Active        bool
 	Signature     string // série d'opérations que la récurrence représente
 	Subscription  bool   // abonnement (vue Abonnements)
+	// Lissage d'une dépense espacée : provision mensuelle, mise de côté sur
+	// un compte d'épargne (SmoothAccountID) ou sans compte.
+	Smooth            bool
+	SmoothAccountID   int64
+	SmoothAccountName string
+}
+
+// SmoothMonths renvoie le nombre de provisions mensuelles d'une échéance
+// lissée ; 0 si la récurrence n'est pas lissée.
+func (r Rule) SmoothMonths() int {
+	if !r.Smooth {
+		return 0
+	}
+	return r.Period.Count
+}
+
+// Input renvoie la saisie qui reproduit la récurrence.
+func (r Rule) Input() RuleInput {
+	return RuleInput{
+		Label: r.Label, AccountID: r.AccountID, ToAccountID: r.ToAccountID, Amount: r.Amount, Estimated: r.Estimated, Period: r.Period,
+		LastDay: r.LastDay, Shift: r.Shift, Start: r.Start, End: r.End, CategoryID: r.CategoryID, Origin: r.Origin,
+		Subscription: r.Subscription, Smooth: r.Smooth, SmoothAccountID: r.SmoothAccountID, Signature: r.Signature,
+	}
 }
 
 // IsTransfer indique un versement programmé vers un autre compte du foyer.
@@ -92,6 +116,22 @@ func (r Rule) Next(from calendar.Date) (Occurrence, bool) {
 	return Occurrence{}, false
 }
 
+// ResumeOn renvoie la première échéance à partir de from qui tombe au jour
+// habituel de la série : une série du 31 reprend un 31, sans quoi une
+// récurrence qui en partirait tomberait ensuite le 30.
+func (r Rule) ResumeOn(from calendar.Date) calendar.Date {
+	d, n := r.Period.NextOnOrAfter(r.Start, r.LastDay, from)
+	if r.Period.Unit != calendar.Month || r.LastDay {
+		return d
+	}
+	day := r.Start.Time().Day()
+	for i := 0; i < 12 && d.Time().Day() != day; i++ {
+		n++
+		d = r.Period.Nth(r.Start, n, false)
+	}
+	return d
+}
+
 // RuleInput est la saisie d'une récurrence ; Amount est signé. Un
 // versement programmé (ToAccountID) a un montant négatif : celui qui quitte
 // AccountID.
@@ -110,10 +150,24 @@ type RuleInput struct {
 	Origin      Origin
 	// Subscription marque un abonnement.
 	Subscription bool
+	// Smooth lisse une dépense espacée d'au moins deux mois ; la provision
+	// est mise de côté sur SmoothAccountID (compte d'épargne) ou sans compte.
+	Smooth          bool
+	SmoothAccountID int64
 	// Signature de la série détectée d'origine ; vide pour une saisie, elle
 	// est alors tirée du libellé. Fixée à la création, elle empêche la
 	// série d'être proposée de nouveau même si le libellé est modifié.
 	Signature string
+}
+
+// Draft renvoie la récurrence active, sans identifiant, que la saisie
+// créerait : une simulation l'utilise sans l'enregistrer.
+func (in RuleInput) Draft() Rule {
+	return Rule{
+		Label: in.Label, AccountID: in.AccountID, ToAccountID: in.ToAccountID, Amount: in.Amount, Estimated: in.Estimated, Period: in.Period,
+		LastDay: in.LastDay, Shift: in.Shift, Start: in.Start, End: in.End, CategoryID: in.CategoryID, Origin: in.Origin, Active: true,
+		Signature: in.Signature, Subscription: in.Subscription, Smooth: in.Smooth, SmoothAccountID: in.SmoothAccountID,
+	}
 }
 
 // Service gère les récurrences.
@@ -128,17 +182,19 @@ const ruleSelect = `
 	SELECT r.id, r.label, r.account_id, a.name, coalesce(r.to_account_id, 0), coalesce(ta.name, ''), r.amount, r.estimated, r.period_count, r.period_unit, r.last_day,
 		r.business_day, r.start_date, coalesce(r.end_date, ''), coalesce(r.category_id, 0),
 		coalesce(CASE WHEN p.id IS NULL THEN c.name ELSE p.name || ' › ' || c.name END, ''), coalesce(c.color, ''),
-		r.origin, r.active, r.signature, r.subscription
+		r.origin, r.active, r.signature, r.subscription, r.smooth, coalesce(r.smooth_account_id, 0), coalesce(sa.name, '')
 	FROM recurring_rules r
 	JOIN accounts a ON a.id = r.account_id
 	LEFT JOIN accounts ta ON ta.id = r.to_account_id
+	LEFT JOIN accounts sa ON sa.id = r.smooth_account_id
 	LEFT JOIN categories c ON c.id = r.category_id
 	LEFT JOIN categories p ON p.id = c.parent_id`
 
 func scanRule(row interface{ Scan(...any) error }) (Rule, error) {
 	var r Rule
 	err := row.Scan(&r.ID, &r.Label, &r.AccountID, &r.AccountName, &r.ToAccountID, &r.ToAccountName, &r.Amount, &r.Estimated, &r.Period.Count, &r.Period.Unit,
-		&r.LastDay, &r.Shift, &r.Start, &r.End, &r.CategoryID, &r.CategoryName, &r.CategoryColor, &r.Origin, &r.Active, &r.Signature, &r.Subscription)
+		&r.LastDay, &r.Shift, &r.Start, &r.End, &r.CategoryID, &r.CategoryName, &r.CategoryColor, &r.Origin, &r.Active, &r.Signature, &r.Subscription,
+		&r.Smooth, &r.SmoothAccountID, &r.SmoothAccountName)
 	return r, err
 }
 
@@ -183,10 +239,10 @@ func (s *Service) CreateRule(ctx context.Context, in RuleInput) (int64, error) {
 	}
 	res, err := s.db.W.ExecContext(ctx, `
 		INSERT INTO recurring_rules (label, account_id, to_account_id, amount, estimated, period_count, period_unit, last_day,
-			business_day, start_date, end_date, category_id, origin, signature, subscription)
-		VALUES (?, ?, nullif(?, 0), ?, ?, ?, ?, ?, ?, ?, nullif(?, ''), nullif(?, 0), ?, ?, ?)`,
+			business_day, start_date, end_date, category_id, origin, signature, subscription, smooth, smooth_account_id)
+		VALUES (?, ?, nullif(?, 0), ?, ?, ?, ?, ?, ?, ?, nullif(?, ''), nullif(?, 0), ?, ?, ?, ?, nullif(?, 0))`,
 		in.Label, in.AccountID, in.ToAccountID, in.Amount, in.Estimated, in.Period.Count, in.Period.Unit, in.LastDay,
-		in.Shift, in.Start, in.End, in.CategoryID, in.Origin, in.Signature, in.Subscription)
+		in.Shift, in.Start, in.End, in.CategoryID, in.Origin, in.Signature, in.Subscription, in.Smooth, in.SmoothAccountID)
 	if err != nil {
 		return 0, err
 	}
@@ -202,10 +258,11 @@ func (s *Service) UpdateRule(ctx context.Context, id int64, in RuleInput) error 
 	}
 	res, err := s.db.W.ExecContext(ctx, `
 		UPDATE recurring_rules SET label = ?, account_id = ?, to_account_id = nullif(?, 0), amount = ?, estimated = ?, period_count = ?, period_unit = ?,
-			last_day = ?, business_day = ?, start_date = ?, end_date = nullif(?, ''), category_id = nullif(?, 0), subscription = ?
+			last_day = ?, business_day = ?, start_date = ?, end_date = nullif(?, ''), category_id = nullif(?, 0), subscription = ?,
+			smooth = ?, smooth_account_id = nullif(?, 0)
 		WHERE id = ?`,
 		in.Label, in.AccountID, in.ToAccountID, in.Amount, in.Estimated, in.Period.Count, in.Period.Unit, in.LastDay,
-		in.Shift, in.Start, in.End, in.CategoryID, in.Subscription, id)
+		in.Shift, in.Start, in.End, in.CategoryID, in.Subscription, in.Smooth, in.SmoothAccountID, id)
 	return affectedOne(res, err)
 }
 
@@ -283,7 +340,31 @@ func (s *Service) validate(ctx context.Context, in RuleInput) (RuleInput, error)
 			return in, validation.Error("Catégorie introuvable.")
 		}
 	}
-	return in, nil
+	return s.validateSmoothing(ctx, in)
+}
+
+// validateSmoothing contrôle le lissage : une dépense espacée d'au moins
+// deux mois, provisionnée sans compte ou sur un compte d'épargne.
+func (s *Service) validateSmoothing(ctx context.Context, in RuleInput) (RuleInput, error) {
+	if !in.Smooth {
+		in.SmoothAccountID = 0
+		return in, nil
+	}
+	switch {
+	case in.Period.Unit != calendar.Month || in.Period.Count < 2:
+		return in, validation.Error("Seule une échéance espacée d'au moins deux mois (annuelle, trimestrielle…) se lisse.")
+	case in.Amount > 0 || in.ToAccountID != 0:
+		return in, validation.Error("Seule une dépense se lisse.")
+	case in.SmoothAccountID == 0:
+		return in, nil
+	}
+	var ok bool
+	err := s.db.R.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM accounts WHERE id = ? AND kind = ?)`,
+		in.SmoothAccountID, ledger.AccountSavings).Scan(&ok)
+	if err == nil && (!ok || in.SmoothAccountID == in.AccountID) {
+		err = validation.Error("La provision se met de côté sur un compte d'épargne.")
+	}
+	return in, err
 }
 
 // Detected renvoie les séries détectées dans l'historique, sauf celles déjà

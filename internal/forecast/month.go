@@ -2,7 +2,6 @@ package forecast
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/codecolors/buddyget/internal/platform/calendar"
@@ -14,18 +13,22 @@ import (
 // la fin du mois, les versements vers les autres comptes du foyer
 // (épargne…) et les dépenses déjà faites. Il reprend les échéances et les
 // opérations planifiées du prévisionnel, sans estimation des dépenses
-// variables : c'est ce qui reste pour elles.
+// variables : c'est ce qui reste pour elles. Une dépense lissée pèse sur
+// chaque mois par sa provision, et non sur celui de son échéance.
 type Outlook struct {
-	Month    calendar.Date // premier jour du mois
-	Received int64         // entrées reçues
-	Expected int64         // entrées attendues d'ici la fin du mois
-	Upcoming int64         // charges fixes et dépenses prévues à venir (négatif)
-	Savings  int64         // versements vers les autres comptes, faits et à venir (négatif)
-	Spent    int64         // dépenses déjà faites (négatif)
+	Month      calendar.Date // premier jour du mois
+	Received   int64         // entrées reçues
+	Expected   int64         // entrées attendues d'ici la fin du mois
+	Upcoming   int64         // charges fixes et dépenses prévues à venir (négatif)
+	Savings    int64         // versements vers les autres comptes, faits et à venir (négatif)
+	Spent      int64         // dépenses déjà faites (négatif)
+	Provisions int64         // provisions du mois des dépenses lissées, nettes de leur utilisation
 }
 
 // Left renvoie le reste à vivre.
-func (o Outlook) Left() int64 { return o.Received + o.Expected + o.Upcoming + o.Savings + o.Spent }
+func (o Outlook) Left() int64 {
+	return o.Received + o.Expected + o.Upcoming + o.Savings + o.Spent + o.Provisions
+}
 
 // Outlook calcule le reste à vivre du mois de today ; faux sans compte
 // courant actif.
@@ -52,9 +55,21 @@ func (s *Service) Outlook(ctx context.Context, today calendar.Date) (Outlook, bo
 	if err != nil {
 		return o, false, err
 	}
-	err = errors.Join(s.occurrences(ctx, &in, rules, names), s.planned(ctx, &in, names))
+	excluded, err := s.exclusions(ctx)
 	if err != nil {
 		return o, false, err
+	}
+	plans := plansOf(rules)
+	occurrences(&in, plans, names, excluded)
+	if err := s.planned(ctx, &in, names); err != nil {
+		return o, false, err
+	}
+	// Lissage du mois entier, en régime établi ; les virements passés vers
+	// ou depuis le compte de lissage sont déjà dans les opérations du mois.
+	for _, e := range provisions(plans, names, o.Month, in.Target, excluded, true) {
+		if e.Date > today || !e.Transfer {
+			o.Provisions += e.Amount
+		}
 	}
 	for _, e := range in.Events {
 		switch {

@@ -14,12 +14,14 @@ import (
 
 	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/ledger"
+	"github.com/codecolors/buddyget/internal/loans"
 	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/platform/money"
 	"github.com/codecolors/buddyget/internal/platform/validation"
 	"github.com/codecolors/buddyget/internal/recurring"
 	"github.com/codecolors/buddyget/internal/savings"
+	"github.com/codecolors/buddyget/internal/scenarios"
 )
 
 // MaxMonths borne l'horizon du prévisionnel.
@@ -37,11 +39,13 @@ type Settings struct {
 }
 
 // Query décrit le prévisionnel demandé : un compte, sinon tous les comptes
-// d'épargne actifs (Savings), sinon tous les comptes courants actifs.
+// d'épargne actifs (Savings), sinon tous les comptes courants actifs ; avec
+// ScenarioID, les modifications de ce scénario sont appliquées.
 type Query struct {
-	AccountID int64
-	Savings   bool
-	Target    calendar.Date
+	AccountID  int64
+	Savings    bool
+	Target     calendar.Date
+	ScenarioID int64
 }
 
 // CategoryAverage est la dépense variable mensuelle estimée d'une
@@ -63,6 +67,7 @@ type Report struct {
 	AverageMonths int
 	Categories    []CategoryAverage // des plus fortes dépenses aux plus faibles
 	Budgeted      bool              // des enveloppes remplacent la moyenne
+	Scenario      string            // nom du scénario appliqué
 }
 
 // VariableMonthly renvoie l'estimation mensuelle des dépenses variables.
@@ -74,6 +79,16 @@ func (r Report) VariableMonthly() int64 {
 	return total
 }
 
+// Deps rassemble les services dont le prévisionnel lit les données.
+type Deps struct {
+	Ledger    *ledger.Service
+	Recurring *recurring.Service
+	Savings   *savings.Service
+	Budgets   *budget.Service
+	Loans     *loans.Service
+	Scenarios *scenarios.Service
+}
+
 // Service calcule les prévisionnels.
 type Service struct {
 	db        *db.DB
@@ -81,11 +96,14 @@ type Service struct {
 	recurring *recurring.Service
 	savings   *savings.Service
 	budgets   *budget.Service
+	loans     *loans.Service
+	scenarios *scenarios.Service
 }
 
 // NewService crée le service du prévisionnel.
-func NewService(d *db.DB, l *ledger.Service, r *recurring.Service, sv *savings.Service, b *budget.Service) *Service {
-	return &Service{db: d, ledger: l, recurring: r, savings: sv, budgets: b}
+func NewService(d *db.DB, deps Deps) *Service {
+	return &Service{db: d, ledger: deps.Ledger, recurring: deps.Recurring, savings: deps.Savings, budgets: deps.Budgets,
+		loans: deps.Loans, scenarios: deps.Scenarios}
 }
 
 // MaxTarget renvoie la date cible la plus lointaine admise.
@@ -165,9 +183,23 @@ func (s *Service) Forecast(ctx context.Context, q Query, today calendar.Date) (R
 	if err != nil {
 		return r, err
 	}
-	if err := s.occurrences(ctx, &in, rules, names); err != nil {
+	excluded, err := s.exclusions(ctx)
+	if err != nil {
 		return r, err
 	}
+	plans := plansOf(rules)
+	if q.ScenarioID != 0 {
+		sc, err := s.scenarios.Scenario(ctx, q.ScenarioID)
+		if err != nil {
+			return r, err
+		}
+		r.Scenario = sc.Name
+		if plans, err = s.applyScenario(ctx, sc, plans, &in, names); err != nil {
+			return r, err
+		}
+	}
+	occurrences(&in, plans, names, excluded)
+	in.Events = append(in.Events, provisions(plans, names, in.Today.AddDays(1), in.Target, excluded, false)...)
 	if err := s.planned(ctx, &in, names); err != nil {
 		return r, err
 	}
@@ -227,45 +259,57 @@ func (s *Service) pending(ctx context.Context, in *Input, names map[int64]string
 	return nil
 }
 
-// occurrences ajoute les échéances des récurrences actives des comptes
-// couverts, jusqu'à la date cible.
-func (s *Service) occurrences(ctx context.Context, in *Input, rules []recurring.Rule, names map[int64]string) error {
-	type key struct {
-		rule int64
-		date calendar.Date
-	}
-	excluded := map[key]bool{}
+// occurrence identifie une échéance : sa récurrence et sa date théorique.
+type occurrence struct {
+	rule int64
+	date calendar.Date
+}
+
+// exclusions renvoie les échéances écartées du prévisionnel.
+func (s *Service) exclusions(ctx context.Context) (map[occurrence]bool, error) {
 	rows, err := s.db.R.QueryContext(ctx, `SELECT rule_id, date FROM forecast_exclusions`)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
+	excluded := map[occurrence]bool{}
 	for rows.Next() {
-		var k key
+		var k occurrence
 		if err := rows.Scan(&k.rule, &k.date); err != nil {
-			return err
+			return nil, err
 		}
 		excluded[k] = true
 	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	for _, rule := range rules {
-		if !rule.Active {
+	return excluded, rows.Err()
+}
+
+// occurrences ajoute les échéances des récurrences actives des comptes
+// couverts, jusqu'à la date cible.
+func occurrences(in *Input, plans []plan, names map[int64]string, excluded map[occurrence]bool) {
+	for _, p := range plans {
+		legs := legs(p.Rule, names)
+		if !p.Active || len(legs) == 0 {
 			continue
 		}
-		for _, leg := range legs(rule, names) {
-			for o := range rule.Occurrences(in.Today.AddDays(1)) {
-				if o.Due > in.Target {
-					break
-				}
+		for o := range p.Occurrences(in.Today.AddDays(1)) {
+			if o.Due > in.Target {
+				break
+			}
+			amount := p.amountAt(o.Nominal)
+			if amount == 0 {
+				continue
+			}
+			for _, leg := range legs {
 				e := leg
-				e.Date, e.Nominal, e.Excluded = o.Due, o.Nominal, excluded[key{rule.ID, o.Nominal}]
+				e.Date, e.Nominal, e.Excluded = o.Due, o.Nominal, excluded[occurrence{p.ID, o.Nominal}]
+				e.Amount, e.Scenario = amount, p.simulated || amount != p.Amount
+				if leg.Amount != p.Amount {
+					e.Amount = -amount // crédit d'un versement programmé
+				}
 				in.Events = append(in.Events, e)
 			}
 		}
 	}
-	return nil
 }
 
 // legs renvoie les mouvements d'une échéance sur les comptes couverts : un

@@ -63,7 +63,7 @@ func newEnv(t testing.TB) *env {
 	t.Cleanup(func() { _ = d.Close() })
 	l, r := ledger.NewService(d), recurring.NewService(d)
 	sv, b := savings.NewService(d, l), budget.NewService(d, l)
-	s := NewService(d, l, r, sv, b, forecast.NewService(d, l, r, sv, b), "https://budget.example")
+	s := NewService(d, l, r, sv, b, forecast.NewService(d, forecast.Deps{Ledger: l, Recurring: r, Savings: sv, Budgets: b}), "https://budget.example")
 	ft := &fakeTransport{}
 	s.transport = ft
 	return &env{t: t, d: d, s: s, ledger: l, recurring: r, savings: sv, budgets: b, transport: ft}

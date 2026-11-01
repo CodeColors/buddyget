@@ -21,10 +21,12 @@ import (
 	"github.com/codecolors/buddyget/internal/forecast"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
+	"github.com/codecolors/buddyget/internal/loans"
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/recurring"
 	"github.com/codecolors/buddyget/internal/reports"
 	"github.com/codecolors/buddyget/internal/savings"
+	"github.com/codecolors/buddyget/internal/scenarios"
 )
 
 const password = "un mot de passe solide"
@@ -48,7 +50,11 @@ func newTestEnv(t *testing.T) *testEnv {
 	dataDir := t.TempDir()
 	accounts, rules, recurrences := ledger.NewService(d), categorize.NewService(d), recurring.NewService(d)
 	savingsAccounts, budgets := savings.NewService(d, accounts), budget.NewService(d, accounts)
-	forecasts := forecast.NewService(d, accounts, recurrences, savingsAccounts, budgets)
+	credits := loans.NewService(d, recurrences)
+	whatIfs := scenarios.NewService(d, accounts, recurrences, credits)
+	forecasts := forecast.NewService(d, forecast.Deps{
+		Ledger: accounts, Recurring: recurrences, Savings: savingsAccounts, Budgets: budgets, Loans: credits, Scenarios: whatIfs,
+	})
 	alertCenter := alerts.NewService(d, accounts, recurrences, savingsAccounts, budgets, forecasts, "")
 	h, err := New(config.Config{MaxUploadMB: 1}, d, Services{
 		Auth: svc, Ledger: accounts, Rules: rules,
