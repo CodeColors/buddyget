@@ -287,6 +287,11 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		"POST /sauvegardes/restaurer":                         s.restoreBackup,
 		"GET /sauvegardes/fichiers/{name}":                    s.downloadBackup,
 		"POST /sauvegardes/fichiers/{name}/supprimer":         s.deleteBackup,
+		"GET /parametres":                                     s.settingsPage,
+		"GET /utilisateurs":                                   s.usersPage,
+		"POST /utilisateurs":                                  s.createUser,
+		"POST /utilisateurs/mot-de-passe":                     s.changePassword,
+		"POST /utilisateurs/{id}/supprimer":                   s.deleteUser,
 		"GET /plus":                                           s.morePage,
 	} {
 		var handler http.Handler = h
@@ -370,7 +375,7 @@ func (s *Server) inputError(w http.ResponseWriter, r *http.Request, err error) (
 	if errors.Is(err, ledger.ErrNotFound) || errors.Is(err, categorize.ErrNotFound) || errors.Is(err, importer.ErrNotFound) ||
 		errors.Is(err, recurring.ErrNotFound) || errors.Is(err, attachments.ErrNotFound) || errors.Is(err, loans.ErrNotFound) ||
 		errors.Is(err, goals.ErrNotFound) || errors.Is(err, scenarios.ErrNotFound) || errors.Is(err, household.ErrNotFound) ||
-		errors.Is(err, backup.ErrNotFound) {
+		errors.Is(err, backup.ErrNotFound) || errors.Is(err, auth.ErrNotFound) {
 		s.notFound(w, r)
 	} else {
 		s.serverError(w, r, err)

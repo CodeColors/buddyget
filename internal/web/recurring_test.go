@@ -122,12 +122,15 @@ func TestManualRecurrence(t *testing.T) {
 func TestMoreMenu(t *testing.T) {
 	e := loggedIn(t)
 	body := e.do("GET", "/plus", nil).body
-	for _, want := range []string{`class="nav-more" href="/plus" aria-current="page"`, `href="/regles"`, `href="/import/historique"`} {
+	for _, want := range []string{`class="nav-more" href="/plus" aria-current="page"`, `href="/parametres"`, `href="/import/historique"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page Plus : %q absent", want)
 		}
 	}
-	for _, path := range []string{"/comptes", "/recurrences"} {
+	if body := e.do("GET", "/parametres", nil).body; !strings.Contains(body, `href="/regles"`) || !strings.Contains(body, `href="/utilisateurs"`) {
+		t.Error("les réglages sont dans Paramètres")
+	}
+	for _, path := range []string{"/comptes", "/recurrences", "/parametres", "/utilisateurs"} {
 		if body := e.do("GET", path, nil).body; !strings.Contains(body, `class="nav-more" href="/plus" aria-current="page"`) {
 			t.Errorf("« Plus » doit être actif sur l'écran secondaire %s", path)
 		}

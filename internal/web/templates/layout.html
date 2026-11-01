@@ -70,7 +70,7 @@
 <nav class="tabbar" aria-label="Navigation principale">
   {{- /* Rubriques visibles dès 1024 px ; sur un écran plus étroit, « Plus » y mène. */}}
   {{- $secondary := or (navActive .Path "/budgets") (navActive .Path "/epargne") (navActive .Path "/rapports")}}
-  {{- $more := or (navActive .Path "/plus") (navActive .Path "/recurrences") (navActive .Path "/abonnements") (navActive .Path "/comptes") (navActive .Path "/categories") (navActive .Path "/regles") (navActive .Path "/etiquettes") (navActive .Path "/alertes") (navActive .Path "/credits") (navActive .Path "/projets") (navActive .Path "/scenarios") (navActive .Path "/partage") (navActive .Path "/exports") (navActive .Path "/sauvegardes")}}
+  {{- $more := or (navActive .Path "/plus") (navActive .Path "/recurrences") (navActive .Path "/abonnements") (navActive .Path "/comptes") (navActive .Path "/categories") (navActive .Path "/regles") (navActive .Path "/etiquettes") (navActive .Path "/alertes") (navActive .Path "/credits") (navActive .Path "/projets") (navActive .Path "/scenarios") (navActive .Path "/partage") (navActive .Path "/exports") (navActive .Path "/sauvegardes") (navActive .Path "/parametres") (navActive .Path "/utilisateurs")}}
   <a href="/"{{if navActive .Path "/"}} aria-current="page"{{end}}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg>
     <span>Accueil</span>

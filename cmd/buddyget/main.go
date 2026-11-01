@@ -2,8 +2,9 @@
 //
 // Usage :
 //
-//	buddyget              démarre le serveur
-//	buddyget healthcheck  interroge /healthz (HEALTHCHECK Docker, image sans shell)
+//	buddyget                               démarre le serveur
+//	buddyget healthcheck                   interroge /healthz (HEALTHCHECK Docker, image sans shell)
+//	buddyget reset-password <identifiant>  attribue un mot de passe aléatoire (oubli)
 package main
 
 import (
@@ -53,8 +54,17 @@ import (
 var version = "dev"
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
-		if err := healthcheck(); err != nil {
+	if len(os.Args) > 1 {
+		var err error
+		switch os.Args[1] {
+		case "healthcheck":
+			err = healthcheck()
+		case "reset-password":
+			err = resetPassword(os.Args[2:])
+		default:
+			err = fmt.Errorf("commande inconnue %q : healthcheck ou reset-password <identifiant>", os.Args[1])
+		}
+		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -199,6 +209,34 @@ func run() error {
 	if err := srv.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+	return nil
+}
+
+// resetPassword attribue un mot de passe aléatoire à un utilisateur et
+// l'affiche ; BuddyGet peut tourner en même temps (SQLite en mode WAL).
+func resetPassword(args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage : buddyget reset-password <identifiant>")
+	}
+	cfg, err := config.Load(os.Getenv)
+	if err != nil {
+		return err
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	ctx := context.Background()
+	database, err := db.Open(ctx, cfg.DBPath())
+	if err != nil {
+		return err
+	}
+	defer func() { _ = database.Close() }()
+	password, err := auth.NewService(database).ResetPassword(ctx, args[0])
+	if errors.Is(err, auth.ErrNotFound) {
+		return fmt.Errorf("aucun utilisateur %q", args[0])
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Nouveau mot de passe de %s : %s\nChangez-le après connexion (Plus > Paramètres > Utilisateurs).\n", args[0], password)
 	return nil
 }
 
