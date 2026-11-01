@@ -522,6 +522,51 @@ test('crédit, projet et scénario « et si » sur mobile', async () => {
   }, session);
 });
 
+test('partage du foyer, export et sauvegarde sur mobile', async () => {
+  await withPage(360, 'light', async (page) => {
+    // Membres, puis une dépense partagée au prorata des revenus.
+    await page.goto(`${BASE}/plus`);
+    await page.getByRole('link', { name: /^Partage du foyer/ }).click();
+    for (const [name, income] of [['Hugo', '3000'], ['Léa', '2000']]) {
+      await page.getByLabel('Prénom').fill(name);
+      await page.getByLabel('Revenu mensuel (€)').fill(income);
+      await page.getByRole('button', { name: 'Ajouter' }).click();
+      await page.getByRole('status').filter({ hasText: 'Membre ajouté.' }).waitFor();
+    }
+    await page.goto(`${BASE}/operations/nouvelle`);
+    await page.getByLabel('Montant (€)').fill('900');
+    await page.getByLabel('Libellé').fill('Loyer partagé');
+    await page.getByText('Partage du foyer').click();
+    await page.getByLabel('Opération partagée entre membres du foyer').check();
+    await page.getByLabel('Payée par').selectOption({ label: 'Hugo' });
+    await page.getByRole('radio', { name: 'Au prorata' }).check();
+    await checkLayout(page, 'saisie partagée', 'light');
+    await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Opération enregistrée.' }).waitFor();
+    await page.goto(`${BASE}/partage`);
+    await page.getByText('Léa doit 360,00 € à Hugo').waitFor();
+    await checkLayout(page, 'partage', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'partage-parcours-360-light.png'), fullPage: true });
+
+    // Export des opérations : le CSV se télécharge.
+    await page.goto(`${BASE}/exports`);
+    const [csv] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Télécharger le CSV' }).click(),
+    ]);
+    assert.match(csv.suggestedFilename(), /^buddyget-operations-\d{4}-\d{2}-\d{2}\.csv$/);
+    await checkLayout(page, 'exports', 'light');
+
+    // Sauvegarde manuelle.
+    await page.goto(`${BASE}/sauvegardes`);
+    await page.getByRole('button', { name: 'Sauvegarder maintenant' }).click();
+    await page.getByRole('status').filter({ hasText: 'Sauvegarde terminée.' }).waitFor();
+    await page.getByRole('link', { name: 'Télécharger' }).first().waitFor();
+    await checkLayout(page, 'sauvegardes', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'sauvegardes-parcours-360-light.png'), fullPage: true });
+  }, session);
+});
+
 const SCREENS = [
   ['tableau-de-bord', '/'],
   ['operations', '/operations'],
@@ -553,6 +598,10 @@ const SCREENS = [
   ['scenarios', '/scenarios'],
   ['scenario', '/scenarios/1'],
   ['previsionnel-scenario', '/previsionnel?scenario=1'],
+  ['partage', '/partage'],
+  ['partage-membre', '/partage/membres/1'],
+  ['exports', '/exports'],
+  ['sauvegardes', '/sauvegardes'],
   ['plus', '/plus'],
 ];
 
