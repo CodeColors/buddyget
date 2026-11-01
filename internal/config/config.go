@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // Config regroupe les paramètres d'exécution validés.
@@ -27,7 +28,14 @@ type Config struct {
 	MaxUploadMB int
 	// AttachmentsQuotaMB borne la place occupée par les pièces jointes.
 	AttachmentsQuotaMB int
+	// BackupPassphrase chiffre les sauvegardes ; vide, elles ne le sont pas.
+	// Elle reste hors de la base, donc hors des sauvegardes elles-mêmes.
+	BackupPassphrase string
 }
+
+// minPassphrase est la longueur minimale de la phrase de passe des
+// sauvegardes, en caractères.
+const minPassphrase = 12
 
 // Load construit la configuration à partir de getenv (os.Getenv en
 // production). Toutes les erreurs sont signalées en une seule fois.
@@ -70,6 +78,12 @@ func Load(getenv func(string) string) (Config, error) {
 		}
 		cfg.BaseURL = u
 	}
+	if v := getenv("BACKUP_PASSPHRASE"); v != "" {
+		if utf8.RuneCountInString(v) < minPassphrase {
+			errs = append(errs, fmt.Errorf("BACKUP_PASSPHRASE trop courte : %d caractères au moins", minPassphrase))
+		}
+		cfg.BackupPassphrase = v
+	}
 	if v := getenv("TRUSTED_PROXIES"); v != "" {
 		p, err := parsePrefixes(v)
 		if err != nil {
@@ -91,6 +105,9 @@ func (c Config) AttachmentsQuotaBytes() int64 { return int64(c.AttachmentsQuotaM
 
 // DBPath renvoie le chemin du fichier SQLite.
 func (c Config) DBPath() string { return filepath.Join(c.DataDir, "buddyget.db") }
+
+// BackupsDir renvoie le dossier des sauvegardes.
+func (c Config) BackupsDir() string { return filepath.Join(c.DataDir, "backups") }
 
 // SecureCookies indique si les cookies doivent porter l'attribut Secure,
 // c'est-à-dire si l'application est publiée en HTTPS.

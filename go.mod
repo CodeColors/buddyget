@@ -3,6 +3,7 @@ module github.com/codecolors/buddyget
 go 1.27.0
 
 require (
+	filippo.io/age v1.3.2
 	github.com/extrame/xls v0.0.2-0.20200426124601-4a6cf263071b
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/xuri/excelize/v2 v2.11.0
@@ -14,6 +15,7 @@ require (
 )
 
 require (
+	filippo.io/hpke v0.4.0 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/extrame/goyymmdd v0.0.0-20210114090516-7cc815f00d1a // indirect
 	github.com/extrame/ole2 v0.0.0-20160812065207-d69429661ad7 // indirect

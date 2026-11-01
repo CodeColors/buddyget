@@ -18,7 +18,7 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Addr() != ":8080" || cfg.DBPath() != "/data/buddyget.db" || cfg.LogLevel != slog.LevelInfo || cfg.MaxUploadBytes() != 10<<20 {
 		t.Errorf("valeurs par défaut inattendues : %+v", cfg)
 	}
-	if cfg.SecureCookies() || cfg.BaseURL != nil || cfg.TrustedProxies != nil {
+	if cfg.SecureCookies() || cfg.BaseURL != nil || cfg.TrustedProxies != nil || cfg.BackupPassphrase != "" {
 		t.Errorf("aucune option réseau ne doit être active par défaut : %+v", cfg)
 	}
 }
@@ -32,12 +32,13 @@ func TestLoadValues(t *testing.T) {
 		"TRUSTED_PROXIES":      "172.16.0.0/12, 192.168.1.10",
 		"MAX_UPLOAD_MB":        "25",
 		"ATTACHMENTS_QUOTA_MB": "500",
+		"BACKUP_PASSPHRASE":    "une très longue phrase",
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Addr() != ":9000" || cfg.DBPath() != "/srv/bg/buddyget.db" || cfg.LogLevel != slog.LevelDebug || cfg.MaxUploadMB != 25 ||
-		cfg.AttachmentsQuotaBytes() != 500<<20 {
+		cfg.AttachmentsQuotaBytes() != 500<<20 || cfg.BackupPassphrase != "une très longue phrase" || cfg.BackupsDir() != "/srv/bg/backups" {
 		t.Errorf("valeurs inattendues : %+v", cfg)
 	}
 	if !cfg.SecureCookies() || cfg.BaseURL.String() != "https://budget.example.fr" {
@@ -63,6 +64,7 @@ func TestLoadInvalid(t *testing.T) {
 		"proxy invalide":     {"TRUSTED_PROXIES": "10.0.0.0/8,proxy"},
 		"taille d'import":    {"MAX_UPLOAD_MB": "0"},
 		"quota des pièces":   {"ATTACHMENTS_QUOTA_MB": "5"},
+		"phrase trop courte": {"BACKUP_PASSPHRASE": "court"},
 	}
 	for name, vars := range cases {
 		t.Run(name, func(t *testing.T) {

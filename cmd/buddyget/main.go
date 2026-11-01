@@ -23,6 +23,7 @@ import (
 	"github.com/codecolors/buddyget/internal/alerts"
 	"github.com/codecolors/buddyget/internal/attachments"
 	"github.com/codecolors/buddyget/internal/auth"
+	"github.com/codecolors/buddyget/internal/backup"
 	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
@@ -73,6 +74,13 @@ func run() error {
 	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
 		return fmt.Errorf("dossier de données : %w", err)
 	}
+	// Une restauration préparée avant le redémarrage s'applique avant
+	// l'ouverture de la base.
+	if restored, err := backup.ApplyPending(cfg.DataDir, time.Now()); err != nil {
+		return fmt.Errorf("restauration de la sauvegarde : %w", err)
+	} else if restored {
+		slog.Info("sauvegarde restaurée ; les données remplacées sont dans avant-restauration")
+	}
 	database, err := db.Open(ctx, cfg.DBPath())
 	if err != nil {
 		return err
@@ -96,6 +104,7 @@ func run() error {
 	}
 	alertCenter := alerts.NewService(database, accounts, recurrences, savingsAccounts, budgets, forecasts, baseURL)
 	files := attachments.NewService(database, cfg.DataDir, cfg.MaxUploadBytes(), cfg.AttachmentsQuotaBytes())
+	backups := backup.NewService(database, cfg.DataDir, cfg.BackupPassphrase)
 	handler, err := web.New(cfg, database, web.Services{
 		Auth:        auth.NewService(database),
 		Ledger:      accounts,
@@ -151,6 +160,9 @@ func run() error {
 					slog.Info("pièces jointes orphelines supprimées", "fichiers", n)
 				}
 				return err
+			}},
+			scheduler.Job{Name: "sauvegarde automatique", Run: func(ctx context.Context, _ calendar.Date) error {
+				return backups.Daily(ctx, time.Now())
 			}},
 		)
 	})
