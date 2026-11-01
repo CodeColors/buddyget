@@ -15,7 +15,11 @@ services:
       # BASE_URL: https://budget.mondomaine.fr
       # Réseau Docker du reverse proxy, pour connaître l'IP réelle des clients :
       # TRUSTED_PROXIES: 172.16.0.0/12
+      # Chiffre les sauvegardes (12 caractères au moins ; à conserver hors du NAS) :
+      # BACKUP_PASSPHRASE: une phrase de passe longue et unique
     volumes:
       - /volume1/docker/buddyget:/data
+      # Second emplacement pour la copie des sauvegardes (facultatif) :
+      # - /volumeUSB1/usbshare/buddyget:/copie
     mem_limit: 128m
     cpus: 0.5

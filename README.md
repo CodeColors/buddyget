@@ -9,7 +9,8 @@ puissant : un seul conteneur, une base SQLite, moins de 20 Mo de RAM au repos.
 - Comptes d'épargne avec intérêts et durée de blocage
 
 Interface en français, modes clair et sombre, aucune requête vers l'extérieur
-(sauf les notifications par e-mail ou webhook, si vous les activez).
+(sauf les notifications par e-mail ou webhook et la copie des sauvegardes
+vers un serveur WebDAV, si vous les activez).
 
 ### Disponible aujourd'hui
 
@@ -71,6 +72,13 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
 - Scénarios « et si » (achat, nouveau crédit, abonnement arrêté, hausse de
   salaire, remboursement anticipé…) comparés à la réalité, puis convertis en
   données réelles en un clic
+- Partage du foyer : qui a payé, répartition à parts égales, au prorata des
+  revenus ou libre, qui doit combien, remboursement enregistré comme virement
+  entre vos comptes
+- Exports : opérations en CSV (aussi depuis une recherche), rapports en PDF
+  ou CSV, dossier ZIP pour un comptable ou les impôts avec les pièces jointes
+- Sauvegardes chiffrées, automatiques chaque nuit avec rotation, copie vers
+  un dossier ou un serveur WebDAV, restauration en quelques clics
 
 ## Avancement
 
@@ -86,7 +94,8 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
 | 8 | Budgets par enveloppe, reste à vivre, alertes et notifications facultatives | ✅ |
 | 9 | Abonnements, rapports, étiquettes, pièces jointes, saisie rapide, pointage | ✅ |
 | 10 | Scénarios « et si », projets et cagnottes, lissage des dépenses annuelles, crédits | ✅ |
-| 11 – 12 | Partage, exports, sauvegardes, finitions | à venir |
+| 11 | Partage du foyer, exports CSV / PDF / ZIP, sauvegardes chiffrées, copie externe, restauration | ✅ |
+| 12 | Durcissement, contrôles complets, documentation finale : v1.0 | à venir |
 
 Le détail est dans [docs/PLAN.md](docs/PLAN.md) et le cahier des charges dans
 [docs/cahier-des-charges.md](docs/cahier-des-charges.md).
@@ -150,12 +159,47 @@ version en cours de développement.
 3. **Projet → buddyget → Action → Construire** recrée le conteneur ; les
    migrations de la base s'appliquent au démarrage.
 
-### Sauvegarde
+### Sauvegarde et restauration
 
-Les données tiennent dans le dossier `/volume1/docker/buddyget` (fichier
-`buddyget.db` et sous-dossier `attachments` des pièces jointes). Arrêtez le projet avant de copier ce dossier, par exemple avec
-**Hyper Backup**. La sauvegarde intégrée (chiffrée, planifiée) arrive au
-jalon 11.
+Écran **Plus → Sauvegardes** :
+
+- **Sauvegarder maintenant** crée une archive cohérente de la base et des
+  pièces jointes dans `/volume1/docker/buddyget/backups/`, sans arrêter
+  BuddyGet ; chaque archive se télécharge depuis la liste.
+- **Sauvegarder automatiquement chaque nuit** (vers 00h05) garde les N
+  dernières sauvegardes automatiques (7 par défaut) ; celles faites à la main
+  ne sont jamais supprimées.
+- **Chiffrement** : ajoutez `BACKUP_PASSPHRASE` (12 caractères au moins) dans
+  `environment` de `docker-compose.yml`, puis recréez le projet. Les archives
+  (`.tar.gz.age`) sont alors chiffrées au format [age](https://age-encryption.org) :
+  sans la phrase de passe, elles sont illisibles. **Conservez-la hors du
+  NAS** (gestionnaire de mots de passe). Elle n'est jamais enregistrée dans
+  la base.
+- **Copie vers un second emplacement** (désactivée par défaut) :
+  - *Dossier* : montez un autre dossier dans le conteneur (par exemple un
+    autre volume, un disque USB ou un dossier synchronisé par Cloud Sync),
+    en ajoutant à `volumes` une ligne `- /volumeUSB1/usbshare/buddyget:/copie`,
+    puis indiquez `/copie` ; la même rotation s'y applique.
+  - *WebDAV* : l'adresse d'un dossier WebDAV (Nextcloud, serveur WebDAV de
+    DSM d'un autre NAS…), avec identifiant et mot de passe ; la rotation y
+    reste à la charge du serveur.
+
+**Restaurer** : bouton *Restaurer* d'une archive de la liste, ou dépôt d'un
+fichier téléchargé. L'archive est déchiffrée et vérifiée (intégrité de la
+base, version), puis BuddyGet redémarre et l'applique avant d'ouvrir la
+base ; la page se recharge d'elle-même. Les données remplacées sont mises de
+côté dans `/volume1/docker/buddyget/avant-restauration/` (à supprimer une
+fois la restauration vérifiée). Le redémarrage repose sur
+`restart: unless-stopped` ; sinon, redémarrez le projet.
+
+**Sur un nouveau NAS** : installez BuddyGet (même `BACKUP_PASSPHRASE` si
+l'archive est chiffrée), créez un premier compte, puis restaurez l'archive
+depuis l'écran Sauvegardes ; les comptes de connexion de la sauvegarde
+remplacent le compte provisoire.
+
+À la main, sans BuddyGet : `age -d buddyget-….tar.gz.age | tar xz` (ou
+`tar xzf` pour une archive non chiffrée) donne `buddyget.db` et le dossier
+`attachments`, à replacer dans le dossier de données, BuddyGet arrêté.
 
 ## Ajouter ou ajuster un profil d'import
 
@@ -201,6 +245,7 @@ Toutes les options sont des variables d'environnement facultatives.
 | `TRUSTED_PROXIES` | — | adresses ou réseaux CIDR (séparés par des virgules) dont l'en-tête `X-Forwarded-For` est cru |
 | `MAX_UPLOAD_MB` | `10` | taille maximale d'un fichier déposé : relevé importé ou pièce jointe (1 à 100) |
 | `ATTACHMENTS_QUOTA_MB` | `1024` | place totale des pièces jointes (10 à 1 000 000) |
+| `BACKUP_PASSPHRASE` | — | phrase de passe (12 caractères au moins) qui chiffre les sauvegardes ; sans elle, elles ne le sont pas |
 | `GOMEMLIMIT` | `100MiB` (image) | plafond mémoire visé par le ramasse-miettes |
 
 Les journaux ne contiennent jamais de libellé ni de montant.

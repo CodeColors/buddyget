@@ -25,7 +25,8 @@ internal/
 ├── config/            variables d'environnement → Config validée
 ├── platform/
 │   ├── db/            ouverture SQLite (WAL, pools écriture/lecture), transactions,
-│   │                  lecture de lignes (Collect),
+│   │                  lecture de lignes (Collect), instantané et contrôle
+│   │                  d'une base (Snapshot, Verify),
 │   │   └── migrations/ migrateur ; NNNN_description.sql embarqués
 │   ├── money/         montants en centimes : saisie et affichage à la française
 │   ├── calendar/      dates civiles AAAA-MM-JJ, périodicités et échéances,
@@ -50,6 +51,12 @@ internal/
 ├── goals/             projets : cagnotte, versement suggéré, date d'atteinte
 ├── scenarios/         scénarios « et si » : modifications, conversion en
 │                      données réelles
+├── household/         partage du foyer : membres, répartitions, soldes,
+│                      remboursements
+├── exports/           exports en flux : opérations CSV, rapports CSV/PDF,
+│                      dossier ZIP
+├── backup/            sauvegardes : archive chiffrée (age), rotation, copie
+│                      dossier/WebDAV, restauration au démarrage
 ├── reports/           rapports mensuel et annuel
 ├── attachments/       pièces jointes : réduction des images, PDF, quota
 ├── alerts/            alertes : examen (7 types), acquittement, notifications
@@ -65,8 +72,7 @@ e2e/                   tests Playwright (développement et CI uniquement)
 testdata/              relevés d'exemple (synthétiques, voir testdata/README.md)
 ```
 
-Les packages métier suivants (`household`…) s'ajoutent jalon par jalon sur ce
-modèle : un service par domaine, appelé par les handlers. Le prévisionnel
+Chaque domaine est un service, appelé par les handlers. Le prévisionnel
 lit les autres domaines par ses dépendances (`forecast.Deps`) ; aucun
 domaine ne dépend du prévisionnel.
 
@@ -126,6 +132,10 @@ peuvent pas créer deux premiers comptes.
 | `quick_templates` | modèles de saisie : nom, compte, libellé, montant, catégorie |
 | `loans`, `loan_prepayments` | crédits : compte prélevé, capital, taux, durée, assurance, première échéance, récurrence de la mensualité ; remboursements anticipés |
 | `goals` | projets : montant et date visés, compte d'épargne, cagnotte, étiquette, versement programmé |
+| `household_members` | membres du foyer : prénom, revenu mensuel, archivage |
+| `shared_transactions`, `transaction_splits` | opération partagée : payeur, règle de répartition ; part de chaque membre |
+| `member_settlements` | remboursements entre membres, avec leur virement interne |
+| `backup_settings` | réglages des sauvegardes (une ligne) : automatique, rotation, copie externe, compte rendu |
 | `scenarios`, `scenario_items` | scénarios et leurs modifications (nature, compte, récurrence ou crédit visé, montant, pourcentage, taux, durée, dates) |
 
 Une opération importée porte `import_id` (annulation) et `import_hash`
@@ -165,6 +175,9 @@ table des opérations.
 | `/credits`, `/credits/nouveau`, `/credits/{id}` | crédits : situation, tableau d'amortissement par année, remboursement anticipé (`POST /credits/{id}/anticipe`), modification (`/credits/{id}/modifier`) |
 | `/projets`, `/projets/nouveau`, `/projets/{id}` | projets : progression, cagnotte (`POST /projets/{id}/cagnotte`), versement programmé (`POST /projets/{id}/versement`), saisie |
 | `/scenarios`, `/scenarios/{id}` | scénarios : création, comparaison (`?date=`), modifications (`POST /scenarios/{id}/modifications`), conversion (`POST /scenarios/{id}/convertir`) ; le prévisionnel applique un scénario avec `?scenario=` |
+| `/partage`, `/partage/membres/{id}` | partage du foyer : qui doit combien, opérations partagées, remboursements (`POST /partage/remboursements`), membres |
+| `/exports` | exports : `/exports/operations` (CSV, critères de `/operations`), `/exports/rapport` (`?mois=` ou `?annee=`, `&format=csv`), `/exports/dossier` (ZIP, `&pieces=1`) |
+| `/sauvegardes` | sauvegardes : maintenant (`POST`), réglages, téléchargement (`/sauvegardes/fichiers/{nom}`), restauration (`POST /sauvegardes/restaurer`) |
 | `/plus` | écrans secondaires |
 
 ### Chemin d'un import

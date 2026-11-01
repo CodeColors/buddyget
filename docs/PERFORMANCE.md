@@ -185,10 +185,25 @@ La comparaison calcule deux prévisionnels complets ; le scénario lui-même
 d'amortissement d'un remboursement anticipé) ne pèse presque rien à côté de
 la lecture en base. Un tableau d'amortissement compte 600 lignes au plus.
 
+## Jalon 11 : 01/11/2026
+
+Même machine :
+
+| Opération | Durée | Mémoire allouée |
+|---|---|---|
+| Export CSV de cinq ans d'historique (20 000 opérations), en flux | 110 ms | 16 Mo cumulés, rien de conservé |
+| Sauvegarde chiffrée d'une base de 20 000 opérations (archive de 600 Kio) | 165 ms | 35 Mo, dont 32 pour scrypt |
+
+Binaire réel, sauvegarde chiffrée lancée depuis l'écran : pic de 64 Mo
+(VmHWM), puis 30 Mo une fois la mémoire rendue au système ; la limite du
+conteneur est de 128 Mo. Le réglage par défaut d'age (2^18 pour scrypt)
+aurait demandé 256 Mo à lui seul : il est ramené à 2^15 (voir
+DECISIONS.md).
+
 ## Méthode
 
 ```bash
-go test -run '^$' -bench . -benchmem ./internal/ledger/ ./internal/importer/ ./internal/categorize/ ./internal/recurring/ ./internal/forecast/ ./internal/alerts/ ./internal/reports/ ./internal/attachments/
+go test -run '^$' -bench . -benchmem ./internal/ledger/ ./internal/importer/ ./internal/categorize/ ./internal/recurring/ ./internal/forecast/ ./internal/alerts/ ./internal/reports/ ./internal/attachments/ ./internal/exports/ ./internal/backup/
 
 make build
 DATA_DIR=/tmp/bg PORT=8080 ./bin/buddyget &

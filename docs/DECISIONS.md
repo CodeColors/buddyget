@@ -660,7 +660,7 @@ d'épargne = (revenus − dépenses) / revenus. Principaux commerçants :
 libellés regroupés sans les mots à chiffres (dates, références) ni les
 mentions bancaires (CB, PRLV…). L'annuel ajoute les mois, dépenses face aux
 revenus mensuels moyens. La comparaison budget / réel reste la tendance de
-l'écran Budgets (lien depuis le rapport). Les exports arrivent au jalon 11.
+l'écran Budgets (lien depuis le rapport). Les rapports s'exportent en PDF ou en CSV (jalon 11).
 
 ## Crédits, projets, lissage et scénarios (jalon 10)
 
@@ -738,3 +738,63 @@ l'écran Budgets (lien depuis le rapport). Les exports arrivent au jalon 11.
   suspendue si elle n'a pas commencé), récurrence scindée (l'ancienne
   s'arrête, une nouvelle reprend au nouveau montant), crédit créé,
   remboursement anticipé enregistré ; puis le scénario est supprimé.
+
+## Partage du foyer, exports et sauvegardes (jalon 11)
+
+### Partage du foyer
+- Les membres du foyer sont distincts des comptes de connexion ; leur revenu
+  mensuel sert à la répartition au prorata.
+- Une opération partagée garde son payeur et la part de chacun, en
+  centimes : parts égales, au prorata des revenus (méthode du plus fort
+  reste, produits calculés sur 128 bits) ou montants libres, dont la somme
+  doit égaler l'opération. Le partage est contrôlé avant l'enregistrement de
+  l'opération : une saisie refusée n'enregistre rien.
+- Solde d'un membre = avancé − sa part + remboursements faits − reçus ; une
+  recette partagée (remboursement d'assurance…) compte en sens inverse. Les
+  remboursements à faire apparient les plus gros débiteurs aux plus gros
+  créanciers.
+- Un remboursement entre deux comptes suivis crée le virement interne
+  correspondant (section 4) ; sans comptes, il est simplement noté (espèces).
+  L'annuler supprime aussi son virement. Les virements ne se partagent pas.
+- Un membre présent dans un partage ne se supprime pas : il s'archive.
+
+### Exports
+- Point d'entrée unique « Exports », plus des raccourcis : la liste des
+  opérations exporte sa recherche, les rapports leur période.
+- CSV pour un tableur français : UTF-8 avec BOM, point-virgule, virgule
+  décimale ; les cellules de texte qui commencent par `= + - @` sont
+  préfixées d'une apostrophe (injection de formules).
+- Les opérations sont lues au fil de l'écriture (`ledger.Each`) ; le dossier
+  ZIP écrit le CSV, la synthèse PDF puis copie les pièces jointes une à une,
+  sans recompression (JPEG et PDF le sont déjà).
+- PDF : `go-pdf/fpdf`, avec les polices standard du format (texte converti
+  en Windows-1252, qui couvre le français et l'euro) : aucune police
+  embarquée, aucun navigateur. Les rapports et la synthèse restent courts ;
+  le détail des opérations est dans le CSV.
+
+### Sauvegardes
+- Instantané cohérent par `VACUUM INTO`, sans arrêter BuddyGet, puis une
+  archive tar compressée (gzip) avec la base, les pièces jointes et un
+  manifeste ; écrite sous un nom temporaire, renommée une fois complète.
+- Chiffrement au format age (phrase de passe, scrypt) : standard, documenté,
+  déchiffrable sans BuddyGet (`age -d`). Le facteur de travail de scrypt est
+  ramené à 2^15 (32 Mo de mémoire au lieu de 256 par défaut) pour tenir
+  dans les 128 Mo du conteneur ; la longueur minimale de la phrase de passe
+  (12 caractères) compense. La phrase de passe vient de l'environnement
+  (`BACKUP_PASSPHRASE`) : elle n'est pas dans la base, donc pas dans les
+  sauvegardes.
+- Sauvegarde automatique avec la tâche quotidienne ; rotation des seules
+  sauvegardes automatiques (celles faites à la main sont gardées).
+- Copie vers un second emplacement, désactivée par défaut : dossier monté
+  (même rotation) ou WebDAV (`PUT` authentifié, rotation laissée au
+  serveur). SFTP n'est pas proposé : WebDAV couvre Nextcloud et les NAS sans
+  dépendance supplémentaire, le dossier monté couvre les partages réseau et
+  les disques externes. Un échec est consigné et affiché sur l'écran.
+- Restauration en deux temps : l'archive est déchiffrée, extraite (noms
+  attendus seulement, taille bornée) et vérifiée (`integrity_check`,
+  version du schéma au plus celle du programme) pendant que BuddyGet
+  tourne ; elle est appliquée au démarrage suivant, avant l'ouverture de la
+  base. BuddyGet s'arrête proprement et la politique `unless-stopped` le
+  relance. Les données remplacées sont mises de côté dans
+  `avant-restauration`.
+
