@@ -450,6 +450,78 @@ test('saisie rapide (étiquettes, modèle) puis pointage sur mobile', async () =
   }, session);
 });
 
+test('crédit, projet et scénario « et si » sur mobile', async () => {
+  await withPage(360, 'light', async (page) => {
+    // Crédit : tableau d'amortissement et mensualité générée.
+    await page.goto(`${BASE}/plus`);
+    await page.getByRole('link', { name: /^Crédits/ }).click();
+    await page.getByRole('link', { name: 'Ajouter un crédit' }).click();
+    await page.getByLabel('Nom', { exact: true }).fill('Voiture');
+    await page.getByLabel('Capital emprunté (€)').fill('12000');
+    await page.getByLabel('Taux nominal annuel (%)').fill('4,9');
+    await page.getByLabel('Durée (mois)').fill('48');
+    await page.getByLabel('Assurance mensuelle (€)').fill('8');
+    await page.getByRole('button', { name: 'Enregistrer' }).click();
+    await page.getByRole('status').filter({ hasText: 'Crédit enregistré' }).waitFor();
+    await page.getByRole('heading', { name: "Tableau d'amortissement" }).waitFor();
+    await page.getByText('4,90 %').waitFor();
+    await checkLayout(page, 'crédit', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'credit-parcours-360-light.png'), fullPage: true });
+
+    // Projet : cagnotte sur le LDDS, puis versement programmé.
+    await page.goto(`${BASE}/plus`);
+    await page.getByRole('link', { name: /^Projets/ }).click();
+    await page.getByRole('link', { name: 'Créer un projet' }).click();
+    await page.getByLabel('Nom', { exact: true }).fill('Vacances');
+    await page.getByLabel('Montant visé (€)').fill('1200');
+    const target = new Date();
+    target.setMonth(target.getMonth() + 8);
+    await page.getByLabel('Pour le').fill(target.toISOString().slice(0, 10));
+    await page.getByLabel("Compte d'épargne").selectOption({ label: 'LDDS' });
+    await page.getByRole('button', { name: 'Enregistrer' }).click();
+    await page.getByRole('status').filter({ hasText: 'Projet enregistré.' }).waitFor();
+    const card = page.locator('.goal-card').filter({ hasText: 'Vacances' });
+    await card.getByLabel(/^Montant pour la cagnotte/).fill('300');
+    await card.getByRole('button', { name: 'Affecter' }).click();
+    await page.getByRole('status').filter({ hasText: 'Cagnotte mise à jour.' }).waitFor();
+    await page.locator('.goal-card').filter({ hasText: 'Vacances' }).getByRole('button', { name: 'Créer le versement' }).click();
+    await page.getByRole('status').filter({ hasText: 'Versement programmé créé' }).waitFor();
+    await page.locator('.goal-card').getByText('En bonne voie').waitFor();
+    await checkLayout(page, 'projets', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'projets-parcours-360-light.png'), fullPage: true });
+
+    // Scénario : nouveau crédit et abonnement arrêté, comparés à la réalité.
+    await page.goto(`${BASE}/plus`);
+    await page.getByRole('link', { name: /^Scénarios/ }).click();
+    await page.getByLabel('Nom', { exact: true }).fill('Achat moto');
+    await page.getByRole('button', { name: 'Créer' }).click();
+    await page.getByRole('status').filter({ hasText: 'Scénario créé' }).waitFor();
+    await page.getByLabel('Modification', { exact: true }).selectOption({ label: 'Nouveau crédit' });
+    await page.getByLabel('Libellé ou nom').fill('Moto');
+    await page.getByLabel('Capital emprunté (€)').fill('8000');
+    await page.getByLabel('Taux nominal (%)').fill('3');
+    await page.getByLabel('Durée (mois)').fill('36');
+    assert.equal(await page.getByLabel('Récurrence').isVisible(), false);
+    await page.getByRole('button', { name: 'Ajouter au scénario' }).click();
+    await page.getByRole('status').filter({ hasText: 'Modification ajoutée au scénario.' }).waitFor();
+    await page.getByLabel('Modification', { exact: true }).selectOption({ label: "Arrêt d'une récurrence" });
+    const rules = page.getByLabel('Récurrence');
+    await rules.selectOption(await rules.locator('option', { hasText: 'SPOTIFY' }).first().getAttribute('value'));
+    await page.getByRole('button', { name: 'Ajouter au scénario' }).click();
+    await page.getByRole('status').filter({ hasText: 'Modification ajoutée au scénario.' }).waitFor();
+    await page.getByRole('button', { name: 'Retirer « Crédit Moto »' }).waitFor();
+    await page.getByText('Écart cumulé', { exact: true }).waitFor();
+    await checkLayout(page, 'scénario', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'scenario-parcours-360-light.png'), fullPage: true });
+
+    await page.getByRole('link', { name: 'Voir le prévisionnel avec ce scénario' }).click();
+    await page.getByRole('heading', { name: /avec le scénario « Achat moto »/ }).waitFor();
+    await page.locator('.chart-reference').waitFor({ state: 'attached' });
+    await checkLayout(page, 'prévisionnel avec scénario', 'light');
+    await page.screenshot({ path: path.join(SHOTS, 'previsionnel-scenario-360-light.png'), fullPage: true });
+  }, session);
+});
+
 const SCREENS = [
   ['tableau-de-bord', '/'],
   ['operations', '/operations'],
@@ -473,6 +545,14 @@ const SCREENS = [
   ['compte-epargne', '/comptes/nouveau?modele=livret_a'],
   ['recurrences', '/recurrences'],
   ['recurrence-saisie', '/recurrences/nouvelle'],
+  ['credits', '/credits'],
+  ['credit', '/credits/1'],
+  ['credit-saisie', '/credits/nouveau'],
+  ['projets', '/projets'],
+  ['projet-saisie', '/projets/nouveau'],
+  ['scenarios', '/scenarios'],
+  ['scenario', '/scenarios/1'],
+  ['previsionnel-scenario', '/previsionnel?scenario=1'],
   ['plus', '/plus'],
 ];
 
