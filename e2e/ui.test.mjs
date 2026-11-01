@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { chromium } from 'playwright';
+import AxeBuilder from '@axe-core/playwright';
 
 const BIN = process.env.BUDDYGET_BIN ?? path.resolve(import.meta.dirname, '../bin/buddyget');
 const PORT = process.env.E2E_PORT ?? '18090';
@@ -66,7 +67,8 @@ async function withPage(width, colorScheme, fn, storageState) {
 }
 
 // Contrôles communs : pas de défilement horizontal, cibles tactiles de
-// 44 px minimum, champs de 16 px minimum, thème effectivement appliqué.
+// 44 px minimum, champs de 16 px minimum, thème effectivement appliqué,
+// règles WCAG 2.1 A et AA vérifiées par axe (le moteur de Lighthouse).
 async function checkLayout(page, label, scheme) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.equal(overflow, 0, `${label} : défilement horizontal`);
@@ -91,6 +93,13 @@ async function checkLayout(page, label, scheme) {
 
   const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   assert.equal(background, BACKGROUND[scheme], `${label} : thème ${scheme} non appliqué`);
+
+  const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  assert.deepEqual(
+    violations.map((v) => `${v.id} : ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`),
+    [],
+    `${label} : accessibilité`,
+  );
 }
 
 async function login(page) {
@@ -602,6 +611,8 @@ const SCREENS = [
   ['partage-membre', '/partage/membres/1'],
   ['exports', '/exports'],
   ['sauvegardes', '/sauvegardes'],
+  ['parametres', '/parametres'],
+  ['utilisateurs', '/utilisateurs'],
   ['plus', '/plus'],
 ];
 
