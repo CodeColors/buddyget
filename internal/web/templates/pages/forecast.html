@@ -1,0 +1,178 @@
+{{define "content"}}
+{{- with .Data}}
+<div class="page-head">
+  <h1>Prévisionnel</h1>
+  <div class="actions">
+    <a class="btn" href="/scenarios">Scénarios</a>
+    <a class="btn" href="/recurrences">Récurrences</a>
+  </div>
+</div>
+
+<form class="card form forecast-query" method="get" action="/previsionnel">
+  <div class="field-row">
+    <div class="field">
+      <label for="compte">Comptes</label>
+      <select id="compte" name="compte">
+        <option value="">Tous les comptes courants</option>
+        <option value="epargne"{{if eq .Scope "epargne"}} selected{{end}}>Toute l'épargne</option>
+        {{- range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.AccountID}} selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </div>
+    <div class="field">
+      <label for="date">Date cible</label>
+      <input id="date" name="date" type="date" value="{{.Target}}" min="{{.Today.AddDays 1}}" max="{{.MaxTarget}}" required>
+    </div>
+    {{- if .Scenarios}}
+    <div class="field">
+      <label for="scenario">Scénario</label>
+      <select id="scenario" name="scenario">
+        <option value="0">Aucun (données réelles)</option>
+        {{- range .Scenarios}}<option value="{{.ID}}"{{if eq .ID $.Data.ScenarioID}} selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </div>
+    {{- end}}
+  </div>
+  <nav class="chips" aria-label="Horizons fréquents">
+    {{- range .Shortcuts}}<a href="{{.URL}}"{{if .Current}} aria-current="true"{{end}}>{{.Label}}</a>{{end}}
+  </nav>
+  <div class="actions">
+    <button class="btn btn-primary" type="submit">Calculer</button>
+  </div>
+</form>
+
+{{- with .Error}}
+<p class="alert" role="alert">{{.}}</p>
+{{- end}}
+
+{{- with .Report}}
+<section class="card forecast-summary" aria-labelledby="solde-prevu">
+  <h2 id="solde-prevu">Solde prévu le {{.Target.Format}}{{with .Scenario}} avec le scénario « {{.}} »{{end}}</h2>
+  <p class="forecast-closing amount{{if lt .Closing .Threshold}} negative{{end}}">{{euros .Closing}}</p>
+  <p class="muted">{{range $i, $a := .Accounts}}{{if $i}}, {{end}}{{$a.Name}}{{end}}</p>
+  <dl class="figures">
+    <div><dt>Solde {{if .Settings.ClearedOnly}}pointé{{else}}actuel{{end}}</dt><dd>{{euros .Opening}}</dd></div>
+    <div><dt>Point bas, le {{.Low.Date.Format}}</dt><dd class="amount{{if lt .Low.Balance .Threshold}} negative{{end}}">{{euros .Low.Balance}}</dd></div>
+    {{- with $.Data.Reference}}
+    <div><dt>Sans le scénario</dt><dd>{{euros .Closing}}</dd></div>
+    <div><dt>Point bas sans le scénario</dt><dd>{{euros .Low.Balance}}</dd></div>
+    <div><dt>Écart cumulé du scénario</dt><dd class="amount{{if lt $.Data.Report.Closing .Closing}} negative{{end}}">{{eurosSigned (sub $.Data.Report.Closing .Closing)}}</dd></div>
+    {{- end}}
+  </dl>
+  {{- if .Below}}
+  <div class="alert" role="status">
+    <p>Le solde passe sous le seuil de {{euros .Threshold}} :</p>
+    <ul>
+      {{- range .Below}}
+      <li>{{if eq .From .To}}le {{.From.Format}}{{else}}du {{.From.Format}} au {{.To.Format}}{{end}} (au plus bas {{euros .Low}})</li>
+      {{- end}}
+    </ul>
+  </div>
+  {{- end}}
+</section>
+
+{{- with $.Data.Chart}}
+<figure class="card chart">
+  <figcaption id="courbe-titre">Solde jour par jour jusqu'au {{$.Data.Report.Target.Format}}{{if $.Data.Reference}} : trait plein avec le scénario, pointillés sans{{end}}</figcaption>
+  {{template "chart" .}}
+</figure>
+{{- end}}
+
+<section class="card" aria-labelledby="calcul">
+  <h2 id="calcul">Détail du calcul</h2>
+  <dl class="breakdown">
+    <div><dt>Solde {{if .Settings.ClearedOnly}}pointé{{else}}actuel{{end}} au {{.Today.Format}}</dt><dd>{{euros .Opening}}</dd></div>
+    <div><dt>Revenus attendus</dt><dd class="amount{{if .Totals.Income}} positive{{end}}">{{eurosSigned .Totals.Income}}</dd></div>
+    <div><dt>Dépenses récurrentes</dt><dd class="amount">{{eurosSigned .Totals.Recurring}}</dd></div>
+    {{- if .Totals.Other}}
+    <div><dt>Dépenses planifiées{{if .Settings.ClearedOnly}} et non pointées{{end}}</dt><dd class="amount">{{eurosSigned .Totals.Other}}</dd></div>
+    {{- end}}
+    {{- if .Totals.Provision}}
+    <div><dt>Provisions des dépenses lissées, nettes de leur utilisation</dt><dd class="amount">{{eurosSigned .Totals.Provision}}</dd></div>
+    {{- end}}
+    <div><dt>Dépenses variables estimées</dt><dd class="amount">{{eurosSigned .Totals.Variable}}</dd></div>
+    <div class="breakdown-total"><dt>Solde prévu le {{.Target.Format}}</dt><dd>{{euros .Closing}}</dd></div>
+  </dl>
+  {{- if .Categories}}
+  <details class="more">
+    <summary>Dépenses variables : {{euros .VariableMonthly}} par mois</summary>
+    <p class="muted">
+      {{- if .AverageMonths}}Moyenne {{if eq .AverageMonths 1}}du dernier mois complet{{else}}des {{.AverageMonths}} derniers mois complets{{end}}, hors récurrences et virements entre vos comptes{{if .Budgeted}} ; plafond de l'enveloppe pour les catégories budgétées{{end}}
+      {{- else}}Plafonds de vos enveloppes{{end}}, répartis jour par jour.</p>
+    <ul class="rows rows-split" aria-label="Dépenses variables par catégorie">
+      {{- range .Categories}}
+      <li class="row">
+        <span class="row-title">{{with .Color}}{{template "dot" .}} {{end}}{{or .Name "Sans catégorie"}}{{if .Budget}} <span class="badge">Enveloppe</span>{{end}}</span>
+        <span class="amount">{{euros .Monthly}}</span>
+      </li>
+      {{- end}}
+    </ul>
+  </details>
+  {{- else if .Settings.AverageMonths}}
+  <p class="muted">Dépenses variables non estimées : il faut au moins un mois complet d'historique, ou des enveloppes.</p>
+  {{- else}}
+  <p class="muted">Dépenses variables non estimées (voir les réglages).</p>
+  {{- end}}
+</section>
+
+<section aria-labelledby="echeances">
+  <h2 id="echeances">Échéances</h2>
+  {{- range $.Data.Months}}
+  <h3 class="month-head"><span>{{.Label}}</span> <span class="muted">solde fin de mois {{euros .End}}</span></h3>
+  <ul class="fc-lines">
+    {{- range .Lines}}
+    <li class="fc-line{{if .Excluded}} is-excluded{{end}}">
+      <span class="fc-date">{{.Date.Format}}</span>
+      <span class="fc-label">{{.Label}}{{if .Scenario}} <span class="badge">Scénario</span>{{end}}</span>
+      <span class="fc-meta">{{.Kind.Label}}{{if $.Data.Multiple}} · {{.AccountName}}{{end}}{{if and .Nominal (ne .Nominal .Date)}} · prévue le {{.Nominal.Format}}{{end}}{{if .Excluded}} · écartée{{end}}</span>
+      <span class="amount{{if gt .Amount 0}} positive{{end}}">{{if .Estimated}}≈ {{end}}{{eurosSigned .Amount}}</span>
+      <span class="fc-balance{{if lt .Balance $.Data.Report.Threshold}} negative{{end}}"><span class="sr-only">Solde après l'opération : </span>{{euros .Balance}}</span>
+      {{- if .RuleID}}
+      <form method="post" action="/previsionnel/exclusions">
+        <input type="hidden" name="back" value="{{$.Data.Self}}">
+        <input type="hidden" name="rule" value="{{.RuleID}}">
+        <input type="hidden" name="date" value="{{.Nominal}}">
+        {{- if .Excluded}}
+        <input type="hidden" name="exclure" value="0">
+        <button class="btn btn-icon" type="submit" title="Réintégrer l'échéance"><span aria-hidden="true">↺</span><span class="sr-only">Réintégrer « {{.Label}} » du {{.Date.Format}}</span></button>
+        {{- else}}
+        <input type="hidden" name="exclure" value="1">
+        <button class="btn btn-icon" type="submit" title="Écarter cette échéance"><span aria-hidden="true">×</span><span class="sr-only">Écarter « {{.Label}} » du {{.Date.Format}}</span></button>
+        {{- end}}
+      </form>
+      {{- end}}
+    </li>
+    {{- end}}
+  </ul>
+  {{- else}}
+  <p class="card empty muted">Aucune échéance d'ici le {{.Target.Format}}. <a href="/recurrences">Validez ou saisissez vos récurrences</a> pour qu'elles entrent dans le prévisionnel.</p>
+  {{- end}}
+</section>
+{{- end}}
+
+<details class="panel" id="reglages">
+  <summary>Réglages du prévisionnel</summary>
+  <form class="form" method="post" action="/previsionnel/reglages">
+    <input type="hidden" name="back" value="{{.Self}}">
+    <div class="field">
+      <label for="threshold">Seuil d'alerte (€)</label>
+      <input id="threshold" name="threshold" value="{{if lt .Settings.Threshold 0}}-{{end}}{{amountInput .Settings.Threshold}}" inputmode="decimal" autocomplete="off" required aria-describedby="threshold-aide">
+      <p id="threshold-aide" class="hint">Les jours où le solde passe dessous sont signalés. Un découvert autorisé s'écrit en négatif : -500.</p>
+    </div>
+    <fieldset class="field">
+      <legend>Solde de départ</legend>
+      <label class="check"><input type="radio" name="cleared" value="0"{{if not .Settings.ClearedOnly}} checked{{end}}> Toutes les opérations jusqu'à aujourd'hui</label>
+      <label class="check"><input type="radio" name="cleared" value="1"{{if .Settings.ClearedOnly}} checked{{end}}> Opérations pointées seulement ; les autres sont comptées demain</label>
+    </fieldset>
+    <div class="field">
+      <label for="average">Dépenses variables (courses, loisirs…)</label>
+      <select id="average" name="average">
+        {{- range .AverageChoices}}<option value="{{.}}"{{if eq . $.Data.Settings.AverageMonths}} selected{{end}}>{{if eq . 0}}Ne pas les estimer{{else}}Moyenne des {{.}} derniers mois{{end}}</option>{{end}}
+      </select>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Enregistrer les réglages</button>
+    </div>
+  </form>
+</details>
+{{- end}}
+{{end}}

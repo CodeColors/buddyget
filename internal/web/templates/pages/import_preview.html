@@ -1,0 +1,77 @@
+{{define "content"}}
+{{- with .Data}}
+<h1>Vérifier l'import</h1>
+{{template "steps" 2}}
+<p class="muted">« {{.Draft.Filename}} » vers <strong>{{.Draft.AccountName}}</strong> · {{.Draft.Format.Describe}} · profil {{.Draft.Profile}} · <a href="/import/{{.Draft.Token}}/colonnes">changer les colonnes</a></p>
+
+<div id="resume" class="card summary-card">
+  <p class="counts">
+    <span><strong>{{.Draft.Counts.New}}</strong> {{if eq .Draft.Counts.New 1}}nouvelle{{else}}nouvelles{{end}}</span>
+    <span><strong>{{.Draft.Counts.Duplicate}}</strong> {{if eq .Draft.Counts.Duplicate 1}}déjà importée{{else}}déjà importées{{end}}</span>
+    <span><strong>{{.Draft.Counts.Error}}</strong> {{if eq .Draft.Counts.Error 1}}illisible{{else}}illisibles{{end}}</span>
+  </p>
+  <form method="post" action="/import/{{.Draft.Token}}/valider" class="actions">
+    <button class="btn btn-primary" type="submit"{{if not .Draft.Counts.Selected}} disabled{{end}}>Importer {{plural .Draft.Counts.Selected "opération" "opérations"}}</button>
+  </form>
+</div>
+
+<nav class="tabs" aria-label="Filtrer les lignes">
+  <a href="/import/{{.Draft.Token}}"{{if eq .Status ""}} aria-current="page"{{end}}>Toutes</a>
+  <a href="/import/{{.Draft.Token}}?statut=nouvelle"{{if eq .Status "nouvelle"}} aria-current="page"{{end}}>Nouvelles</a>
+  <a href="/import/{{.Draft.Token}}?statut=doublon"{{if eq .Status "doublon"}} aria-current="page"{{end}}>Doublons</a>
+  <a href="/import/{{.Draft.Token}}?statut=erreur"{{if eq .Status "erreur"}} aria-current="page"{{end}}>Erreurs</a>
+</nav>
+
+{{- if .Lines}}
+<div class="actions">
+  <form method="post" action="/import/{{.Draft.Token}}/selection"><input type="hidden" name="tout" value="1"><input type="hidden" name="statut" value="{{.Status}}"><button class="btn" type="submit">Tout cocher</button></form>
+  <form method="post" action="/import/{{.Draft.Token}}/selection"><input type="hidden" name="tout" value="0"><input type="hidden" name="statut" value="{{.Status}}"><button class="btn" type="submit">Tout décocher</button></form>
+</div>
+<form method="post" action="/import/{{.Draft.Token}}/selection"
+      hx-post="/import/{{.Draft.Token}}/selection" hx-trigger="change" hx-select="#resume" hx-target="#resume" hx-swap="outerHTML">
+  <input type="hidden" name="statut" value="{{.Status}}">
+  <input type="hidden" name="page" value="{{.Page}}">
+  <ul class="tx-list" aria-label="Lignes du fichier">
+    {{- range .Lines}}
+    <li class="tx">
+      <input type="hidden" name="shown" value="{{.Line}}">
+      {{- if eq .Status "nouvelle"}}
+      <label class="tx-check"><input type="checkbox" name="checked" value="{{.Line}}"{{if .Selected}} checked{{end}}><span class="sr-only">Importer la ligne {{.Line}}</span></label>
+      {{- else}}
+      <span class="tx-check" aria-hidden="true"></span>
+      {{- end}}
+      <span class="tx-main">
+        <span class="tx-label">{{or .Label "Sans libellé"}}</span>
+        <span class="tx-cat">
+          {{- if eq .Status "erreur"}}<span class="badge badge-error">Illisible</span> {{.Error}}
+          {{- else if eq .Status "doublon"}}<span class="badge">Déjà importée</span>
+          {{- else if .CategoryName}}{{template "dot" .CategoryColor}}{{.CategoryName}}
+          {{- else}}Nouvelle, sans catégorie{{end -}}
+        </span>
+      </span>
+      <span class="tx-meta">
+        <span class="tx-date">{{.Date.Format}}</span>
+        <span class="tx-account">Ligne {{.Line}}</span>
+      </span>
+      <span class="tx-amount">{{if ne .Status "erreur"}}<span class="amount{{if gt .Amount 0}} positive{{end}}">{{eurosSigned .Amount}}</span>{{end}}</span>
+    </li>
+    {{- end}}
+  </ul>
+  <noscript><div class="actions"><button class="btn" type="submit">Enregistrer la sélection de cette page</button></div></noscript>
+</form>
+{{- if or .PrevURL .NextURL}}
+<nav class="pager" aria-label="Pages de lignes">
+  {{- with .PrevURL}}<a class="btn" href="{{.}}">Précédentes</a>{{end}}
+  <span>Page {{.Page}}</span>
+  {{- with .NextURL}}<a class="btn" href="{{.}}">Suivantes</a>{{end}}
+</nav>
+{{- end}}
+{{- else}}
+<p class="card empty muted">Aucune ligne dans cette catégorie.</p>
+{{- end}}
+
+<form method="post" action="/import/{{.Draft.Token}}/abandonner" data-confirm="Abandonner cet import ?">
+  <button class="btn" type="submit">Abandonner l'import</button>
+</form>
+{{- end}}
+{{end}}

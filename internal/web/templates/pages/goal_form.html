@@ -1,0 +1,53 @@
+{{define "content"}}
+{{- with .Data}}
+<section class="card form-card" aria-labelledby="titre">
+  <h1 id="titre">{{$.Title}}</h1>
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  {{- if not .Accounts}}
+  <p class="muted">Un projet se rattache à un compte d'épargne : créez-en un d'abord.</p>
+  <a class="btn btn-primary" href="/comptes/nouveau">Créer un compte</a>
+  {{- else}}
+  <form class="form" method="post" action="{{if .ID}}/projets/{{.ID}}{{else}}/projets{{end}}">
+    <div class="field">
+      <label for="name">Nom</label>
+      <input id="name" name="name" value="{{.Name}}" maxlength="60" autocomplete="off" placeholder="Vacances, travaux…" required>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="target">Montant visé (€)</label>
+        <input id="target" name="target" value="{{.Target}}" inputmode="decimal" autocomplete="off" placeholder="0,00" required>
+      </div>
+      <div class="field">
+        <label for="target_date">Pour le</label>
+        <input id="target_date" name="target_date" type="date" value="{{.TargetDate}}" required>
+      </div>
+    </div>
+    <div class="field">
+      <label for="account">Compte d'épargne</label>
+      <select id="account" name="account">
+        {{- range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.AccountID}} selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </div>
+    <div class="field">
+      <label for="tag">Étiquette des dépenses <span class="optional">(facultatif)</span></label>
+      <input id="tag" name="tag" value="{{.Tag}}" maxlength="40" autocomplete="off" aria-describedby="tag-aide">
+      <p id="tag-aide" class="hint">Les opérations qui portent cette étiquette sont comptées comme dépenses du projet.</p>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Enregistrer</button>
+      <a class="btn" href="/projets">Annuler</a>
+    </div>
+  </form>
+  {{- end}}
+</section>
+{{- if .ID}}
+<section class="card danger-zone" aria-labelledby="suppression">
+  <h2 id="suppression">Suppression</h2>
+  <p class="muted">La cagnotte redevient de l'épargne libre ; le versement programmé, s'il existe, reste dans les récurrences.</p>
+  <form method="post" action="/projets/{{.ID}}/supprimer" data-confirm="Supprimer ce projet ?">
+    <button class="btn btn-danger" type="submit">Supprimer le projet</button>
+  </form>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

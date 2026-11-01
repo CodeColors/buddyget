@@ -1,0 +1,109 @@
+{{define "content"}}
+{{- with .Data}}
+<div class="page-head">
+  <h1>Sauvegardes</h1>
+  <form method="post" action="/sauvegardes">
+    <button class="btn btn-primary" type="submit">Sauvegarder maintenant</button>
+  </form>
+</div>
+{{- if .Pending}}
+<p class="alert" role="status">Une restauration attend le redémarrage de BuddyGet.</p>
+{{- end}}
+<section class="card forecast-summary" aria-labelledby="etat">
+  <h2 id="etat">État</h2>
+  <dl class="figures">
+    <div><dt>Dernière sauvegarde</dt><dd>{{if .LastAt.IsZero}}aucune{{else}}{{datetime .LastAt}}{{end}}</dd></div>
+    <div><dt>Chiffrement</dt><dd>{{if .Encrypted}}activé{{else}}désactivé{{end}}</dd></div>
+    <div><dt>Sauvegarde automatique</dt><dd>{{if .Settings.Auto}}chaque nuit{{else}}désactivée{{end}}</dd></div>
+  </dl>
+  {{- with .Settings.LastError}}<p class="alert" role="alert">Dernier échec : {{.}}</p>{{end}}
+  {{- if not .Encrypted}}
+  <p class="hint">Pour chiffrer les sauvegardes, définissez la variable <code>BACKUP_PASSPHRASE</code> (12 caractères au moins) dans docker-compose.yml puis recréez le conteneur. Conservez cette phrase de passe hors du NAS : sans elle, une sauvegarde chiffrée est illisible.</p>
+  {{- end}}
+</section>
+
+<section aria-labelledby="archives">
+  <h2 id="archives">Archives conservées</h2>
+  {{- if .Archives}}
+  <ul class="rows">
+    {{- range .Archives}}
+    <li class="row backup-row">
+      <div class="row-body">
+        <span class="row-title">{{.Created.Format "02/01/2006 15:04"}}{{if .Auto}} <span class="badge">Automatique</span>{{end}}{{if .Encrypted}} <span class="badge">Chiffrée</span>{{end}}</span>
+        <span class="row-meta">{{fileSize .Size}}</span>
+      </div>
+      <div class="row-actions">
+        <a class="btn" href="/sauvegardes/fichiers/{{.Name}}">Télécharger</a>
+        <form method="post" action="/sauvegardes/restaurer?nom={{.Name}}" data-confirm="Restaurer cette sauvegarde ? Les données actuelles seront remplacées (et mises de côté) au redémarrage de BuddyGet.">
+          <button class="btn" type="submit">Restaurer</button>
+        </form>
+        <form method="post" action="/sauvegardes/fichiers/{{.Name}}/supprimer" data-confirm="Supprimer cette sauvegarde ?">
+          <button class="btn btn-icon" type="submit" title="Supprimer"><span aria-hidden="true">×</span><span class="sr-only">Supprimer la sauvegarde du {{.Created.Format "02/01/2006 15:04"}}</span></button>
+        </form>
+      </div>
+    </li>
+    {{- end}}
+  </ul>
+  {{- else}}
+  <p class="card empty muted">Aucune sauvegarde pour l'instant.</p>
+  {{- end}}
+</section>
+
+<section class="card form-card" aria-labelledby="reglages">
+  <h2 id="reglages">Réglages</h2>
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  {{- with .Settings}}
+  <form class="form backup-form" method="post" action="/sauvegardes/reglages">
+    <label class="check"><input type="checkbox" name="auto" value="1"{{if .Auto}} checked{{end}}> Sauvegarder automatiquement chaque nuit</label>
+    <div class="field">
+      <label for="keep">Sauvegardes automatiques conservées</label>
+      <input id="keep" name="keep" type="number" min="1" max="90" value="{{.Keep}}" inputmode="numeric" aria-describedby="keep-aide">
+      <p id="keep-aide" class="hint">Les plus anciennes sont supprimées ; les sauvegardes faites à la main sont gardées.</p>
+    </div>
+    <fieldset class="field">
+      <legend>Copie vers un second emplacement</legend>
+      <div class="segmented">
+        <label><input type="radio" name="copy" value="aucune"{{if eq .Copy "aucune"}} checked{{end}}><span>Aucune</span></label>
+        <label><input type="radio" name="copy" value="dossier"{{if eq .Copy "dossier"}} checked{{end}}><span>Dossier</span></label>
+        <label><input type="radio" name="copy" value="webdav"{{if eq .Copy "webdav"}} checked{{end}}><span>WebDAV</span></label>
+      </div>
+    </fieldset>
+    <div class="field if-folder">
+      <label for="copy_dir">Dossier monté dans le conteneur</label>
+      <input id="copy_dir" name="copy_dir" value="{{.CopyDir}}" autocomplete="off" placeholder="/copie" aria-describedby="copy-aide">
+      <p id="copy-aide" class="hint">Par exemple un dossier partagé d'un autre volume ou un disque USB, ajouté dans <code>volumes</code> de docker-compose.yml.</p>
+    </div>
+    <div class="if-webdav">
+      <div class="field">
+        <label for="webdav_url">Adresse du dossier WebDAV</label>
+        <input id="webdav_url" name="webdav_url" value="{{.WebDAVURL}}" type="url" autocomplete="off" placeholder="https://cloud.example.fr/remote.php/dav/files/moi/BuddyGet">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="webdav_user">Identifiant</label>
+          <input id="webdav_user" name="webdav_user" value="{{.WebDAVUser}}" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="webdav_password">Mot de passe</label>
+          <input id="webdav_password" name="webdav_password" type="password" autocomplete="new-password" placeholder="{{if .WebDAVPassword}}inchangé{{end}}">
+        </div>
+      </div>
+    </div>
+    <div class="actions"><button class="btn btn-primary" type="submit">Enregistrer les réglages</button></div>
+  </form>
+  {{- end}}
+</section>
+
+<section class="card form-card" aria-labelledby="restaurer">
+  <h2 id="restaurer">Restaurer depuis un fichier</h2>
+  <p class="muted">Une sauvegarde téléchargée ou copiée ailleurs. Elle est vérifiée, puis BuddyGet redémarre pour l'appliquer ; les données remplacées sont mises de côté dans le dossier <code>avant-restauration</code>.</p>
+  <form class="form" method="post" action="/sauvegardes/restaurer" enctype="multipart/form-data" data-confirm="Restaurer ce fichier ? Les données actuelles seront remplacées au redémarrage de BuddyGet.">
+    <div class="field">
+      <label for="fichier">Fichier de sauvegarde</label>
+      <input id="fichier" name="fichier" type="file" accept=".gz,.age" required>
+    </div>
+    <div class="actions"><button class="btn" type="submit">Restaurer</button></div>
+  </form>
+</section>
+{{- end}}
+{{end}}

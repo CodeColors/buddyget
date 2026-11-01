@@ -1,0 +1,97 @@
+{{define "content"}}
+{{- with .Data}}
+<h1>Colonnes du fichier</h1>
+{{template "steps" 1}}
+<p class="muted">« {{.Draft.Filename}} » vers {{.Draft.AccountName}} : indiquez où se trouvent la date, le libellé et le montant.{{if not .Draft.Mapping}} Aucun profil connu ne correspond à ce fichier.{{end}}</p>
+{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+
+<section class="card" aria-labelledby="apercu-brut">
+  <h2 id="apercu-brut">Premières lignes</h2>
+  <div class="table-scroll" tabindex="0" role="region" aria-label="Premières lignes du fichier, défilables horizontalement">
+    <table class="raw">
+      <thead><tr><th scope="col">Ligne</th>{{range $i, $c := .Columns}}<th scope="col">{{columnLetter $i}}</th>{{end}}</tr></thead>
+      <tbody>
+        {{- range .Head}}
+        <tr{{if eq .Line $.Data.Mapping.HeaderLine}} class="is-header"{{end}}><th scope="row">{{.Line}}</th>{{range .Cells}}<td>{{.}}</td>{{end}}</tr>
+        {{- end}}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card form-card" aria-labelledby="correspondance">
+  <h2 id="correspondance">Correspondance</h2>
+  <form class="form mapping-form" method="post" action="/import/{{.Draft.Token}}/colonnes">
+    <div class="field">
+      <label for="header_line">Ligne d'en-tête</label>
+      <select id="header_line" name="header_line">
+        <option value="0"{{if not .Mapping.HeaderLine}} selected{{end}}>Aucune : les données commencent à la première ligne</option>
+        {{- range .Head}}<option value="{{.Line}}"{{if eq .Line $.Data.Mapping.HeaderLine}} selected{{end}}>Ligne {{.Line}}</option>{{end}}
+      </select>
+      <p class="hint">Les lignes jusqu'à celle-ci sont ignorées.</p>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="date">Date</label>
+        <select id="date" name="date">{{template "column-options" (columnChoice .Columns .Mapping.Date false)}}</select>
+      </div>
+      <div class="field">
+        <label for="date_format">Format de la date</label>
+        <select id="date_format" name="date_format">
+          <option value="">Automatique</option>
+          {{- range .DateFormats}}<option value="{{.}}"{{if eq . $.Data.Mapping.DateFormat}} selected{{end}}>{{.}}</option>{{end}}
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="label">Libellé</label>
+        <select id="label" name="label">{{template "column-options" (columnChoice .Columns (index .Mapping.Labels 0) false)}}</select>
+      </div>
+      <div class="field">
+        <label for="label2">Libellé de secours <span class="optional">(si le premier est vide)</span></label>
+        <select id="label2" name="label2">{{template "column-options" (columnChoice .Columns .Label2 true)}}</select>
+      </div>
+    </div>
+    <fieldset class="field">
+      <legend>Montants</legend>
+      <div class="segmented">
+        <label><input type="radio" name="amount_mode" value="montant"{{if not .DebitCredit}} checked{{end}}><span>Une colonne</span></label>
+        <label><input type="radio" name="amount_mode" value="debit-credit"{{if .DebitCredit}} checked{{end}}><span>Débit et crédit</span></label>
+      </div>
+    </fieldset>
+    <div class="field if-single-amount">
+      <label for="amount">Montant</label>
+      <select id="amount" name="amount">{{template "column-options" (columnChoice .Columns .Mapping.Amount true)}}</select>
+    </div>
+    <div class="field-row if-debit-credit">
+      <div class="field">
+        <label for="debit">Débit</label>
+        <select id="debit" name="debit">{{template "column-options" (columnChoice .Columns .Mapping.Debit true)}}</select>
+      </div>
+      <div class="field">
+        <label for="credit">Crédit</label>
+        <select id="credit" name="credit">{{template "column-options" (columnChoice .Columns .Mapping.Credit true)}}</select>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" name="invert" value="1"{{if .Mapping.Invert}} checked{{end}}> Les dépenses sont écrites en positif dans ce fichier</label>
+    <div class="field">
+      <label for="profile_name">Enregistrer comme profil <span class="optional">(facultatif)</span></label>
+      <input id="profile_name" name="profile_name" value="{{.ProfileName}}" maxlength="60" placeholder="Ex. : Crédit Mutuel" aria-describedby="profil-aide">
+      <p id="profil-aide" class="hint">Avec une ligne d'en-tête, ce format sera reconnu automatiquement aux prochains imports.</p>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Continuer</button>
+    </div>
+  </form>
+</section>
+<form method="post" action="/import/{{.Draft.Token}}/abandonner" data-confirm="Abandonner cet import ?">
+  <button class="btn" type="submit">Abandonner l'import</button>
+</form>
+{{- end}}
+{{end}}
+
+{{define "column-options"}}
+{{- if .Optional}}<option value="-1"{{if lt .Selected 0}} selected{{end}}>Aucune</option>{{end}}
+{{- range $i, $name := .Columns}}<option value="{{$i}}"{{if eq $i $.Selected}} selected{{end}}>{{$name}}</option>{{end}}
+{{- end}}

@@ -1,0 +1,23 @@
+{{define "content"}}
+<section class="card auth-card" aria-labelledby="titre">
+  <h1 id="titre">Bienvenue dans BuddyGet</h1>
+  <p class="muted">Créez le premier compte du foyer. Il servira à vous connecter.</p>
+  {{with .Data.Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form" method="post" action="/setup">
+    <div class="field">
+      <label for="username">Identifiant</label>
+      <input id="username" name="username" value="{{.Data.Username}}" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="64" required autofocus>
+    </div>
+    <div class="field">
+      <label for="password">Mot de passe</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" minlength="{{.Data.PasswordMinLen}}" aria-describedby="password-aide" required>
+      <p id="password-aide" class="hint">Au moins {{.Data.PasswordMinLen}} caractères. Une phrase de plusieurs mots est idéale.</p>
+    </div>
+    <div class="field">
+      <label for="confirm">Confirmation du mot de passe</label>
+      <input id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="{{.Data.PasswordMinLen}}" required>
+    </div>
+    <button class="btn btn-primary" type="submit">Créer le compte</button>
+  </form>
+</section>
+{{end}}

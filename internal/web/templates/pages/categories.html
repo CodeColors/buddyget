@@ -1,0 +1,26 @@
+{{define "content"}}
+<div class="page-head">
+  <h1>Catégories</h1>
+  <div class="actions">
+    <a class="btn" href="/regles">Règles</a>
+    <a class="btn btn-primary" href="/categories/nouvelle">Nouvelle catégorie</a>
+  </div>
+</div>
+{{- range .Data}}
+<section aria-labelledby="groupe-{{.Kind}}">
+  <h2 id="groupe-{{.Kind}}">{{.Kind.Label}}</h2>
+  <ul class="rows">
+    {{- range .Categories}}
+    <li class="row{{if .ParentID}} row-child{{end}}">
+      <a class="row-link" href="/categories/{{.ID}}">
+        <span class="row-title">{{template "dot" .Color}}{{.Name}}</span>
+      </a>
+      {{- if not .ParentID}}
+      <a class="btn btn-icon" href="/categories/nouvelle?parent={{.ID}}" title="Ajouter une sous-catégorie"><span aria-hidden="true">+</span><span class="sr-only">Ajouter une sous-catégorie à {{.Name}}</span></a>
+      {{- end}}
+    </li>
+    {{- end}}
+  </ul>
+</section>
+{{- end}}
+{{end}}

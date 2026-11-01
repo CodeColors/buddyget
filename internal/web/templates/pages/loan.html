@@ -1,0 +1,99 @@
+{{define "content"}}
+{{- with .Data}}
+<div class="page-head">
+  <h1>Crédit {{.Name}}</h1>
+  <a class="btn" href="/credits/{{.ID}}/modifier">Modifier</a>
+</div>
+<section class="card forecast-summary" aria-labelledby="situation">
+  <h2 id="situation">{{if .Status.Done}}Crédit soldé{{else}}Capital restant dû au {{.Today.Format}}{{end}}</h2>
+  <p class="forecast-closing amount">{{euros .Status.Remaining}}</p>
+  {{template "progress" .Repaid}}
+  <dl class="figures">
+    <div><dt>Mensualité{{if .Insurance}}, assurance comprise{{end}}</dt><dd>{{euros .Monthly}}</dd></div>
+    <div><dt>Échéances payées</dt><dd>{{.Status.Paid}} sur {{len .Schedule.Rows}}</dd></div>
+    <div><dt>Intérêts payés</dt><dd>{{euros .Status.InterestPaid}}</dd></div>
+    {{- if not .Status.Done}}
+    <div><dt>Prochaine échéance</dt><dd>{{.Status.Next.Date.Format}}</dd></div>
+    {{- end}}
+    <div><dt>Dernière échéance</dt><dd>{{.Schedule.End.Format}}</dd></div>
+  </dl>
+</section>
+
+<section class="card" aria-labelledby="caracteristiques">
+  <h2 id="caracteristiques">Caractéristiques</h2>
+  <dl class="breakdown">
+    <div><dt>Capital emprunté</dt><dd>{{euros .Principal}}</dd></div>
+    <div><dt>Taux nominal annuel</dt><dd>{{rate .Rate}}</dd></div>
+    <div><dt>Mensualité hors assurance</dt><dd>{{euros .Schedule.Payment}}</dd></div>
+    {{- if .Insurance}}
+    <div><dt>Assurance mensuelle</dt><dd>{{euros .Insurance}}</dd></div>
+    {{- end}}
+    <div><dt>Durée</dt><dd>{{plural .Months "mois" "mois"}}</dd></div>
+    <div><dt>Première échéance</dt><dd>{{.First.Format}}</dd></div>
+    <div><dt>Compte prélevé</dt><dd>{{.AccountName}}</dd></div>
+    <div><dt>Coût des intérêts</dt><dd>{{euros .Schedule.TotalInterest}}</dd></div>
+    <div><dt>Coût de l'assurance</dt><dd>{{euros .Schedule.TotalInsurance}}</dd></div>
+    {{- if .Schedule.TotalPrepaid}}
+    <div><dt>Remboursements anticipés</dt><dd>{{euros .Schedule.TotalPrepaid}}</dd></div>
+    {{- end}}
+  </dl>
+  {{- if .RuleID}}
+  <p class="hint">La mensualité est une <a href="/recurrences/{{.RuleID}}">récurrence</a> tenue à jour par le crédit : elle entre dans le prévisionnel.</p>
+  {{- end}}
+</section>
+
+{{- if not .Status.Done}}
+<section class="card form-card" aria-labelledby="anticipe">
+  <h2 id="anticipe">Remboursement anticipé</h2>
+  <p class="muted">La mensualité reste la même, la durée raccourcit. Pour l'essayer sans l'enregistrer, ajoutez-le à un <a href="/scenarios">scénario</a>.</p>
+  {{with .Prepay.Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form" method="post" action="/credits/{{.ID}}/anticipe">
+    <div class="field-row">
+      <div class="field">
+        <label for="date">Date</label>
+        <input id="date" name="date" type="date" value="{{.Prepay.Date}}" required>
+      </div>
+      <div class="field">
+        <label for="amount">Montant remboursé (€)</label>
+        <input id="amount" name="amount" value="{{.Prepay.Amount}}" inputmode="decimal" autocomplete="off" placeholder="0,00" required>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Enregistrer le remboursement</button>
+    </div>
+  </form>
+</section>
+{{- end}}
+
+<section aria-labelledby="tableau">
+  <h2 id="tableau">Tableau d'amortissement</h2>
+  {{- range .Years}}
+  <details class="card more amortization"{{if .Current}} open{{end}}>
+    <summary><span><strong>{{.Year}}</strong> · intérêts {{euros .Interest}} · capital {{euros .Capital}}{{if .Prepay}} + {{euros .Prepay}} anticipé{{end}} · reste {{euros .Remaining}}</span></summary>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Échéances {{.Year}}">
+      <table class="raw">
+        <thead><tr><th scope="col">N°</th><th scope="col">Date</th><th scope="col">Mensualité</th><th scope="col">Intérêts</th><th scope="col">Capital</th><th scope="col">Assurance</th><th scope="col">Restant dû</th></tr></thead>
+        <tbody>
+          {{- range .Rows}}
+          <tr{{if le .Date $.Data.Today}} class="is-past"{{end}}>
+            <th scope="row">{{.N}}</th><td>{{.Date.Format}}</td>
+            <td class="amount">{{euros .Payment}}{{if .Prepaid}}<br><span class="muted">+ {{euros .Prepaid}} anticipé</span>{{end}}</td>
+            <td class="amount">{{euros .Interest}}</td><td class="amount">{{euros .Capital}}</td><td class="amount">{{euros .Insurance}}</td><td class="amount">{{euros .Remaining}}</td>
+          </tr>
+          {{- end}}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {{- end}}
+</section>
+
+<section class="card danger-zone" aria-labelledby="suppression">
+  <h2 id="suppression">Suppression</h2>
+  <p class="muted">Le crédit et la récurrence de sa mensualité sont supprimés ; les opérations déjà passées restent.</p>
+  <form method="post" action="/credits/{{.ID}}/supprimer" data-confirm="Supprimer ce crédit et sa mensualité ?">
+    <button class="btn btn-danger" type="submit">Supprimer le crédit</button>
+  </form>
+</section>
+{{- end}}
+{{end}}

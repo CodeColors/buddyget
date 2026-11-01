@@ -1,0 +1,218 @@
+{{define "layout" -}}
+<!doctype html>
+<html lang="fr" data-theme="{{.Theme}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · BuddyGet</title>
+{{- if eq .Theme "auto"}}
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101217" media="(prefers-color-scheme: dark)">
+{{- else if eq .Theme "dark"}}
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#101217">
+{{- else}}
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#f5f6f8">
+{{- end}}
+<link rel="stylesheet" href="{{asset "app.css"}}">
+<link rel="icon" href="{{asset "icon.svg"}}" type="image/svg+xml">
+<link rel="manifest" href="{{asset "manifest.webmanifest"}}">
+{{- if .User}}
+<meta name="htmx-config" content='{"historyCacheSize":0,"refreshOnHistoryMiss":true,"includeIndicatorStyles":false,"allowEval":false,"selfRequestsOnly":true}'>
+<script src="{{asset "htmx.min.js"}}" defer></script>
+<script src="{{asset "app.js"}}" defer></script>
+{{- end}}
+</head>
+<body>
+<a class="skip-link" href="#contenu">Aller au contenu</a>
+<header class="topbar">
+  <a class="brand" href="/">
+    <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8"/><path d="M9 22V10h7a3.5 3.5 0 0 1 0 7H9m7 0h1a3 3 0 0 1 0 5H9"/></svg>
+    <span>BuddyGet</span>
+  </a>
+  {{- with .User}}
+  <div class="topbar-actions">
+    <a class="icon-btn bell" href="/alertes"{{if navActive $.Path "/alertes"}} aria-current="page"{{end}} title="Alertes">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zm4 4a2 2 0 0 0 4 0"/></svg>
+      {{- if $.Alerts}}<span class="bell-count" aria-hidden="true">{{$.Alerts}}</span>{{end}}
+      <span class="sr-only">Alertes{{if $.Alerts}} : {{$.Alerts}} à lire{{end}}</span>
+    </a>
+    <form class="theme-switch" method="post" action="/preferences/theme">
+      <fieldset>
+        <legend class="sr-only">Thème d'affichage</legend>
+        <input type="hidden" name="back" value="{{$.Path}}">
+        <button class="icon-btn" name="theme" value="auto" aria-pressed="{{eq $.Theme "auto"}}" title="Thème automatique (selon l'appareil)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" class="fill"/></svg>
+          <span class="sr-only">Thème automatique</span>
+        </button>
+        <button class="icon-btn" name="theme" value="light" aria-pressed="{{eq $.Theme "light"}}" title="Thème clair">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <span class="sr-only">Thème clair</span>
+        </button>
+        <button class="icon-btn" name="theme" value="dark" aria-pressed="{{eq $.Theme "dark"}}" title="Thème sombre">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>
+          <span class="sr-only">Thème sombre</span>
+        </button>
+      </fieldset>
+    </form>
+    <form method="post" action="/logout">
+      <button class="icon-btn" title="Se déconnecter ({{.Username}})">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3m7-4 4-4-4-4m4 4H10"/></svg>
+        <span class="sr-only">Se déconnecter</span>
+      </button>
+    </form>
+  </div>
+  {{- end}}
+</header>
+{{- if .User}}
+<nav class="tabbar" aria-label="Navigation principale">
+  {{- /* Rubriques visibles dès 1024 px ; sur un écran plus étroit, « Plus » y mène. */}}
+  {{- $secondary := or (navActive .Path "/budgets") (navActive .Path "/epargne") (navActive .Path "/rapports")}}
+  {{- $more := or (navActive .Path "/plus") (navActive .Path "/recurrences") (navActive .Path "/abonnements") (navActive .Path "/comptes") (navActive .Path "/categories") (navActive .Path "/regles") (navActive .Path "/etiquettes") (navActive .Path "/alertes") (navActive .Path "/credits") (navActive .Path "/projets") (navActive .Path "/scenarios") (navActive .Path "/partage") (navActive .Path "/exports") (navActive .Path "/sauvegardes") (navActive .Path "/parametres") (navActive .Path "/utilisateurs")}}
+  <a href="/"{{if navActive .Path "/"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg>
+    <span>Accueil</span>
+  </a>
+  <a href="/operations"{{if navActive .Path "/operations"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>
+    <span>Opérations</span>
+  </a>
+  <a href="/previsionnel"{{if navActive .Path "/previsionnel"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v16h16M7 15l4-4 3 3 6-6"/></svg>
+    <span>Prévisionnel</span>
+  </a>
+  <a href="/import"{{if navActive .Path "/import"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+    <span>Importer</span>
+  </a>
+  <a class="nav-secondary" href="/budgets"{{if navActive .Path "/budgets"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 10h16M8 14h3"/></svg>
+    <span>Budgets</span>
+  </a>
+  <a class="nav-secondary" href="/epargne"{{if navActive .Path "/epargne"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11a7 6 0 0 1 13-2h2v4l-2 1v3h-3v-2H9v2H6v-3a6 6 0 0 1-1-3zM15 10h.01"/></svg>
+    <span>Épargne</span>
+  </a>
+  <a class="nav-secondary" href="/rapports"{{if navActive .Path "/rapports"}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11m7 9V5m7 15v-7M3 20h18"/></svg>
+    <span>Rapports</span>
+  </a>
+  <a class="nav-more{{if $secondary}} is-current-narrow{{end}}" href="/plus"{{if $more}} aria-current="page"{{end}}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01"/></svg>
+    <span>Plus</span>
+  </a>
+</nav>
+{{- if not (navActive .Path "/operations/nouvelle")}}
+<a class="fab" href="/operations/nouvelle">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+  <span>Opération</span><span class="sr-only"> : nouvelle saisie</span>
+</a>
+{{- end}}
+{{- end}}
+<main id="contenu" class="{{if .User}}page{{else}}page page-centered{{end}}">
+{{- with .Flash}}
+<p class="flash" role="status">{{.}}</p>
+{{- end}}
+{{template "content" .}}
+</main>
+</body>
+</html>
+{{- end}}
+
+{{/* Pastille de couleur d'une catégorie (attribut SVG : compatible CSP). */}}
+{{define "dot"}}<svg class="dot" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="{{.}}"/></svg>{{end}}
+
+{{/* Étapes de l'import ; le paramètre est l'étape courante (1 à 3). */}}
+{{define "steps"}}
+<ol class="steps" aria-label="Étapes de l'import">
+  <li{{if eq . 1}} aria-current="step"{{end}}><span class="step-num">1</span> <span class="step-label">Fichier</span></li>
+  <li{{if eq . 2}} aria-current="step"{{end}}><span class="step-num">2</span> <span class="step-label">Vérification</span></li>
+  <li{{if eq . 3}} aria-current="step"{{end}}><span class="step-num">3</span> <span class="step-label">Rapprochement</span></li>
+</ol>
+{{end}}
+
+{{/* Liste des catégories d'une règle ; le paramètre porte CategoryID et
+   Categories (formulaire de règle, règle « en un clic » d'une opération). */}}
+{{define "rule-categories"}}
+<select id="rule-category" name="category" required>
+  <option value="">Choisir…</option>
+  {{- range .Categories}}
+  <optgroup label="{{.Kind.Label}}">
+    {{- range .Categories}}<option value="{{.ID}}"{{if eq .ID $.CategoryID}} selected{{end}}>{{.FullName}}</option>{{end}}
+  </optgroup>
+  {{- end}}
+</select>
+{{- end}}
+
+{{/* Courbe de soldes (balanceChart) ; la figure qui l'entoure porte le
+   titre d'identifiant <ID>-titre. */}}
+{{define "chart"}}
+<svg class="chart-svg" role="img" aria-labelledby="{{.ID}}-titre {{.ID}}-desc">
+  <desc id="{{.ID}}-desc">{{.Desc}}</desc>
+  <svg y="{{.Top}}%" width="100%" height="{{.Height}}%" viewBox="0 0 1000 1000" preserveAspectRatio="none">
+    {{- range .Below}}
+    <rect class="chart-below" x="{{printf "%.1f" .X}}" y="0" width="{{printf "%.1f" .W}}" height="1000"/>
+    {{- end}}
+    {{- range .YTicks}}
+    <line class="chart-grid" x1="0" x2="1000" y1="{{printf "%.1f" .Pos}}" y2="{{printf "%.1f" .Pos}}" vector-effect="non-scaling-stroke"/>
+    {{- end}}
+    <path class="chart-area" d="{{.Area}}"/>
+    {{- if .HasThreshold}}
+    <line class="chart-threshold" x1="0" x2="1000" y1="{{printf "%.1f" .Threshold}}" y2="{{printf "%.1f" .Threshold}}" vector-effect="non-scaling-stroke"/>
+    {{- end}}
+    {{- with .Reference}}
+    <path class="chart-reference" d="{{.}}" vector-effect="non-scaling-stroke"/>
+    {{- end}}
+    <path class="chart-line" d="{{.Line}}" vector-effect="non-scaling-stroke"/>
+  </svg>
+  {{- range .YTicks}}
+  <text class="chart-label" x="4" y="{{printf "%.1f" .Pct}}%" dy="-4">{{.Label}}</text>
+  {{- end}}
+  {{- range .XTicks}}
+  <text class="chart-label chart-x" x="{{printf "%.1f" .Pct}}%" y="100%" dy="-4">{{.Label}}</text>
+  {{- end}}
+  {{- if .HasLow}}
+  <circle class="chart-low" cx="{{printf "%.1f" .LowX}}%" cy="{{printf "%.1f" .LowY}}%" r="5"/>
+  {{- end}}
+</svg>
+{{- end}}
+
+{{/* Enveloppe de budget : état en toutes lettres, jauge, consommé et
+   restant. */}}
+{{define "envelope"}}
+<div class="envelope">
+  <div class="envelope-head">
+    <a class="row-title" href="/budgets/{{.CategoryID}}">{{template "dot" .CategoryColor}}{{.CategoryName}}</a>
+    <span class="badge badge-{{.State.Class}}">{{.State.Label}}</span>
+  </div>
+  <svg class="gauge gauge-{{.State.Class}}" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect class="gauge-track" width="100" height="4"/><rect class="gauge-fill" width="{{.Fill}}" height="4"/></svg>
+  <p class="row-meta">{{euros .Spent}} sur {{euros .Available}}{{if .Carry}} (report {{eurosSigned .Carry}}){{end}} · {{if lt .Remaining 0}}dépassement de {{euros (neg .Remaining)}}{{else}}reste {{euros .Remaining}}{{end}}</p>
+</div>
+{{- end}}
+
+{{/* Jauge de progression, de 0 à 100 ; la valeur figure aussi en texte. */}}
+{{define "progress"}}<svg class="gauge gauge-ok" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect class="gauge-track" width="100" height="4"/><rect class="gauge-fill" width="{{.}}" height="4"/></svg>{{end}}
+
+{{/* Diagramme en barres (barChart) ; la figure porte le titre <ID>-titre. */}}
+{{define "bar-chart"}}
+<svg class="chart-svg" role="img" aria-labelledby="{{.ID}}-titre {{.ID}}-desc">
+  <desc id="{{.ID}}-desc">{{.Desc}}</desc>
+  <svg y="{{.Top}}%" width="100%" height="{{.Height}}%" viewBox="0 0 1000 1000" preserveAspectRatio="none">
+    {{- range .YTicks}}
+    <line class="chart-grid" x1="0" x2="1000" y1="{{printf "%.1f" .Pos}}" y2="{{printf "%.1f" .Pos}}" vector-effect="non-scaling-stroke"/>
+    {{- end}}
+    {{- range .Bars}}
+    <rect class="chart-bar{{if .Over}} is-over{{end}}" x="{{printf "%.1f" .X}}" y="{{printf "%.1f" .Y}}" width="{{printf "%.1f" .W}}" height="{{printf "%.1f" .H}}"/>
+    {{- end}}
+    <line class="chart-threshold" x1="0" x2="1000" y1="{{printf "%.1f" .Reference}}" y2="{{printf "%.1f" .Reference}}" vector-effect="non-scaling-stroke"/>
+  </svg>
+  {{- range .YTicks}}
+  <text class="chart-label" x="4" y="{{printf "%.1f" .Pct}}%" dy="-4">{{.Label}}</text>
+  {{- end}}
+  {{- range .XTicks}}
+  <text class="chart-label chart-x" x="{{printf "%.1f" .Pct}}%" y="100%" dy="-4">{{.Label}}</text>
+  {{- end}}
+</svg>
+{{- end}}

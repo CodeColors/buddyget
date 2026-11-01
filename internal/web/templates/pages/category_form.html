@@ -1,0 +1,51 @@
+{{define "content"}}
+{{- with .Data}}
+<section class="card form-card" aria-labelledby="titre">
+  <h1 id="titre">{{$.Title}}</h1>
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form category-form" method="post" action="{{if .ID}}/categories/{{.ID}}{{else}}/categories{{end}}">
+    <div class="field">
+      <label for="name">Nom</label>
+      <input id="name" name="name" value="{{.Name}}" maxlength="60" required autofocus>
+    </div>
+    <div class="field">
+      <label for="parent">Catégorie parente</label>
+      <select id="parent" name="parent">
+        <option value="0"{{if not .ParentID}} selected{{end}}>Aucune (catégorie principale)</option>
+        {{- range .Parents}}
+        <optgroup label="{{.Kind.Label}}">
+          {{- range .Categories}}<option value="{{.ID}}"{{if eq .ID $.Data.ParentID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </optgroup>
+        {{- end}}
+      </select>
+    </div>
+    <fieldset class="field if-top-level">
+      <legend>Type</legend>
+      <div class="segmented">
+        {{- range .Kinds}}
+        <label><input type="radio" name="kind" value="{{.}}"{{if eq . $.Data.Kind}} checked{{end}}><span>{{.Label}}</span></label>
+        {{- end}}
+      </div>
+      <p class="hint">Une sous-catégorie prend le type de sa catégorie parente.</p>
+    </fieldset>
+    <div class="field">
+      <label for="color">Couleur</label>
+      <input id="color" name="color" type="color" value="{{.Color}}">
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Enregistrer</button>
+      <a class="btn" href="/categories">Annuler</a>
+    </div>
+  </form>
+</section>
+{{- if .ID}}
+<section class="card danger-zone" aria-labelledby="suppression">
+  <h2 id="suppression">Suppression</h2>
+  <p class="muted">Les sous-catégories sont supprimées avec la catégorie ; leurs opérations deviennent non catégorisées.</p>
+  <form method="post" action="/categories/{{.ID}}/supprimer" data-confirm="Supprimer cette catégorie et ses sous-catégories ?">
+    <button class="btn btn-danger" type="submit">Supprimer la catégorie</button>
+  </form>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

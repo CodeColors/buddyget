@@ -1,0 +1,158 @@
+{{define "content"}}
+{{- with .Data}}
+<h1>Partage du foyer</h1>
+{{- if .Members}}
+<section class="card forecast-summary" aria-labelledby="qui-doit">
+  <h2 id="qui-doit">Qui doit combien</h2>
+  {{- if .Debts}}
+  <ul class="rows" aria-label="Remboursements à faire">
+    {{- range .Debts}}
+    <li class="row">
+      <div class="row-body">
+        <span class="row-title">{{.From.Name}} doit {{euros .Amount}} à {{.To.Name}}</span>
+      </div>
+      <a class="btn" href="/partage?de={{.From.ID}}&a={{.To.ID}}&montant={{amountInput .Amount}}#remboursement">Rembourser</a>
+    </li>
+    {{- end}}
+  </ul>
+  {{- else}}
+  <p class="muted">Les comptes sont à l'équilibre : personne ne doit rien.</p>
+  {{- end}}
+  <dl class="figures">
+    {{- range .Balances}}{{if or .Paid .Owed .Settled}}
+    <div><dt>{{.Name}} : avancé {{euros .Paid}}, sa part {{euros .Owed}}</dt><dd class="amount{{if lt .Net 0}} negative{{end}}">{{eurosSigned .Net}}</dd></div>
+    {{- end}}{{end}}
+  </dl>
+</section>
+
+<section aria-labelledby="partagees">
+  <div class="section-head">
+    <h2 id="partagees">Opérations partagées</h2>
+    <a href="/operations/nouvelle">Nouvelle opération</a>
+  </div>
+  {{- if .Shared}}
+  <ul class="rows">
+    {{- range .Shared}}
+    <li class="row">
+      <a class="row-link" href="/operations/{{.TransactionID}}">
+        <span class="row-title">{{.Label}}</span>
+        <span class="row-meta">{{.Date.Format}} · payé par {{.PayerName}} · {{.Mode.Label}} :{{range $i, $s := .Shares}}{{if $i}},{{end}} {{$s.MemberName}} {{euros $s.Amount}}{{end}}</span>
+      </a>
+      <span class="amount{{if gt .Amount 0}} positive{{end}}">{{eurosSigned .Amount}}</span>
+    </li>
+    {{- end}}
+  </ul>
+  {{- else}}
+  <p class="card empty muted">Aucune opération partagée : dans la saisie d'une opération, ouvrez « Partage du foyer » pour indiquer qui a payé et comment répartir.</p>
+  {{- end}}
+</section>
+
+<section class="card form-card" aria-labelledby="remboursement">
+  <h2 id="remboursement">Enregistrer un remboursement</h2>
+  {{- with .Settle}}
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form" method="post" action="/partage/remboursements">
+    <div class="field-row">
+      <div class="field">
+        <label for="from">De</label>
+        <select id="from" name="from">
+          {{- range $.Data.Members}}{{if not .Archived}}<option value="{{.ID}}"{{if eq .ID $.Data.Settle.FromID}} selected{{end}}>{{.Name}}</option>{{end}}{{end}}
+        </select>
+      </div>
+      <div class="field">
+        <label for="to">À</label>
+        <select id="to" name="to">
+          {{- range $.Data.Members}}{{if not .Archived}}<option value="{{.ID}}"{{if eq .ID $.Data.Settle.ToID}} selected{{end}}>{{.Name}}</option>{{end}}{{end}}
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="amount">Montant (€)</label>
+        <input id="amount" name="amount" value="{{.Amount}}" inputmode="decimal" autocomplete="off" placeholder="0,00" required>
+      </div>
+      <div class="field">
+        <label for="date">Date</label>
+        <input id="date" name="date" type="date" value="{{.Date}}" required>
+      </div>
+    </div>
+    <details class="more"{{if .FromAccountID}} open{{end}}>
+      <summary>Virement entre deux de vos comptes</summary>
+      <p class="hint">Choisissez les deux comptes pour enregistrer aussi le virement interne ; laissez « aucun » pour un remboursement en espèces ou hors de vos comptes.</p>
+      <div class="field-row">
+        <div class="field">
+          <label for="from_account">Depuis le compte</label>
+          <select id="from_account" name="from_account">
+            <option value="0">Aucun</option>
+            {{- range $.Data.Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.Settle.FromAccountID}} selected{{end}}>{{.Name}}</option>{{end}}
+          </select>
+        </div>
+        <div class="field">
+          <label for="to_account">Vers le compte</label>
+          <select id="to_account" name="to_account">
+            <option value="0">Aucun</option>
+            {{- range $.Data.Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.Settle.ToAccountID}} selected{{end}}>{{.Name}}</option>{{end}}
+          </select>
+        </div>
+      </div>
+    </details>
+    <div class="actions"><button class="btn btn-primary" type="submit">Enregistrer le remboursement</button></div>
+  </form>
+  {{- end}}
+</section>
+
+{{- if .Settlements}}
+<section aria-labelledby="historique">
+  <h2 id="historique">Remboursements</h2>
+  <ul class="rows">
+    {{- range .Settlements}}
+    <li class="row">
+      <div class="row-body">
+        <span class="row-title">{{.FromName}} → {{.ToName}}</span>
+        <span class="row-meta">{{.Date.Format}}{{if .TransferID}} · virement interne{{end}}</span>
+      </div>
+      <span class="amount">{{euros .Amount}}</span>
+      <form method="post" action="/partage/remboursements/{{.ID}}/supprimer" data-confirm="Annuler ce remboursement{{if .TransferID}} et son virement{{end}} ?">
+        <button class="btn btn-icon" type="submit" title="Annuler"><span aria-hidden="true">×</span><span class="sr-only">Annuler le remboursement de {{.FromName}} du {{.Date.Format}}</span></button>
+      </form>
+    </li>
+    {{- end}}
+  </ul>
+</section>
+{{- end}}
+{{- end}}
+
+<section class="card" aria-labelledby="membres">
+  <h2 id="membres">Membres du foyer</h2>
+  {{- if .Members}}
+  <ul class="rows">
+    {{- range .Members}}
+    <li class="row">
+      <a class="row-link" href="/partage/membres/{{.ID}}">
+        <span class="row-title">{{.Name}}{{if .Archived}} <span class="badge">Archivé</span>{{end}}</span>
+        <span class="row-meta">{{if .Income}}Revenu mensuel {{euros .Income}}{{else}}Revenu non renseigné{{end}}</span>
+      </a>
+    </li>
+    {{- end}}
+  </ul>
+  {{- else}}
+  <p class="muted">Ajoutez les membres du foyer (distincts des comptes de connexion) pour partager des dépenses : qui a payé, comment répartir, qui doit combien.</p>
+  {{- end}}
+  {{- with .Member}}
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="inline-form" method="post" action="/partage/membres">
+    <div class="field">
+      <label for="name">Prénom</label>
+      <input id="name" name="name" value="{{.Name}}" maxlength="40" autocomplete="off" required>
+    </div>
+    <div class="field">
+      <label for="income">Revenu mensuel (€) <span class="optional">(facultatif)</span></label>
+      <input id="income" name="income" value="{{.Income}}" inputmode="decimal" autocomplete="off" placeholder="0,00">
+    </div>
+    <button class="btn" type="submit">Ajouter</button>
+  </form>
+  <p class="hint">Le revenu sert à répartir une dépense au prorata des revenus.</p>
+  {{- end}}
+</section>
+{{- end}}
+{{end}}

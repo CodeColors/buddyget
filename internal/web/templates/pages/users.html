@@ -1,0 +1,65 @@
+{{define "content"}}
+{{- with .Data}}
+<h1>Utilisateurs</h1>
+<p class="muted">Chaque personne du foyer peut avoir son compte de connexion ; tous voient et modifient les mêmes données.</p>
+<ul class="rows" aria-label="Comptes de connexion">
+  {{- range .Users}}
+  <li class="row">
+    <div class="row-body">
+      <span class="row-title">{{.Username}}{{if eq .ID $.Data.Me}} <span class="badge">Vous</span>{{end}}</span>
+    </div>
+    {{- if ne .ID $.Data.Me}}
+    <form method="post" action="/utilisateurs/{{.ID}}/supprimer" data-confirm="Supprimer le compte « {{.Username}} » ? Ses sessions sont fermées ; les données du foyer restent.">
+      <button class="btn btn-icon" type="submit" title="Supprimer"><span aria-hidden="true">×</span><span class="sr-only">Supprimer le compte {{.Username}}</span></button>
+    </form>
+    {{- end}}
+  </li>
+  {{- end}}
+</ul>
+
+<section class="card form-card" aria-labelledby="ajout">
+  <h2 id="ajout">Ajouter un compte</h2>
+  {{with .AddError}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form" method="post" action="/utilisateurs">
+    <div class="field">
+      <label for="username">Identifiant</label>
+      <input id="username" name="username" value="{{.Username}}" maxlength="64" autocomplete="off" autocapitalize="none" required>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="password">Mot de passe</label>
+        <input id="password" name="password" type="password" minlength="12" autocomplete="new-password" required aria-describedby="password-aide">
+        <p id="password-aide" class="hint">12 caractères au moins ; une phrase est plus facile à retenir.</p>
+      </div>
+      <div class="field">
+        <label for="confirm">Confirmation</label>
+        <input id="confirm" name="confirm" type="password" minlength="12" autocomplete="new-password" required>
+      </div>
+    </div>
+    <div class="actions"><button class="btn btn-primary" type="submit">Créer le compte</button></div>
+  </form>
+</section>
+
+<section class="card form-card" aria-labelledby="mot-de-passe">
+  <h2 id="mot-de-passe">Changer mon mot de passe</h2>
+  {{with .ChangeError}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form" method="post" action="/utilisateurs/mot-de-passe">
+    <div class="field">
+      <label for="current">Mot de passe actuel</label>
+      <input id="current" name="current" type="password" autocomplete="current-password" required>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="new_password">Nouveau mot de passe</label>
+        <input id="new_password" name="new_password" type="password" minlength="12" autocomplete="new-password" required>
+      </div>
+      <div class="field">
+        <label for="confirm_new">Confirmation</label>
+        <input id="confirm_new" name="confirm" type="password" minlength="12" autocomplete="new-password" required>
+      </div>
+    </div>
+    <div class="actions"><button class="btn btn-primary" type="submit">Changer le mot de passe</button></div>
+  </form>
+</section>
+{{- end}}
+{{end}}

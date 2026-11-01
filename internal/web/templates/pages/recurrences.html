@@ -1,0 +1,37 @@
+{{define "content"}}
+{{- with .Data}}
+<div class="page-head">
+  <h1>Récurrences</h1>
+  <a class="btn btn-primary" href="/recurrences/nouvelle">Nouvelle récurrence</a>
+</div>
+<p><a href="/abonnements">Abonnements : coût mensuel et annuel</a></p>
+{{- if .Detected}}
+<p class="notice"><a href="/recurrences/detectees">{{plural .Detected "série détectée" "séries détectées"}} dans vos opérations</a> : validez-les pour qu'elles entrent dans le prévisionnel.</p>
+{{- end}}
+{{- if .Active}}
+<ul class="rows" aria-label="Récurrences actives">
+  {{- range .Active}}{{template "recurrence-row" .}}{{end}}
+</ul>
+{{- else}}
+<p class="card empty muted">Aucune récurrence active. Les séries régulières de vos opérations (loyer, salaire, abonnements…) sont détectées automatiquement après quelques mois d'historique ; vous pouvez aussi en saisir une.</p>
+{{- end}}
+{{- if .Inactive}}
+<h2>Suspendues ou terminées</h2>
+<ul class="rows" aria-label="Récurrences suspendues">
+  {{- range .Inactive}}{{template "recurrence-row" .}}{{end}}
+</ul>
+{{- end}}
+<p><a href="/recurrences/detectees">Voir les séries détectées</a></p>
+{{- end}}
+{{end}}
+
+{{define "recurrence-row"}}
+<li class="row">
+  <a class="row-link" href="/recurrences/{{.ID}}">
+    <span class="row-title">{{.Label}}{{if eq .Origin "detectee"}} <span class="badge">Détectée</span>{{end}}{{if .Subscription}} <span class="badge">Abonnement</span>{{end}}{{if .Smooth}} <span class="badge">Lissée{{with .SmoothAccountName}} sur {{.}}{{end}}</span>{{end}}</span>
+    <span class="row-meta">{{.Period.Label}}{{if .LastDay}}, le dernier jour{{end}} · {{.AccountName}}{{with .ToAccountName}} → {{.}}{{end}}{{with .CategoryName}} · {{.}}{{end}}</span>
+    <span class="row-meta">{{if not .Active}}Suspendue{{else if .Finished}}Terminée le {{.End.Format}}{{else}}Prochaine échéance le {{.Next.Due.Format}}{{end}}</span>
+  </a>
+  <span class="amount{{if gt .Amount 0}} positive{{end}}">{{if .Estimated}}≈ {{end}}{{eurosSigned .Amount}}</span>
+</li>
+{{- end}}

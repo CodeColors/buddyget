@@ -1,0 +1,113 @@
+{{define "content"}}
+{{- with .Data}}
+<div class="page-head">
+  <h1>Épargne</h1>
+  <a class="btn" href="/projets">Projets</a>
+</div>
+{{- if .Accounts}}
+<section class="card forecast-summary" aria-labelledby="total-epargne">
+  <h2 id="total-epargne">Total épargné</h2>
+  <p class="forecast-closing amount">{{euros .Totals.Balance}}</p>
+  <dl class="figures">
+    <div><dt>Disponible</dt><dd>{{euros .Totals.Available}}</dd></div>
+    <div><dt>Bloqué</dt><dd>{{euros .Totals.Blocked}}</dd></div>
+    <div><dt>Intérêts inscrits</dt><dd>{{euros .Totals.InterestPaid}}</dd></div>
+    <div><dt>Intérêts acquis cette année</dt><dd>≈ {{euros .Totals.Accrued}}</dd></div>
+  </dl>
+</section>
+
+{{- with .History}}
+<figure class="card chart">
+  <figcaption id="evolution-titre">Évolution du total épargné</figcaption>
+  {{template "chart" .}}
+</figure>
+{{- end}}
+
+<section aria-labelledby="comptes-epargne">
+  <h2 id="comptes-epargne">Comptes</h2>
+  <ul class="pairs">
+    {{- range .Accounts}}
+    <li class="card savings-card">
+      <div class="candidate-head">
+        <a class="tx-label" href="/comptes/{{.Account.ID}}">{{.Account.Name}}</a>
+        <span class="amount">{{euros .Account.Balance}}</span>
+      </div>
+      <p class="row-meta">
+        {{- if .Configured}}{{.Settings.Product.Label}}{{if .Settings.EarnsInterest}} · {{percent .Settings.Rate}} · {{.Settings.Method.Label}}{{else}} · non rémunéré{{end}}
+        {{- else}}Réglages d'épargne à compléter : <a href="/comptes/{{.Account.ID}}">taux, plafond, blocage</a>{{end}}
+      </p>
+      <dl class="figures">
+        <div><dt>Disponible</dt><dd>{{euros .Availability.Available}}</dd></div>
+        <div>
+          <dt>{{if .Availability.NextUnlock}}{{if .Settings.UnlockDate}}Bloqué jusqu'au{{else}}Bloqué, prochain déblocage le{{end}} {{.Availability.NextUnlock.Format}}{{else}}Bloqué{{end}}</dt>
+          <dd>{{euros .Availability.Blocked}}</dd>
+        </div>
+        <div><dt>Intérêts inscrits</dt><dd>{{euros .InterestPaid}}</dd></div>
+        {{- if .Settings.EarnsInterest}}
+        <div><dt>Acquis cette année</dt><dd>≈ {{euros .Accrued}}</dd></div>
+        <div><dt>Estimés au 31/12</dt><dd>≈ {{euros .YearEstimate}}</dd></div>
+        {{- end}}
+      </dl>
+      {{- if .Settings.Ceiling}}
+      <p class="row-meta">{{if lt .CeilingRoom 0}}Plafond de {{euros .Settings.Ceiling}} dépassé de {{euros (neg .CeilingRoom)}}{{else}}Encore {{euros .CeilingRoom}} avant le plafond de {{euros .Settings.Ceiling}}{{end}}</p>
+      {{- end}}
+      {{- $id := .Account.ID}}
+      {{- range .Missing}}
+      <form method="post" action="/epargne/{{$id}}/interets">
+        <input type="hidden" name="annee" value="{{.Year}}">
+        <button class="btn" type="submit">Inscrire les intérêts {{.Year}} : {{euros .Amount}}</button>
+      </form>
+      {{- end}}
+      {{- if .Deposits}}
+      <ul class="deposit-list" aria-label="Versements programmés vers {{.Account.Name}}">
+        {{- range .Deposits}}
+        <li><a href="/recurrences/{{.ID}}">{{.Label}}</a> · {{.Period.Label}} : {{euros (neg .Amount)}} depuis {{.AccountName}}</li>
+        {{- end}}
+      </ul>
+      {{- end}}
+      <div class="actions">
+        <a class="btn" href="/recurrences/nouvelle?vers={{.Account.ID}}">Programmer un versement</a>
+        <a class="btn" href="/operations?compte={{.Account.ID}}">Opérations</a>
+      </div>
+    </li>
+    {{- end}}
+  </ul>
+</section>
+
+<section class="card" aria-labelledby="projection">
+  <h2 id="projection">Projection</h2>
+  <form class="inline-form" method="get" action="/epargne">
+    <div class="field">
+      <label for="date">Total prévu au</label>
+      <input id="date" name="date" type="date" value="{{.Target}}" required>
+    </div>
+    <button class="btn" type="submit">Calculer</button>
+  </form>
+  {{- with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  {{- with .Projection}}
+  <dl class="breakdown">
+    <div><dt>Aujourd'hui</dt><dd>{{euros .Opening}}</dd></div>
+    <div><dt>Versements et retraits prévus</dt><dd class="amount">{{eurosSigned $.Data.Projected.Moves}}</dd></div>
+    <div><dt>Intérêts estimés</dt><dd class="amount{{if $.Data.Projected.Interest}} positive{{end}}">{{eurosSigned $.Data.Projected.Interest}}</dd></div>
+    {{- if .Totals.Variable}}
+    <div><dt>Retraits courants estimés</dt><dd class="amount">{{eurosSigned .Totals.Variable}}</dd></div>
+    {{- end}}
+    <div class="breakdown-total"><dt>Total le {{.Target.Format}}</dt><dd>{{euros .Closing}}</dd></div>
+  </dl>
+  <p><a href="/previsionnel?compte=epargne&amp;date={{.Target}}">Voir le détail jour par jour</a></p>
+  {{- end}}
+</section>
+{{- else}}
+<section class="card empty">
+  <h2>Aucun compte d'épargne</h2>
+  <p class="muted">Créez un compte d'épargne à partir d'un modèle : ses taux et plafonds par défaut restent modifiables.</p>
+</section>
+{{- end}}
+<section aria-labelledby="ouvrir">
+  <h2 id="ouvrir">Ouvrir un compte d'épargne</h2>
+  <nav class="chips" aria-labelledby="ouvrir">
+    {{- range .Templates}}<a href="/comptes/nouveau?modele={{.Product}}">{{.Label}}</a>{{end}}
+  </nav>
+</section>
+{{- end}}
+{{end}}

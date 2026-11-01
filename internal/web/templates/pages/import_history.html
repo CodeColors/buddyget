@@ -1,0 +1,26 @@
+{{define "content"}}
+<div class="page-head">
+  <h1>Historique des imports</h1>
+  <a class="btn btn-primary" href="/import">Importer</a>
+</div>
+{{- if .Data}}
+<ul class="rows" aria-label="Imports validés">
+  {{- range .Data}}
+  <li class="row">
+    <div class="row-link">
+      <span class="row-title">{{.Filename}}{{if .Undone}} <span class="badge">Annulé</span>{{end}}</span>
+      <span class="row-meta">{{datetime .ImportedAt}} · {{.AccountName}} · {{.Profile}}</span>
+      <span class="row-meta">{{plural .Added "ajoutée" "ajoutées"}} sur {{plural .Read "ligne" "lignes"}}{{if .Duplicate}} · {{plural .Duplicate "doublon" "doublons"}}{{end}}{{if .Errors}} · {{plural .Errors "illisible" "illisibles"}}{{end}}{{if .Skipped}} · {{plural .Skipped "décochée" "décochées"}}{{end}}</span>
+    </div>
+    {{- if not .Undone}}
+    <form method="post" action="/import/historique/{{.ID}}/annuler" data-confirm="Annuler cet import ? Les {{.Added}} opérations qu'il a ajoutées seront supprimées.">
+      <button class="btn" type="submit">Annuler<span class="sr-only"> l'import {{.Filename}}</span></button>
+    </form>
+    {{- end}}
+  </li>
+  {{- end}}
+</ul>
+{{- else}}
+<p class="card empty muted">Aucun import pour l'instant.</p>
+{{- end}}
+{{end}}

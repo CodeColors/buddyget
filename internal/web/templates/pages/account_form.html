@@ -1,0 +1,128 @@
+{{define "content"}}
+{{- with .Data}}
+<section class="card form-card" aria-labelledby="titre">
+  <h1 id="titre">{{$.Title}}</h1>
+  {{- if not .ID}}
+  <p class="hint" id="modeles">Un compte d'épargne ? Partez d'un modèle :</p>
+  <nav class="chips" aria-labelledby="modeles">
+    {{- range .SavingsTemplates}}{{$p := .Product}}<a href="/comptes/nouveau?modele={{$p}}"{{with $.Data.Savings.Template}}{{if eq .Product $p}} aria-current="true"{{end}}{{end}}>{{.Label}}</a>{{end}}
+  </nav>
+  {{- end}}
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form account-form" method="post" action="{{if .ID}}/comptes/{{.ID}}{{else}}/comptes{{end}}">
+    <div class="field">
+      <label for="name">Nom du compte</label>
+      <input id="name" name="name" value="{{.Name}}" maxlength="60" required{{if not .ID}} autofocus{{end}}>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="kind">Type</label>
+        <select id="kind" name="kind">
+          {{- range .Kinds}}<option value="{{.}}"{{if eq . $.Data.Kind}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field">
+        <label for="bank">Banque</label>
+        <select id="bank" name="bank">
+          {{- range .Banks}}<option value="{{.}}"{{if eq . $.Data.Bank}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="iban">IBAN <span class="optional">(facultatif)</span></label>
+      <input id="iban" name="iban" value="{{.IBAN}}" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="iban-aide">
+      <p id="iban-aide" class="hint">Seuls le code pays, la clé et les 4 derniers caractères sont conservés.</p>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="opening_balance">Solde initial</label>
+        <input id="opening_balance" name="opening_balance" value="{{.OpeningBalance}}" autocomplete="off" required aria-describedby="solde-aide">
+      </div>
+      <div class="field">
+        <label for="opening_date">au</label>
+        <input id="opening_date" name="opening_date" type="date" value="{{.OpeningDate}}" required aria-describedby="solde-aide">
+      </div>
+    </div>
+    <p id="solde-aide" class="hint">Solde au début de ce jour : les opérations datées de ce jour ou après s'y ajoutent. Un signe moins indique un découvert.</p>
+    {{- with .Savings}}
+    <fieldset class="if-savings savings-fields">
+      <legend>Épargne</legend>
+      {{- with .Template}}
+      <p class="notice">Valeurs par défaut du modèle {{.Label}}, relevées le {{$.Data.TemplatesCheckedOn.Format}} (taux en vigueur depuis le {{$.Data.RatesSince.Format}}) : elles n'ont rien d'officiel, vérifiez-les auprès de votre banque.{{with .Note}} {{.}}{{end}}</p>
+      {{- end}}
+      <div class="field-row">
+        <div class="field">
+          <label for="product">Produit</label>
+          <select id="product" name="product">
+            {{- range $.Data.SavingsTemplates}}<option value="{{.Product}}"{{if eq .Product $.Data.Savings.Product}} selected{{end}}>{{.Label}}</option>{{end}}
+          </select>
+        </div>
+        <div class="field">
+          <label for="rate">Taux annuel (%) <span class="optional">(facultatif)</span></label>
+          <input id="rate" name="rate" value="{{.Rate}}" inputmode="decimal" autocomplete="off" placeholder="1,70">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="method">Calcul des intérêts</label>
+          <select id="method" name="method">
+            {{- range $.Data.SavingsMethods}}<option value="{{.}}"{{if eq . $.Data.Savings.Method}} selected{{end}}>{{.Label}}</option>{{end}}
+          </select>
+        </div>
+        <div class="field">
+          <label for="ceiling">Plafond des versements (€) <span class="optional">(facultatif)</span></label>
+          <input id="ceiling" name="ceiling" value="{{.Ceiling}}" inputmode="decimal" autocomplete="off">
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" name="auto_interest" value="1"{{if .AutoInterest}} checked{{end}}> Inscrire les intérêts automatiquement au 31 décembre</label>
+      <p class="hint">Décochez si vous importez les relevés de ce compte : les intérêts y figurent déjà.</p>
+      <fieldset class="field">
+        <legend>Blocage des fonds</legend>
+        <label class="check"><input type="radio" name="lock" value="aucun"{{if eq .Lock "aucun"}} checked{{end}}> Fonds disponibles à tout moment</label>
+        <label class="check"><input type="radio" name="lock" value="date"{{if eq .Lock "date"}} checked{{end}}> Bloqués jusqu'à une date</label>
+        <div class="field if-lock-date">
+          <label for="unlock_date">Date de déblocage</label>
+          <input id="unlock_date" name="unlock_date" type="date" value="{{.UnlockDate}}">
+        </div>
+        <label class="check"><input type="radio" name="lock" value="duree"{{if eq .Lock "duree"}} checked{{end}}> Chaque versement bloqué une durée</label>
+        <div class="field if-lock-months">
+          <label for="lock_months">Durée de blocage (mois)</label>
+          <input id="lock_months" name="lock_months" type="number" min="1" max="600" value="{{.LockMonths}}" inputmode="numeric">
+        </div>
+      </fieldset>
+      <div class="field if-locked">
+        <label for="penalty">Pénalité de retrait anticipé (%) <span class="optional">(facultatif)</span></label>
+        <input id="penalty" name="penalty" value="{{.Penalty}}" inputmode="decimal" autocomplete="off">
+      </div>
+    </fieldset>
+    {{- end}}
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Enregistrer</button>
+      <a class="btn" href="/comptes">Annuler</a>
+    </div>
+  </form>
+</section>
+{{- if .ID}}
+<section class="card form-card" aria-labelledby="banque">
+  <h2 id="banque">Relevés et rapprochement</h2>
+  <div class="actions">
+    <a class="btn" href="/import?compte={{.ID}}">Importer un relevé</a>
+    <a class="btn" href="/comptes/{{.ID}}/rapprochement">Rapprocher avec la banque</a>
+  </div>
+</section>
+<section class="card danger-zone" aria-labelledby="gestion">
+  <h2 id="gestion">Archivage et suppression</h2>
+  <p class="muted">Un compte archivé n'est plus proposé à la saisie mais garde son historique. Seul un compte sans opération peut être supprimé.</p>
+  <div class="actions">
+    <form method="post" action="/comptes/{{.ID}}/archiver">
+      <input type="hidden" name="archived" value="{{not .Archived}}">
+      <button class="btn" type="submit">{{if .Archived}}Réactiver le compte{{else}}Archiver le compte{{end}}</button>
+    </form>
+    <form method="post" action="/comptes/{{.ID}}/supprimer" data-confirm="Supprimer définitivement ce compte ?">
+      <button class="btn btn-danger" type="submit">Supprimer le compte</button>
+    </form>
+  </div>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

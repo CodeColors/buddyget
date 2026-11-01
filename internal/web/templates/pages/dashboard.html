@@ -1,0 +1,75 @@
+{{define "content"}}
+<h1>Bonjour {{.User.Username}}</h1>
+{{- with .Data}}
+{{- if .Active}}
+<section aria-labelledby="soldes">
+  <div class="section-head">
+    <h2 id="soldes">Soldes au {{.Today.Format}}</h2>
+    <p class="total">Total <strong>{{euros .Total}}</strong></p>
+  </div>
+  <ul class="tiles">
+    {{- range .Active}}
+    <li>
+      <a class="tile" href="/operations?compte={{.ID}}">
+        <span class="tile-label">{{.Name}}</span>
+        <span class="tile-meta">{{.Kind.Label}} · {{.Bank.Label}}</span>
+        <span class="tile-value amount{{if lt .Balance 0}} negative{{end}}">{{euros .Balance}}</span>
+      </a>
+    </li>
+    {{- end}}
+  </ul>
+</section>
+{{- if .HasOutlook}}
+{{- with .Outlook}}
+<section class="card outlook" aria-labelledby="reste">
+  <div class="section-head">
+    <h2 id="reste">Reste à vivre en {{.Month.MonthLabel}}</h2>
+    <a href="/previsionnel">Prévisionnel</a>
+  </div>
+  <p class="forecast-closing amount{{if lt .Left 0}} negative{{end}}">{{euros .Left}}</p>
+  <dl class="breakdown">
+    <div><dt>Entrées reçues et attendues</dt><dd class="amount">{{eurosSigned (add .Received .Expected)}}</dd></div>
+    <div><dt>Charges et dépenses prévues à venir</dt><dd class="amount">{{eurosSigned .Upcoming}}</dd></div>
+    <div><dt>Versements vers l'épargne et vos autres comptes</dt><dd class="amount">{{eurosSigned .Savings}}</dd></div>
+    <div><dt>Dépenses déjà faites</dt><dd class="amount">{{eurosSigned .Spent}}</dd></div>
+    {{- if .Provisions}}
+    <div><dt>Dépenses lissées : provisions du mois, nettes de leur utilisation</dt><dd class="amount">{{eurosSigned .Provisions}}</dd></div>
+    {{- end}}
+  </dl>
+  <p class="hint">Ce qui reste ce mois-ci pour les dépenses courantes, d'après vos comptes courants, récurrences et opérations prévues.</p>
+</section>
+{{- end}}
+{{- end}}
+{{- if .Envelopes}}
+<section aria-labelledby="enveloppes">
+  <div class="section-head">
+    <h2 id="enveloppes">Enveloppes du mois</h2>
+    <a href="/budgets">Tous les budgets</a>
+  </div>
+  <ul class="rows envelopes">
+    {{- range .Envelopes}}<li class="row">{{template "envelope" .}}</li>{{end}}
+  </ul>
+</section>
+{{- end}}
+{{- if .Alerts}}
+<section aria-labelledby="dernieres-alertes">
+  <div class="section-head">
+    <h2 id="dernieres-alertes">Alertes</h2>
+    <a href="/alertes">Toutes les alertes</a>
+  </div>
+  <ul class="rows">
+    {{- range .Alerts}}
+    <li class="row"><a class="row-link" href="{{or .Link "/alertes"}}"><span class="row-title">{{.Title}}</span>{{with .Detail}}<span class="row-meta">{{.}}</span>{{end}}</a></li>
+    {{- end}}
+  </ul>
+</section>
+{{- end}}
+{{- else}}
+<section class="card empty">
+  <h2>Premiers pas</h2>
+  <p class="muted">Créez un compte (courant, épargne, espèces…) pour commencer à saisir vos opérations.</p>
+  <a class="btn btn-primary" href="/comptes/nouveau">Créer un compte</a>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

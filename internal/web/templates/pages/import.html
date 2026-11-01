@@ -1,0 +1,47 @@
+{{define "content"}}
+{{- with .Data}}
+<div class="page-head">
+  <h1>Importer un relevé</h1>
+  <a class="btn" href="/import/historique">Historique</a>
+</div>
+{{template "steps" 1}}
+<section class="card form-card" aria-labelledby="depot">
+  <h2 id="depot">Fichier exporté depuis votre banque</h2>
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  {{- if .Accounts}}
+  <form class="form" method="post" action="/import" enctype="multipart/form-data">
+    <div class="field">
+      <label for="account">Compte qui reçoit les opérations</label>
+      <select id="account" name="account">
+        {{- range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.AccountID}} selected{{end}}>{{.Name}} ({{.Bank.Label}})</option>{{end}}
+      </select>
+    </div>
+    <div class="field">
+      <label for="file">Fichier</label>
+      <input id="file" name="file" type="file" accept=".csv,.txt,.xls,.xlsx" required aria-describedby="file-aide">
+      <p id="file-aide" class="hint">CSV, Excel (.xlsx) ou Excel 97-2003 (.xls), {{.MaxMB}} Mo au plus. Société Générale et BNP Paribas sont reconnues automatiquement ; pour les autres, vous indiquerez les colonnes une fois.</p>
+    </div>
+    <div class="actions"><button class="btn btn-primary" type="submit">Continuer</button></div>
+  </form>
+  {{- else}}
+  <p class="muted">Créez d'abord le compte qui recevra les opérations.</p>
+  <a class="btn btn-primary" href="/comptes/nouveau">Créer un compte</a>
+  {{- end}}
+</section>
+{{- if .Pending}}
+<section aria-labelledby="en-cours">
+  <h2 id="en-cours">Imports en cours</h2>
+  <ul class="rows">
+    {{- range .Pending}}
+    <li class="row">
+      <a class="row-link" href="/import/{{.Token}}">
+        <span class="row-title">{{.Filename}}</span>
+        <span class="row-meta">vers {{.AccountName}}</span>
+      </a>
+    </li>
+    {{- end}}
+  </ul>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

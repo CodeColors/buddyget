@@ -1,0 +1,195 @@
+{{define "content"}}
+{{- with .Data}}
+<div class="page-head">
+  <h1>Scénario « {{.Name}} »</h1>
+  <a class="btn" href="/scenarios">Tous les scénarios</a>
+</div>
+
+<section class="card forecast-summary" aria-labelledby="comparaison">
+  <h2 id="comparaison">Comparaison avec la réalité</h2>
+  <form class="inline-form" method="get" action="/scenarios/{{.ID}}">
+    <div class="field">
+      <label for="date">Au</label>
+      <input id="date" name="date" type="date" value="{{.Target}}" min="{{.Today.AddDays 1}}" max="{{.MaxTarget}}" required>
+    </div>
+    <button class="btn" type="submit">Comparer</button>
+  </form>
+  {{- with .CompareErr}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  {{- with .Comparison}}
+  <dl class="figures">
+    <div><dt>Solde au {{.Scenario.Target.Format}} sans le scénario</dt><dd>{{euros .Reference.Closing}}</dd></div>
+    <div><dt>Avec le scénario</dt><dd>{{euros .Scenario.Closing}}</dd></div>
+    <div><dt>Écart cumulé</dt><dd class="amount{{if lt .Gap 0}} negative{{end}}">{{eurosSigned .Gap}}</dd></div>
+    <div><dt>Point bas sans le scénario</dt><dd>{{euros .Reference.Low.Balance}}</dd></div>
+    <div><dt>Avec le scénario, le {{.Scenario.Low.Date.Format}}</dt><dd>{{euros .Scenario.Low.Balance}}</dd></div>
+    <div><dt>Écart des points bas</dt><dd class="amount{{if lt .LowGap 0}} negative{{end}}">{{eurosSigned .LowGap}}</dd></div>
+  </dl>
+  <p class="hint">L'écart cumulé est l'effet de toutes les modifications d'ici au {{.Scenario.Target.Format}}, sur vos comptes courants.</p>
+  {{- end}}
+  <div class="actions">
+    <a class="btn btn-primary" href="{{.Forecast}}">Voir le prévisionnel avec ce scénario</a>
+  </div>
+</section>
+
+<section aria-labelledby="modifications">
+  <h2 id="modifications">Modifications</h2>
+  {{- if .Items}}
+  <ul class="rows">
+    {{- range .Items}}
+    <li class="row">
+      <div class="row-body">
+        <span class="row-title">{{.Title}}</span>
+        <span class="row-meta">{{.Kind.Label}} · {{.Detail}}</span>
+      </div>
+      <form method="post" action="/scenarios/{{$.Data.ID}}/modifications/{{.ID}}/supprimer">
+        <button class="btn btn-icon" type="submit" title="Retirer"><span aria-hidden="true">×</span><span class="sr-only">Retirer « {{.Title}} »</span></button>
+      </form>
+    </li>
+    {{- end}}
+  </ul>
+  {{- else}}
+  <p class="card empty muted">Aucune modification : le scénario est identique à la réalité.</p>
+  {{- end}}
+</section>
+
+<section class="card form-card" aria-labelledby="ajout">
+  <h2 id="ajout">Ajouter une modification</h2>
+  {{- with .Form}}
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form scenario-form" method="post" action="/scenarios/{{$.Data.ID}}/modifications">
+    <div class="field-row">
+      <div class="field">
+        <label for="kind">Modification</label>
+        <select id="kind" name="kind">
+          {{- range $.Data.Kinds}}<option value="{{.}}"{{if eq . $.Data.Form.Kind}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field">
+        <label for="date">Date</label>
+        <input id="date" name="date" type="date" value="{{.Date}}" required aria-describedby="date-aide">
+        <p id="date-aide" class="hint">De l'opération, de la première échéance ou de la prise d'effet.</p>
+      </div>
+    </div>
+
+    <fieldset class="field if-movement">
+      <legend class="sr-only">Sens</legend>
+      <div class="segmented">
+        <label><input type="radio" name="sens" value="depense"{{if ne .Sens "revenu"}} checked{{end}}><span>Dépense</span></label>
+        <label><input type="radio" name="sens" value="revenu"{{if eq .Sens "revenu"}} checked{{end}}><span>Revenu</span></label>
+      </div>
+    </fieldset>
+    <div class="field-row if-named">
+      <div class="field">
+        <label for="label">Libellé ou nom</label>
+        <input id="label" name="label" value="{{.Label}}" maxlength="200" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="account">Compte</label>
+        <select id="account" name="account">
+          {{- range $.Data.Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.Form.AccountID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+    </div>
+    <div class="field if-movement">
+      <label for="amount">Montant (€)</label>
+      <input id="amount" name="amount" value="{{.Amount}}" inputmode="decimal" autocomplete="off" placeholder="0,00">
+    </div>
+    <div class="field-row if-repeating">
+      <div class="field">
+        <label for="every">Tous les … mois</label>
+        <input id="every" name="every" type="number" min="1" max="24" value="{{.Every}}" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label for="end">Dernière échéance <span class="optional">(facultatif)</span></label>
+        <input id="end" name="end" type="date" value="{{.End}}">
+      </div>
+    </div>
+
+    <div class="field if-rule">
+      <label for="rule">Récurrence</label>
+      <select id="rule" name="rule">
+        {{- range $.Data.Rules}}<option value="{{.ID}}"{{if eq .ID $.Data.Form.RuleID}} selected{{end}}>{{.Label}} ({{eurosSigned .Amount}}, {{.AccountName}})</option>{{end}}
+      </select>
+    </div>
+    <fieldset class="field if-vary">
+      <legend>Variation du montant</legend>
+      <div class="segmented">
+        <label><input type="radio" name="change" value="hausse"{{if ne .Change "baisse"}} checked{{end}}><span>Hausse</span></label>
+        <label><input type="radio" name="change" value="baisse"{{if eq .Change "baisse"}} checked{{end}}><span>Baisse</span></label>
+      </div>
+      <div class="inline-fields">
+        <input id="value" name="value" value="{{.Value}}" inputmode="decimal" autocomplete="off" placeholder="0,00" aria-label="Variation">
+        <select name="mode" aria-label="Unité de la variation">
+          <option value="euros"{{if ne .Mode "pourcent"}} selected{{end}}>€</option>
+          <option value="pourcent"{{if eq .Mode "pourcent"}} selected{{end}}>%</option>
+        </select>
+      </div>
+      <p class="hint">Sur la valeur absolue : une hausse augmente la dépense ou le revenu.</p>
+    </fieldset>
+
+    <div class="field-row if-loan">
+      <div class="field">
+        <label for="principal">Capital emprunté (€)</label>
+        <input id="principal" name="principal" value="{{.Principal}}" inputmode="decimal" autocomplete="off" placeholder="0,00">
+      </div>
+      <div class="field">
+        <label for="rate">Taux nominal (%)</label>
+        <input id="rate" name="rate" value="{{.Rate}}" inputmode="decimal" autocomplete="off" placeholder="3,45">
+      </div>
+    </div>
+    <div class="field-row if-loan">
+      <div class="field">
+        <label for="duration">Durée (mois)</label>
+        <input id="duration" name="duration" type="number" min="1" max="600" value="{{.Duration}}" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label for="insurance">Assurance mensuelle (€) <span class="optional">(facultatif)</span></label>
+        <input id="insurance" name="insurance" value="{{.Insurance}}" inputmode="decimal" autocomplete="off" placeholder="0,00">
+      </div>
+    </div>
+    <p class="hint if-loan">Le scénario compte les mensualités ; le capital finance directement l'achat (ajoutez un apport en opération ponctuelle).</p>
+
+    <div class="field-row if-prepay">
+      <div class="field">
+        <label for="loan">Crédit</label>
+        <select id="loan" name="loan">
+          {{- range $.Data.Loans}}<option value="{{.ID}}"{{if eq .ID $.Data.Form.LoanID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field">
+        <label for="repaid">Montant remboursé (€)</label>
+        <input id="repaid" name="repaid" value="{{.Repaid}}" inputmode="decimal" autocomplete="off" placeholder="0,00">
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Ajouter au scénario</button>
+    </div>
+  </form>
+  {{- end}}
+</section>
+
+<section class="card" aria-labelledby="gestion">
+  <h2 id="gestion">Gestion</h2>
+  <form class="inline-form" method="post" action="/scenarios/{{.ID}}">
+    <div class="field">
+      <label for="rename">Nom</label>
+      <input id="rename" name="name" value="{{.Name}}" maxlength="60" autocomplete="off" required>
+    </div>
+    <button class="btn" type="submit">Renommer</button>
+  </form>
+  {{- if .Items}}
+  <form method="post" action="/scenarios/{{.ID}}/convertir" data-confirm="Enregistrer ces modifications dans vos données réelles ? Le scénario sera supprimé.">
+    <p class="muted">Le scénario se réalise ? Ses modifications deviennent des opérations, récurrences et crédits réels.</p>
+    <button class="btn btn-primary" type="submit">Convertir en données réelles</button>
+  </form>
+  {{- end}}
+</section>
+<section class="card danger-zone" aria-labelledby="suppression">
+  <h2 id="suppression">Suppression</h2>
+  <form method="post" action="/scenarios/{{.ID}}/supprimer" data-confirm="Supprimer ce scénario ? Vos données réelles ne changent pas.">
+    <button class="btn btn-danger" type="submit">Supprimer le scénario</button>
+  </form>
+</section>
+{{- end}}
+{{end}}

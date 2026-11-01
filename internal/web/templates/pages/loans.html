@@ -1,0 +1,28 @@
+{{define "content"}}
+<div class="page-head">
+  <h1>Crédits</h1>
+  <a class="btn btn-primary" href="/credits/nouveau">Nouveau crédit</a>
+</div>
+{{- if .Data}}
+<ul class="rows" aria-label="Crédits">
+  {{- range .Data}}
+  <li class="row">
+    <div class="envelope">
+      <div class="envelope-head">
+        <a class="row-title" href="/credits/{{.ID}}">{{.Name}}</a>
+        {{- if .Status.Done}}<span class="badge badge-ok">Soldé</span>{{else}}<span class="amount">{{euros .Monthly}} par mois</span>{{end}}
+      </div>
+      {{template "progress" .Repaid}}
+      <p class="row-meta">{{.AccountName}} · {{.Repaid}} % du capital remboursé{{if not .Status.Done}} · reste dû {{euros .Status.Remaining}} · fin {{.Schedule.End.MonthLabel}}{{end}}</p>
+    </div>
+  </li>
+  {{- end}}
+</ul>
+{{- else}}
+<section class="card empty">
+  <h2>Aucun crédit suivi</h2>
+  <p class="muted">Saisissez capital, taux, durée et assurance : BuddyGet établit le tableau d'amortissement et ajoute la mensualité aux récurrences, donc au prévisionnel.</p>
+  <a class="btn btn-primary" href="/credits/nouveau">Ajouter un crédit</a>
+</section>
+{{- end}}
+{{end}}

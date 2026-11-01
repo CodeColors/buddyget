@@ -1,0 +1,50 @@
+{{define "content"}}
+{{- with .Data}}
+<section class="card form-card" aria-labelledby="titre">
+  <h1 id="titre">{{$.Title}}</h1>
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form" method="post" action="{{if .ID}}/regles/{{.ID}}{{else}}/regles{{end}}">
+    <input type="hidden" name="back" value="{{.Back}}">
+    <fieldset class="field">
+      <legend>Le libellé…</legend>
+      <div class="segmented">
+        {{- range .Kinds}}
+        <label><input type="radio" name="match" value="{{.}}"{{if eq . $.Data.Match}} checked{{end}}><span>{{if eq . "regex"}}Expression régulière{{else}}Contient{{end}}</span></label>
+        {{- end}}
+      </div>
+    </fieldset>
+    <div class="field">
+      <label for="pattern">Texte recherché</label>
+      <input id="pattern" name="pattern" value="{{.Pattern}}" maxlength="200" autocomplete="off" required autofocus aria-describedby="pattern-aide">
+      <p id="pattern-aide" class="hint">« Contient » ignore la casse et les accents. Une expression régulière (syntaxe RE2) s'applique au libellé tel quel, casse ignorée.</p>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="rule-category">Catégorie</label>
+        {{template "rule-categories" .}}
+      </div>
+      <div class="field">
+        <label for="priority">Priorité</label>
+        <input id="priority" name="priority" type="number" min="-100" max="100" step="1" value="{{.Priority}}" inputmode="numeric" aria-describedby="priorite-aide">
+        <p id="priorite-aide" class="hint">La plus haute l'emporte quand plusieurs règles s'appliquent.</p>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" name="apply" value="1"{{if .Apply}} checked{{end}}> Appliquer aussi aux opérations existantes sans catégorie</label>
+    <label class="check"><input type="checkbox" name="overwrite" value="1"{{if .Overwrite}} checked{{end}}> y compris à celles déjà catégorisées</label>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Enregistrer</button>
+      <a class="btn" href="{{.Back}}">Annuler</a>
+    </div>
+  </form>
+</section>
+{{- if .ID}}
+<section class="card danger-zone" aria-labelledby="suppression">
+  <h2 id="suppression">Suppression</h2>
+  <p class="muted">Les opérations déjà catégorisées par cette règle le restent.</p>
+  <form method="post" action="/regles/{{.ID}}/supprimer" data-confirm="Supprimer cette règle ?">
+    <button class="btn btn-danger" type="submit">Supprimer la règle</button>
+  </form>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

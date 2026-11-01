@@ -1,0 +1,250 @@
+{{define "content"}}
+{{- with .Data}}
+<section class="card form-card" aria-labelledby="titre">
+  <h1 id="titre">{{$.Title}}</h1>
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  {{- if not .Accounts}}
+  <p class="muted">Créez d'abord un compte pour y saisir des opérations.</p>
+  <a class="btn btn-primary" href="/comptes/nouveau">Créer un compte</a>
+  {{- else}}
+  {{- if not .ID}}
+  <div class="quick-entry">
+    {{- if .Templates}}
+    <p class="hint" id="modeles-saisie">En un clic, aujourd'hui :</p>
+    <ul class="chips" aria-labelledby="modeles-saisie">
+      {{- range .Templates}}
+      <li><form method="post" action="/modeles/{{.ID}}/utiliser"><button class="chip" type="submit">{{.Name}} <span class="amount">{{eurosSigned .Amount}}</span></button></form></li>
+      {{- end}}
+    </ul>
+    <details class="more">
+      <summary>Gérer les modèles</summary>
+      <ul class="rows rows-split" aria-label="Modèles de saisie">
+        {{- range .Templates}}
+        <li class="row">
+          <span class="row-title">{{.Name}}</span>
+          <form method="post" action="/modeles/{{.ID}}/supprimer" data-confirm="Supprimer le modèle « {{.Name}} » ?">
+            <button class="btn" type="submit">Supprimer<span class="sr-only"> « {{.Name}} »</span></button>
+          </form>
+        </li>
+        {{- end}}
+      </ul>
+    </details>
+    {{- end}}
+    <div class="actions">
+      <a class="btn" href="/operations/nouvelle?dupliquer=derniere">Dupliquer la dernière opération</a>
+      <button class="btn" type="button" data-dictate hidden aria-pressed="false">Dicter</button>
+    </div>
+  </div>
+  {{- end}}
+  <form class="form operation-form" method="post" action="{{if .ID}}/operations/{{.ID}}{{else}}/operations{{end}}">
+    <input type="hidden" name="back" value="{{.Back}}">
+    {{- if .TransferID}}
+    <input type="hidden" name="type" value="virement">
+    {{- else}}
+    <fieldset class="field">
+      <legend class="sr-only">Type d'opération</legend>
+      <div class="segmented">
+        <label><input type="radio" name="type" value="depense"{{if eq .Type "depense"}} checked{{end}}><span>Dépense</span></label>
+        <label><input type="radio" name="type" value="revenu"{{if eq .Type "revenu"}} checked{{end}}><span>Revenu</span></label>
+        {{- if not .ID}}
+        <label><input type="radio" name="type" value="virement"{{if eq .Type "virement"}} checked{{end}}><span>Virement</span></label>
+        {{- end}}
+      </div>
+    </fieldset>
+    {{- end}}
+
+    <div class="field-row">
+      <div class="field">
+        <label for="amount">Montant (€)</label>
+        <input id="amount" name="amount" value="{{.Amount}}" inputmode="decimal" autocomplete="off" placeholder="0,00" required{{if not .ID}} autofocus{{end}}>
+      </div>
+      <div class="field">
+        <label for="label">Libellé</label>
+        <input id="label" name="label" value="{{.Label}}" list="libelles" maxlength="200" autocomplete="off" required>
+        <datalist id="libelles">{{range .Labels}}<option value="{{.}}">{{end}}</datalist>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="date">Date</label>
+        <input id="date" name="date" type="date" value="{{.Date}}" required>
+      </div>
+      <div class="field">
+        <label for="account"><span class="if-not-transfer">Compte</span><span class="if-transfer">Depuis le compte</span></label>
+        <select id="account" name="account">
+          {{- range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.AccountID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field if-transfer">
+        <label for="to_account">Vers le compte</label>
+        <select id="to_account" name="to_account">
+          <option value="0">Choisir…</option>
+          {{- range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.ToAccountID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div class="field if-not-transfer">
+        <label for="category">Catégorie</label>
+        <select id="category" name="category">
+          <option value="0">Sans catégorie</option>
+          {{- range .Categories}}
+          <optgroup label="{{.Kind.Label}}">
+            {{- range .Categories}}<option value="{{.ID}}"{{if eq .ID $.Data.CategoryID}} selected{{end}}>{{.FullName}}</option>{{end}}
+          </optgroup>
+          {{- end}}
+        </select>
+      </div>
+    </div>
+
+    <div class="field if-not-transfer">
+      <label for="tags">Étiquettes <span class="optional">(facultatif)</span></label>
+      <input id="tags" name="tags" value="{{.Tags}}" list="etiquettes" autocomplete="off" aria-describedby="tags-aide">
+      <datalist id="etiquettes">{{range .TagNames}}<option value="{{.}}">{{end}}</datalist>
+      <p id="tags-aide" class="hint">Séparées par des virgules : vacances 2027, déductible…</p>
+    </div>
+
+    {{- if and .Members (not .TransferID)}}
+    <details class="more if-not-transfer share-panel"{{if .Shared}} open{{end}}>
+      <summary>Partage du foyer{{if .Shared}} : opération partagée{{end}}</summary>
+      <label class="check"><input type="checkbox" name="shared" value="1"{{if .Shared}} checked{{end}}> Opération partagée entre membres du foyer</label>
+      <div class="if-shared">
+        <div class="field">
+          <label for="payer">Payée par</label>
+          <select id="payer" name="payer">
+            {{- range .Members}}<option value="{{.ID}}"{{if eq .ID $.Data.PayerID}} selected{{end}}>{{.Name}}</option>{{end}}
+          </select>
+        </div>
+        <fieldset class="field">
+          <legend>Répartition</legend>
+          <div class="segmented">
+            {{- range .SplitModes}}
+            <label><input type="radio" name="split_mode" value="{{.}}"{{if eq . $.Data.SplitMode}} checked{{end}}><span>{{.Label}}</span></label>
+            {{- end}}
+          </div>
+        </fieldset>
+        <fieldset class="field split-members">
+          <legend>Entre</legend>
+          {{- range .Members}}
+          <div class="split-member">
+            <label class="check"><input type="checkbox" name="split_member" value="{{.ID}}"{{if $.Data.InSplit .ID}} checked{{end}}> {{.Name}}</label>
+            <input class="if-free" name="share_{{.ID}}" value="{{index $.Data.SplitAmounts .ID}}" inputmode="decimal" autocomplete="off" placeholder="0,00" aria-label="Part de {{.Name}} (€)">
+          </div>
+          {{- end}}
+        </fieldset>
+      </div>
+    </details>
+    {{- end}}
+
+    <details class="more"{{if or .Note .Cleared}} open{{end}}>
+      <summary>Plus d'options</summary>
+      <div class="field">
+        <label for="note">Note</label>
+        <textarea id="note" name="note" rows="2" maxlength="1000">{{.Note}}</textarea>
+      </div>
+      {{- if not .TransferID}}
+      <label class="check if-not-transfer"><input type="checkbox" name="cleared" value="1"{{if .Cleared}} checked{{end}}> Opération pointée (vue sur le relevé)</label>
+      {{- end}}
+    </details>
+
+    {{- with .Warning}}
+    <div class="alert" role="alert">
+      <p>{{.}}</p>
+      <label class="check"><input type="checkbox" name="confirm_unlock" value="1" required> Je confirme ce retrait anticipé</label>
+    </div>
+    {{- end}}
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Enregistrer</button>
+      {{- if not .ID}}
+      <button class="btn" type="submit" name="next" value="nouvelle">Enregistrer et saisir une autre</button>
+      {{- end}}
+      <a class="btn" href="{{or .Back "/operations"}}">Annuler</a>
+    </div>
+  </form>
+  {{- end}}
+</section>
+{{- if .ID}}
+<section class="card form-card" aria-labelledby="pieces">
+  <h2 id="pieces">Pièces jointes</h2>
+  {{- if .Attachments}}
+  <ul class="rows rows-split" aria-label="Pièces jointes">
+    {{- range .Attachments}}
+    <li class="row">
+      <a class="row-title" href="/pieces/{{.ID}}">{{.Name}}</a>
+      <form method="post" action="/pieces/{{.ID}}/supprimer" data-confirm="Supprimer cette pièce jointe ?">
+        <input type="hidden" name="back" value="/operations/{{$.Data.ID}}">
+        <button class="btn btn-icon" type="submit" title="Supprimer"><span aria-hidden="true">×</span><span class="sr-only">Supprimer {{.Name}}</span></button>
+      </form>
+    </li>
+    {{- end}}
+  </ul>
+  {{- end}}
+  <form class="form" method="post" action="/operations/{{.ID}}/pieces" enctype="multipart/form-data">
+    <div class="field">
+      <label for="file">Photo ou PDF d'un ticket, d'une facture</label>
+      <input id="file" name="file" type="file" accept="image/*,application/pdf" required aria-describedby="file-aide">
+      <p id="file-aide" class="hint">Les photos sont réduites (1 600 px de large) pour ne pas encombrer le NAS.</p>
+    </div>
+    <div class="actions"><button class="btn" type="submit">Joindre</button></div>
+  </form>
+</section>
+<section class="card form-card" aria-labelledby="refaire">
+  <h2 id="refaire">Refaire cette opération</h2>
+  <div class="actions">
+    <a class="btn" href="/operations/nouvelle?dupliquer={{.ID}}">Dupliquer</a>
+  </div>
+  {{- if not .TransferID}}
+  <form class="form" method="post" action="/operations/{{.ID}}/modele">
+    <div class="field">
+      <label for="template-name">Nom du modèle de saisie</label>
+      <input id="template-name" name="name" value="{{.Label}}" maxlength="40" autocomplete="off" required aria-describedby="template-aide">
+      <p id="template-aide" class="hint">Le modèle est proposé en tête de la saisie : un clic crée l'opération du jour.</p>
+    </div>
+    <div class="actions"><button class="btn" type="submit">Enregistrer comme modèle</button></div>
+  </form>
+  {{- end}}
+</section>
+{{- end}}
+{{- if and .ID (not .TransferID)}}
+<section class="card form-card" aria-labelledby="regle">
+  <h2 id="regle">Catégoriser automatiquement</h2>
+  <p class="muted">Créez une règle pour que les opérations semblables soient catégorisées à l'import.</p>
+  <form class="form" method="post" action="/regles">
+    <input type="hidden" name="back" value="{{.Back}}">
+    <input type="hidden" name="match" value="contient">
+    <div class="field-row">
+      <div class="field">
+        <label for="rule-pattern">Si le libellé contient</label>
+        <input id="rule-pattern" name="pattern" value="{{.RulePattern}}" maxlength="100" autocomplete="off" required>
+      </div>
+      <div class="field">
+        <label for="rule-category">alors la catégorie est</label>
+        {{template "rule-categories" .}}
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" name="apply" value="1" checked> Appliquer aussi aux opérations existantes sans catégorie</label>
+    <div class="actions"><button class="btn btn-primary" type="submit">Créer la règle</button></div>
+  </form>
+</section>
+{{- end}}
+{{- if .TransferID}}
+<section class="card form-card" aria-labelledby="delier">
+  <h2 id="delier">Ce n'est pas un virement ?</h2>
+  <p class="muted">Les deux opérations redeviennent simples et retrouvent leur place parmi les dépenses et les revenus.</p>
+  <form method="post" action="/operations/{{.ID}}/delier" data-confirm="Défaire ce virement ?">
+    <input type="hidden" name="back" value="{{.Back}}">
+    <button class="btn" type="submit">Défaire le virement</button>
+  </form>
+</section>
+{{- end}}
+{{- if .ID}}
+<section class="card danger-zone" aria-labelledby="suppression">
+  <h2 id="suppression">Suppression</h2>
+  {{- if .TransferID}}<p class="muted">Les deux opérations du virement sont supprimées.</p>{{end}}
+  <form method="post" action="/operations/{{.ID}}/supprimer" data-confirm="Supprimer {{if .TransferID}}ce virement{{else}}cette opération{{end}} ?">
+    <input type="hidden" name="back" value="{{.Back}}">
+    <button class="btn btn-danger" type="submit">Supprimer</button>
+  </form>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

@@ -1,0 +1,93 @@
+{{define "content"}}
+{{- with .Data}}
+<h1>Rapprochement · {{.R.Account.Name}}</h1>
+{{- if .FromImport}}{{template "steps" 3}}{{end}}
+<p class="muted">Saisissez le solde affiché par votre banque, puis pointez les opérations qui figurent sur le relevé : quand le reste à pointer tombe à zéro, vos comptes et ceux de la banque concordent.</p>
+
+{{- if .R.HasBankBalance}}
+<section class="card reconcile" aria-labelledby="resultat">
+  <h2 id="resultat">Au {{.R.BankDate.Format}}</h2>
+  <div id="ecart">{{template "pointage-figures" .R}}</div>
+  <p class="hint">Solde calculé, opérations non pointées comprises : {{euros .R.Computed}} (écart {{eurosSigned .R.Gap}}).</p>
+</section>
+
+<section aria-labelledby="a-pointer">
+  <h2 id="a-pointer">À pointer</h2>
+  {{- if .Rows}}
+  <p class="hint">Cochez chaque opération vue sur le relevé ; sur un téléphone, balayez-la vers la droite.</p>
+  <ul class="tx-list" aria-label="Opérations à pointer">
+    {{- range .Rows}}{{template "pointage-row" .}}{{end}}
+  </ul>
+  {{- if .More}}<p><a href="{{.UnclearedURL}}">{{plural .More "autre opération" "autres opérations"}} à pointer</a></p>{{end}}
+  {{- else}}
+  <p class="card empty muted">Toutes les opérations jusqu'au {{.R.BankDate.Format}} sont pointées.</p>
+  {{- end}}
+</section>
+{{- end}}
+
+<section class="card form-card" aria-labelledby="saisie-solde">
+  <h2 id="saisie-solde">Solde affiché par la banque</h2>
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form" method="post" action="/comptes/{{.R.Account.ID}}/rapprochement">
+    {{- if .FromImport}}<input type="hidden" name="import" value="1">{{end}}
+    <div class="field-row">
+      <div class="field">
+        <label for="balance">Solde (€)</label>
+        <input id="balance" name="balance" value="{{.Balance}}" autocomplete="off" required{{if not .R.HasBankBalance}} autofocus{{end}} aria-describedby="solde-aide">
+      </div>
+      <div class="field">
+        <label for="date">au</label>
+        <input id="date" name="date" type="date" value="{{.Date}}" required>
+      </div>
+    </div>
+    <p id="solde-aide" class="hint">Un signe moins indique un découvert.</p>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">{{if .R.HasBankBalance}}Mettre à jour{{else}}Comparer{{end}}</button>
+      <a class="btn" href="/operations?compte={{.R.Account.ID}}">Opérations du compte</a>
+    </div>
+  </form>
+</section>
+{{- end}}
+{{end}}
+
+{{/* Soldes du pointage (ledger.Reconciliation). */}}
+{{define "pointage-figures"}}
+<dl class="figures">
+  <div><dt>Solde de la banque</dt><dd class="amount">{{euros .BankBalance}}</dd></div>
+  <div><dt>Solde pointé</dt><dd class="amount">{{euros .Cleared}}</dd></div>
+  <div><dt>Reste à pointer</dt><dd class="amount{{if .ClearedGap}} negative{{else}} positive{{end}}">{{eurosSigned .ClearedGap}}</dd></div>
+</dl>
+{{- if .ClearedGap}}
+<p class="sr-only" role="status">Reste à pointer : {{eurosSigned .ClearedGap}}</p>
+{{- else}}
+<p class="flash" role="status">Tout concorde : le solde pointé égale celui de la banque.</p>
+{{- end}}
+{{- end}}
+
+{{/* Ligne à pointer (pointageRow) : un formulaire, envoyé par HTMX ou par
+   un balayage. */}}
+{{define "pointage-row"}}
+<li class="tx pointage{{if .T.Cleared}} is-cleared{{end}}" data-swipe>
+  <form class="tx-check" method="post" action="/operations/{{.T.ID}}/pointer" hx-post="/operations/{{.T.ID}}/pointer" hx-target="closest li" hx-swap="outerHTML">
+    <input type="hidden" name="cleared" value="{{if .T.Cleared}}0{{else}}1{{end}}">
+    <input type="hidden" name="back" value="{{.Back}}">
+    <button class="check-btn" type="submit" aria-pressed="{{.T.Cleared}}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4.5 4.5L19 7"/></svg>
+      <span class="sr-only">{{if .T.Cleared}}Dépointer{{else}}Pointer{{end}} « {{.T.Label}} » du {{.T.Date.Format}}</span>
+    </button>
+  </form>
+  <span class="tx-main">
+    <span class="tx-label">{{.T.Label}}</span>
+    <span class="tx-cat">{{.T.Date.Format}}</span>
+  </span>
+  <span class="tx-amount"><span class="amount{{if gt .T.Amount 0}} positive{{end}}">{{eurosSigned .T.Amount}}</span></span>
+</li>
+{{- end}}
+
+{{/* Réponse HTMX au pointage : la ligne, et les soldes hors de la ligne. */}}
+{{define "pointage-update"}}
+{{- with .Data}}
+{{- template "pointage-row" .}}
+<div id="ecart" hx-swap-oob="true">{{template "pointage-figures" .R}}</div>
+{{- end}}
+{{- end}}

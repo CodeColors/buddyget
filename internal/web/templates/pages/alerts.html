@@ -1,0 +1,42 @@
+{{define "content"}}
+{{- with .Data}}
+<div class="page-head">
+  <h1>Alertes</h1>
+  <a class="btn" href="/alertes/reglages">Réglages</a>
+</div>
+{{- if .Open}}
+<ul class="pairs" aria-label="Alertes à lire">
+  {{- range .Open}}
+  <li class="card alert-card">
+    <p class="alert-title">{{.Title}}</p>
+    {{- with .Detail}}<p class="row-meta">{{.}}</p>{{end}}
+    <p class="row-meta">{{.Kind.Label}} · le {{.CreatedOn.Format}}</p>
+    <div class="actions">
+      {{- with .Link}}<a class="btn" href="{{.}}">Voir</a>{{end}}
+      <form method="post" action="/alertes/acquitter">
+        <input type="hidden" name="id" value="{{.ID}}">
+        <button class="btn" type="submit">Acquitter<span class="sr-only"> : {{.Title}}</span></button>
+      </form>
+    </div>
+  </li>
+  {{- end}}
+</ul>
+<form method="post" action="/alertes/acquitter">
+  <input type="hidden" name="id" value="0">
+  <button class="btn" type="submit">Tout acquitter</button>
+</form>
+{{- else}}
+<p class="card empty muted">Aucune alerte à lire. Les alertes sont examinées après chaque saisie ou import, et chaque nuit.</p>
+{{- end}}
+{{- if .Acknowledged}}
+<section aria-labelledby="lues">
+  <h2 id="lues">Déjà lues</h2>
+  <ul class="rows" aria-label="Alertes acquittées">
+    {{- range .Acknowledged}}
+    <li class="row"><span class="row-link"><span class="row-title">{{.Title}}</span><span class="row-meta">{{with .Detail}}{{.}} · {{end}}le {{.CreatedOn.Format}}</span></span></li>
+    {{- end}}
+  </ul>
+</section>
+{{- end}}
+{{- end}}
+{{end}}
