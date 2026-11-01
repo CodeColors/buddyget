@@ -4,6 +4,7 @@ go 1.27.0
 
 require (
 	github.com/extrame/xls v0.0.2-0.20200426124601-4a6cf263071b
+	github.com/go-pdf/fpdf v0.9.0
 	github.com/xuri/excelize/v2 v2.11.0
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/crypto v0.58.0

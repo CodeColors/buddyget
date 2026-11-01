@@ -83,7 +83,7 @@ func (s *Service) Open(ctx context.Context, id int64) (Attachment, *os.File, err
 
 const attachmentSelect = `SELECT id, transaction_id, name, kind, size, file FROM attachments`
 
-func scan(row interface{ Scan(...any) error }) (Attachment, error) {
+func scan(row db.Scanner) (Attachment, error) {
 	var a Attachment
 	err := row.Scan(&a.ID, &a.TransactionID, &a.Name, &a.Kind, &a.Size, &a.File)
 	return a, err
@@ -113,6 +113,24 @@ func (s *Service) List(ctx context.Context, transactionID int64) ([]Attachment, 
 		out = append(out, a)
 	}
 	return out, rows.Err()
+}
+
+// ByTransaction renvoie toutes les pièces jointes, par opération.
+func (s *Service) ByTransaction(ctx context.Context) (map[int64][]Attachment, error) {
+	list, err := db.Collect(ctx, s.db.R, scan, attachmentSelect+` ORDER BY transaction_id, id`)
+	out := make(map[int64][]Attachment)
+	for _, a := range list {
+		out[a.TransactionID] = append(out[a.TransactionID], a)
+	}
+	return out, err
+}
+
+// Ext renvoie l'extension du fichier conservé.
+func (a Attachment) Ext() string {
+	if a.Kind == PDF {
+		return ".pdf"
+	}
+	return ".jpg"
 }
 
 // Add joint un fichier (photo ou PDF) à une opération.

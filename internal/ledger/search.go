@@ -87,6 +87,27 @@ func (s *Service) Search(ctx context.Context, f Filter, offset int) (Page, error
 	return p, rows.Err()
 }
 
+// Each parcourt toutes les opérations du filtre, dans l'ordre de son tri,
+// sans les charger en mémoire : la lecture suit l'écriture de l'export.
+func (s *Service) Each(ctx context.Context, f Filter, fn func(Transaction) error) error {
+	where, args := f.where()
+	rows, err := s.db.R.QueryContext(ctx, transactionSelect+where+` ORDER BY `+f.Sort.orderBy(), args...)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		t, err := scanTransaction(rows)
+		if err != nil {
+			return err
+		}
+		if err := fn(t); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
 func (o Sort) orderBy() string {
 	switch o {
 	case SortDateAsc:
