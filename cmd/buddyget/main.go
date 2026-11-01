@@ -27,6 +27,7 @@ import (
 	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
 	"github.com/codecolors/buddyget/internal/forecast"
+	"github.com/codecolors/buddyget/internal/goals"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/loans"
@@ -107,6 +108,9 @@ func run() error {
 		Alerts:      alertCenter,
 		Reports:     reports.NewService(database, accounts),
 		Attachments: files,
+		Loans:       credits,
+		Goals:       goals.NewService(database, accounts, recurrences),
+		Scenarios:   whatIfs,
 	})
 	if err != nil {
 		return err

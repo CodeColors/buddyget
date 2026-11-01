@@ -318,7 +318,7 @@ a { color: var(--link); }
 .row + .row { border-top: 1px solid var(--border); }
 .row-child { padding-left: 2.5rem; }
 
-.row-link {
+.row-link, .row-body {
   display: grid;
   flex: 1;
   align-content: center;
@@ -447,7 +447,7 @@ details > summary {
   font-weight: 600;
   cursor: pointer;
 }
-details.more[open] { display: grid; gap: .5rem; }
+details.more[open] { display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; }
 
 .panel {
   padding: 0 1rem;
@@ -647,6 +647,8 @@ details.more[open] { display: grid; gap: .5rem; }
 .raw th, .raw td { padding: .375rem .625rem; text-align: left; border-bottom: 1px solid var(--border); }
 .raw thead th, .raw tbody th { color: var(--muted); font-weight: 600; }
 .raw .is-header td { font-weight: 700; background: var(--hover); }
+.raw td.amount { text-align: right; }
+.raw .is-past td, .raw .is-past th { color: var(--muted); }
 
 .mapping-form:has(input[name="amount_mode"][value="debit-credit"]:checked) .if-single-amount,
 .mapping-form:has(input[name="amount_mode"][value="montant"]:checked) .if-debit-credit {
@@ -712,7 +714,21 @@ details.more[open] { display: grid; gap: .5rem; }
 .inline-fields input { max-width: 6rem; }
 
 .recurrence-form:not(:has(#period option[value="autre"]:checked)) .if-custom-period,
-.recurrence-form:not(:has(input[name="type"][value="virement"]:checked)) .if-transfer {
+.recurrence-form:not(:has(input[name="type"][value="virement"]:checked)) .if-transfer,
+.recurrence-form:not(:has(input[name="type"][value="depense"]:checked)) .if-expense,
+.recurrence-form:not(:has(input[name="smooth"]:checked)) .if-smooth {
+  display: none;
+}
+
+/* Scénarios : seuls les champs de la modification choisie sont affichés. */
+
+.scenario-form:not(:has(#kind :is(option[value="ponctuel"], option[value="recurrent"]):checked)) .if-movement,
+.scenario-form:not(:has(#kind :is(option[value="ponctuel"], option[value="recurrent"], option[value="credit"]):checked)) .if-named,
+.scenario-form:not(:has(#kind option[value="recurrent"]:checked)) .if-repeating,
+.scenario-form:not(:has(#kind :is(option[value="suspension"], option[value="variation"]):checked)) .if-rule,
+.scenario-form:not(:has(#kind option[value="variation"]:checked)) .if-vary,
+.scenario-form:not(:has(#kind option[value="credit"]:checked)) .if-loan,
+.scenario-form:not(:has(#kind option[value="anticipe"]:checked)) .if-prepay {
   display: none;
 }
 
@@ -842,6 +858,7 @@ details.more[open] { display: grid; gap: .5rem; }
 .chart-svg { display: block; width: 100%; height: 14rem; overflow: visible; }
 .chart-area { fill: color-mix(in srgb, var(--primary) 12%, transparent); }
 .chart-line { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linejoin: round; }
+.chart-reference { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 4; }
 .chart-grid { stroke: var(--border); stroke-width: 1; }
 .chart-threshold { stroke: var(--danger); stroke-width: 1.5; stroke-dasharray: 6 4; }
 .chart-below { fill: var(--danger-bg); }

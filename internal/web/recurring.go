@@ -153,6 +153,8 @@ type recurrenceForm struct {
 	Shift        calendar.Shift
 	Estimated    bool
 	Subscription bool
+	Smooth       bool
+	SmoothID     int64 // compte d'épargne de lissage
 	Start        string
 	End          string
 	Error        string
@@ -171,6 +173,17 @@ func (f recurrenceForm) title() string {
 	return "Modifier la récurrence"
 }
 
+// SavingsAccounts renvoie les comptes d'épargne proposés pour le lissage.
+func (f recurrenceForm) SavingsAccounts() []ledger.AccountBalance {
+	var out []ledger.AccountBalance
+	for _, a := range f.Accounts {
+		if a.Kind == ledger.AccountSavings {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 // PeriodValue renvoie la valeur d'option d'une périodicité (gabarit).
 func (f recurrenceForm) PeriodValue(p calendar.Period) string { return periodValue(p) }
 
@@ -179,7 +192,7 @@ func formFromRule(id int64, in recurring.RuleInput) recurrenceForm {
 	f := recurrenceForm{
 		ID: id, Origin: in.Origin, Series: in.Signature, Type: typeExpense, Amount: money.FormatInput(in.Amount), Label: in.Label,
 		AccountID: in.AccountID, ToAccountID: in.ToAccountID, CategoryID: in.CategoryID, Subscription: in.Subscription, LastDay: in.LastDay, Shift: in.Shift, Estimated: in.Estimated,
-		Start: string(in.Start), End: string(in.End), CustomCount: in.Period.Count, CustomUnit: in.Period.Unit,
+		Smooth: in.Smooth, SmoothID: in.SmoothAccountID, Start: string(in.Start), End: string(in.End), CustomCount: in.Period.Count, CustomUnit: in.Period.Unit,
 		Period: customPeriod,
 	}
 	switch {
@@ -249,10 +262,7 @@ func (s *Server) editRecurrencePage(w http.ResponseWriter, r *http.Request) {
 		s.inputError(w, r, err)
 		return
 	}
-	f := formFromRule(id, recurring.RuleInput{
-		Label: rule.Label, AccountID: rule.AccountID, ToAccountID: rule.ToAccountID, Amount: rule.Amount, Estimated: rule.Estimated, Period: rule.Period,
-		LastDay: rule.LastDay, Shift: rule.Shift, Start: rule.Start, Subscription: rule.Subscription, End: rule.End, CategoryID: rule.CategoryID, Origin: rule.Origin,
-	})
+	f := formFromRule(id, rule.Input())
 	f.Active = rule.Active
 	s.renderRecurrenceForm(w, r, http.StatusOK, f)
 }
@@ -282,7 +292,7 @@ func (s *Server) saveRecurrence(w http.ResponseWriter, r *http.Request, id int64
 		CustomCount: count, CustomUnit: calendar.Unit(r.PostFormValue("custom_unit")),
 		LastDay: r.PostFormValue("last_day") != "", Shift: calendar.Shift(r.PostFormValue("business_day")),
 		Subscription: r.PostFormValue("subscription") != "", Estimated: r.PostFormValue("estimated") != "",
-		Start: r.PostFormValue("start"), End: r.PostFormValue("end"), Origin: recurring.Manual,
+		Smooth: r.PostFormValue("smooth") != "", SmoothID: formID(r, "smooth_account"), Start: r.PostFormValue("start"), End: r.PostFormValue("end"), Origin: recurring.Manual,
 	}
 	if f.Type == typeTransfer {
 		f.ToAccountID = formID(r, "to_account")
@@ -328,6 +338,7 @@ func (s *Server) storeRecurrence(r *http.Request, f recurrenceForm) error {
 	in := recurring.RuleInput{
 		Label: f.Label, AccountID: f.AccountID, ToAccountID: f.ToAccountID, Amount: amount, Estimated: f.Estimated, Period: period,
 		LastDay: f.LastDay, Shift: f.Shift, Start: start, End: end, Subscription: f.Subscription, CategoryID: f.CategoryID, Origin: f.Origin, Signature: f.Series,
+		Smooth: f.Smooth && f.Type == typeExpense, SmoothAccountID: f.SmoothID,
 	}
 	if f.ID == 0 {
 		_, err = s.recurring.CreateRule(r.Context(), in)

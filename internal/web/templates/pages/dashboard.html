@@ -32,6 +32,9 @@
     <div><dt>Charges et dépenses prévues à venir</dt><dd class="amount">{{eurosSigned .Upcoming}}</dd></div>
     <div><dt>Versements vers l'épargne et vos autres comptes</dt><dd class="amount">{{eurosSigned .Savings}}</dd></div>
     <div><dt>Dépenses déjà faites</dt><dd class="amount">{{eurosSigned .Spent}}</dd></div>
+    {{- if .Provisions}}
+    <div><dt>Dépenses lissées : provisions du mois, nettes de leur utilisation</dt><dd class="amount">{{eurosSigned .Provisions}}</dd></div>
+    {{- end}}
   </dl>
   <p class="hint">Ce qui reste ce mois-ci pour les dépenses courantes, d'après vos comptes courants, récurrences et opérations prévues.</p>
 </section>

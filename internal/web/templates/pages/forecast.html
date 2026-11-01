@@ -2,7 +2,10 @@
 {{- with .Data}}
 <div class="page-head">
   <h1>Prévisionnel</h1>
-  <a class="btn" href="/recurrences">Récurrences</a>
+  <div class="actions">
+    <a class="btn" href="/scenarios">Scénarios</a>
+    <a class="btn" href="/recurrences">Récurrences</a>
+  </div>
 </div>
 
 <form class="card form forecast-query" method="get" action="/previsionnel">
@@ -19,6 +22,15 @@
       <label for="date">Date cible</label>
       <input id="date" name="date" type="date" value="{{.Target}}" min="{{.Today.AddDays 1}}" max="{{.MaxTarget}}" required>
     </div>
+    {{- if .Scenarios}}
+    <div class="field">
+      <label for="scenario">Scénario</label>
+      <select id="scenario" name="scenario">
+        <option value="0">Aucun (données réelles)</option>
+        {{- range .Scenarios}}<option value="{{.ID}}"{{if eq .ID $.Data.ScenarioID}} selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </div>
+    {{- end}}
   </div>
   <nav class="chips" aria-label="Horizons fréquents">
     {{- range .Shortcuts}}<a href="{{.URL}}"{{if .Current}} aria-current="true"{{end}}>{{.Label}}</a>{{end}}
@@ -34,12 +46,17 @@
 
 {{- with .Report}}
 <section class="card forecast-summary" aria-labelledby="solde-prevu">
-  <h2 id="solde-prevu">Solde prévu le {{.Target.Format}}</h2>
+  <h2 id="solde-prevu">Solde prévu le {{.Target.Format}}{{with .Scenario}} avec le scénario « {{.}} »{{end}}</h2>
   <p class="forecast-closing amount{{if lt .Closing .Threshold}} negative{{end}}">{{euros .Closing}}</p>
   <p class="muted">{{range $i, $a := .Accounts}}{{if $i}}, {{end}}{{$a.Name}}{{end}}</p>
   <dl class="figures">
     <div><dt>Solde {{if .Settings.ClearedOnly}}pointé{{else}}actuel{{end}}</dt><dd>{{euros .Opening}}</dd></div>
     <div><dt>Point bas, le {{.Low.Date.Format}}</dt><dd class="amount{{if lt .Low.Balance .Threshold}} negative{{end}}">{{euros .Low.Balance}}</dd></div>
+    {{- with $.Data.Reference}}
+    <div><dt>Sans le scénario</dt><dd>{{euros .Closing}}</dd></div>
+    <div><dt>Point bas sans le scénario</dt><dd>{{euros .Low.Balance}}</dd></div>
+    <div><dt>Écart cumulé du scénario</dt><dd class="amount{{if lt $.Data.Report.Closing .Closing}} negative{{end}}">{{eurosSigned (sub $.Data.Report.Closing .Closing)}}</dd></div>
+    {{- end}}
   </dl>
   {{- if .Below}}
   <div class="alert" role="status">
@@ -55,7 +72,7 @@
 
 {{- with $.Data.Chart}}
 <figure class="card chart">
-  <figcaption id="courbe-titre">Solde jour par jour jusqu'au {{$.Data.Report.Target.Format}}</figcaption>
+  <figcaption id="courbe-titre">Solde jour par jour jusqu'au {{$.Data.Report.Target.Format}}{{if $.Data.Reference}} : trait plein avec le scénario, pointillés sans{{end}}</figcaption>
   {{template "chart" .}}
 </figure>
 {{- end}}
@@ -68,6 +85,9 @@
     <div><dt>Dépenses récurrentes</dt><dd class="amount">{{eurosSigned .Totals.Recurring}}</dd></div>
     {{- if .Totals.Other}}
     <div><dt>Dépenses planifiées{{if .Settings.ClearedOnly}} et non pointées{{end}}</dt><dd class="amount">{{eurosSigned .Totals.Other}}</dd></div>
+    {{- end}}
+    {{- if .Totals.Provision}}
+    <div><dt>Provisions des dépenses lissées, nettes de leur utilisation</dt><dd class="amount">{{eurosSigned .Totals.Provision}}</dd></div>
     {{- end}}
     <div><dt>Dépenses variables estimées</dt><dd class="amount">{{eurosSigned .Totals.Variable}}</dd></div>
     <div class="breakdown-total"><dt>Solde prévu le {{.Target.Format}}</dt><dd>{{euros .Closing}}</dd></div>
@@ -102,7 +122,7 @@
     {{- range .Lines}}
     <li class="fc-line{{if .Excluded}} is-excluded{{end}}">
       <span class="fc-date">{{.Date.Format}}</span>
-      <span class="fc-label">{{.Label}}</span>
+      <span class="fc-label">{{.Label}}{{if .Scenario}} <span class="badge">Scénario</span>{{end}}</span>
       <span class="fc-meta">{{.Kind.Label}}{{if $.Data.Multiple}} · {{.AccountName}}{{end}}{{if and .Nominal (ne .Nominal .Date)}} · prévue le {{.Nominal.Format}}{{end}}{{if .Excluded}} · écartée{{end}}</span>
       <span class="amount{{if gt .Amount 0}} positive{{end}}">{{if .Estimated}}≈ {{end}}{{eurosSigned .Amount}}</span>
       <span class="fc-balance{{if lt .Balance $.Data.Report.Threshold}} negative{{end}}"><span class="sr-only">Solde après l'opération : </span>{{euros .Balance}}</span>

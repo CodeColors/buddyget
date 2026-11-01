@@ -94,6 +94,18 @@
         </select>
       </div>
     </div>
+    <fieldset class="field if-expense">
+      <legend>Lissage</legend>
+      <label class="check"><input type="checkbox" name="smooth" value="1"{{if .Smooth}} checked{{end}} aria-describedby="lissage-aide"> Provisionner chaque mois une part de l'échéance</label>
+      <p id="lissage-aide" class="hint">Pour une dépense annuelle, semestrielle ou trimestrielle (assurance, impôts…) : le prévisionnel et le reste à vivre comptent la provision mensuelle, utilisée le jour du paiement.</p>
+      <div class="field if-smooth">
+        <label for="smooth_account">Provision mise de côté sur</label>
+        <select id="smooth_account" name="smooth_account">
+          <option value="0">Aucun compte (simple mise de côté)</option>
+          {{- range .SavingsAccounts}}<option value="{{.ID}}"{{if eq .ID $.Data.SmoothID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+    </fieldset>
     <div class="actions">
       <button class="btn btn-primary" type="submit">Enregistrer</button>
       <a class="btn" href="/recurrences">Annuler</a>

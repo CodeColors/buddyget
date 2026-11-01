@@ -1,6 +1,9 @@
 {{define "content"}}
 {{- with .Data}}
-<h1>Épargne</h1>
+<div class="page-head">
+  <h1>Épargne</h1>
+  <a class="btn" href="/projets">Projets</a>
+</div>
 {{- if .Accounts}}
 <section class="card forecast-summary" aria-labelledby="total-epargne">
   <h2 id="total-epargne">Total épargné</h2>

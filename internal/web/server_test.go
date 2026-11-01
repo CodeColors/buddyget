@@ -19,6 +19,7 @@ import (
 	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
 	"github.com/codecolors/buddyget/internal/forecast"
+	"github.com/codecolors/buddyget/internal/goals"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/loans"
@@ -61,6 +62,7 @@ func newTestEnv(t *testing.T) *testEnv {
 		Importer: importer.NewService(d, dataDir, 1<<20, rules), Recurring: recurrences,
 		Savings: savingsAccounts, Budgets: budgets, Forecast: forecasts,
 		Alerts: alertCenter, Reports: reports.NewService(d, accounts),
+		Loans: credits, Goals: goals.NewService(d, accounts, recurrences), Scenarios: whatIfs,
 		Attachments: attachments.NewService(d, dataDir, 1<<20, 10<<20),
 	})
 	if err != nil {

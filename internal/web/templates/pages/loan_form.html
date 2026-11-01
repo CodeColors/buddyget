@@ -1,0 +1,57 @@
+{{define "content"}}
+{{- with .Data}}
+<section class="card form-card" aria-labelledby="titre">
+  <h1 id="titre">{{$.Title}}</h1>
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  {{- if not .Accounts}}
+  <p class="muted">Créez d'abord le compte où la mensualité est prélevée.</p>
+  <a class="btn btn-primary" href="/comptes/nouveau">Créer un compte</a>
+  {{- else}}
+  <form class="form" method="post" action="{{if .ID}}/credits/{{.ID}}{{else}}/credits{{end}}">
+    <div class="field">
+      <label for="name">Nom</label>
+      <input id="name" name="name" value="{{.Name}}" maxlength="60" autocomplete="off" placeholder="Immobilier, voiture…" required>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="principal">Capital emprunté (€)</label>
+        <input id="principal" name="principal" value="{{.Principal}}" inputmode="decimal" autocomplete="off" placeholder="0,00" required>
+      </div>
+      <div class="field">
+        <label for="rate">Taux nominal annuel (%)</label>
+        <input id="rate" name="rate" value="{{.Rate}}" inputmode="decimal" autocomplete="off" placeholder="3,45" aria-describedby="rate-aide">
+        <p id="rate-aide" class="hint">Hors assurance ; 0 pour un prêt à taux zéro.</p>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="months">Durée (mois)</label>
+        <input id="months" name="months" type="number" min="1" max="600" value="{{.Months}}" inputmode="numeric" required aria-describedby="months-aide">
+        <p id="months-aide" class="hint">240 mois = 20 ans.</p>
+      </div>
+      <div class="field">
+        <label for="insurance">Assurance mensuelle (€) <span class="optional">(facultatif)</span></label>
+        <input id="insurance" name="insurance" value="{{.Insurance}}" inputmode="decimal" autocomplete="off" placeholder="0,00">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="first">Première échéance</label>
+        <input id="first" name="first" type="date" value="{{.First}}" required>
+      </div>
+      <div class="field">
+        <label for="account">Compte prélevé</label>
+        <select id="account" name="account">
+          {{- range .Accounts}}<option value="{{.ID}}"{{if eq .ID $.Data.AccountID}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Enregistrer</button>
+      <a class="btn" href="{{if .ID}}/credits/{{.ID}}{{else}}/credits{{end}}">Annuler</a>
+    </div>
+  </form>
+  {{- end}}
+</section>
+{{- end}}
+{{end}}

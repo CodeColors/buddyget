@@ -1,0 +1,69 @@
+{{define "content"}}
+{{- with .Data}}
+<div class="page-head">
+  <h1>Projets</h1>
+  <a class="btn btn-primary" href="/projets/nouveau">Nouveau projet</a>
+</div>
+{{- if .Goals}}
+<ul class="pairs" aria-label="Projets">
+  {{- range .Goals}}
+  <li class="card goal-card">
+    <div class="envelope-head">
+      <a class="row-title" href="/projets/{{.ID}}">{{.Name}}</a>
+      {{- if not .Remaining}}<span class="badge badge-ok">Atteint</span>{{else if .Late}}<span class="badge badge-risk">En retard</span>{{else}}<span class="badge badge-ok">En bonne voie</span>{{end}}
+    </div>
+    {{template "progress" .Percent}}
+    <p class="row-meta"><strong>{{euros .Saved}}</strong> sur {{euros .Target}} ({{.Percent}} %) · pour le {{.TargetDate.Format}} · {{.AccountName}}</p>
+    {{- if .Remaining}}
+    <dl class="figures">
+      <div><dt>Reste à mettre de côté</dt><dd>{{euros .Remaining}}</dd></div>
+      <div><dt>Versement suggéré</dt><dd>{{euros .Suggested}} par mois</dd></div>
+      <div><dt>Au rythme actuel</dt><dd>{{if .Projected}}atteint en {{.Projected.MonthLabel}}{{if .Monthly}} ({{euros .Monthly}} par mois){{end}}{{else}}aucun versement programmé{{end}}</dd></div>
+      {{- if .Tag}}
+      <div><dt>Dépenses du projet</dt><dd><a href="/operations?etiquette={{.Tag}}">{{euros .Spent}}</a></dd></div>
+      {{- end}}
+    </dl>
+    {{- else if .Tag}}
+    <p class="row-meta">Dépenses du projet : <a href="/operations?etiquette={{.Tag}}">{{euros .Spent}}</a></p>
+    {{- end}}
+    <form class="inline-form" method="post" action="/projets/{{.ID}}/cagnotte">
+      <label class="sr-only" for="cagnotte-{{.ID}}">Montant pour la cagnotte « {{.Name}} »</label>
+      <input id="cagnotte-{{.ID}}" name="amount" inputmode="decimal" autocomplete="off" placeholder="0,00" required>
+      <button class="btn" type="submit" name="sens" value="ajouter">Affecter</button>
+      <button class="btn" type="submit" name="sens" value="retirer">Retirer</button>
+    </form>
+    {{- if and .Remaining (not .RuleID) $.Data.Sources}}
+    <form class="inline-form" method="post" action="/projets/{{.ID}}/versement">
+      <label for="depuis-{{.ID}}">Programmer {{euros .Suggested}} par mois depuis</label>
+      <select id="depuis-{{.ID}}" name="from">
+        {{- range $.Data.Sources}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+      </select>
+      <button class="btn" type="submit">Créer le versement</button>
+    </form>
+    {{- end}}
+  </li>
+  {{- end}}
+</ul>
+<section aria-labelledby="cagnottes">
+  <h2 id="cagnottes">Comptes des projets</h2>
+  <ul class="rows">
+    {{- range .Accounts}}
+    <li class="row">
+      <div class="row-body">
+        <span class="row-title">{{.Name}}</span>
+        <span class="row-meta">{{euros .Balance}} dont {{euros .Unallocated}} non affectés à un projet</span>
+      </div>
+    </li>
+    {{- end}}
+  </ul>
+  <p class="hint">Une cagnotte est la part d'un compte d'épargne réservée à un projet : l'argent reste sur le compte, sans compte bancaire supplémentaire.</p>
+</section>
+{{- else}}
+<section class="card empty">
+  <h2>Aucun projet</h2>
+  <p class="muted">Vacances, travaux, voiture : fixez un montant et une date, rattachez le projet à un compte d'épargne et suivez sa cagnotte, le versement mensuel suggéré et la date d'atteinte.</p>
+  <a class="btn btn-primary" href="/projets/nouveau">Créer un projet</a>
+</section>
+{{- end}}
+{{- end}}
+{{end}}

@@ -70,7 +70,7 @@
 <nav class="tabbar" aria-label="Navigation principale">
   {{- /* Rubriques visibles dès 1024 px ; sur un écran plus étroit, « Plus » y mène. */}}
   {{- $secondary := or (navActive .Path "/budgets") (navActive .Path "/epargne") (navActive .Path "/rapports")}}
-  {{- $more := or (navActive .Path "/plus") (navActive .Path "/recurrences") (navActive .Path "/abonnements") (navActive .Path "/comptes") (navActive .Path "/categories") (navActive .Path "/regles") (navActive .Path "/etiquettes") (navActive .Path "/alertes")}}
+  {{- $more := or (navActive .Path "/plus") (navActive .Path "/recurrences") (navActive .Path "/abonnements") (navActive .Path "/comptes") (navActive .Path "/categories") (navActive .Path "/regles") (navActive .Path "/etiquettes") (navActive .Path "/alertes") (navActive .Path "/credits") (navActive .Path "/projets") (navActive .Path "/scenarios")}}
   <a href="/"{{if navActive .Path "/"}} aria-current="page"{{end}}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/></svg>
     <span>Accueil</span>
@@ -162,6 +162,9 @@
     {{- if .HasThreshold}}
     <line class="chart-threshold" x1="0" x2="1000" y1="{{printf "%.1f" .Threshold}}" y2="{{printf "%.1f" .Threshold}}" vector-effect="non-scaling-stroke"/>
     {{- end}}
+    {{- with .Reference}}
+    <path class="chart-reference" d="{{.}}" vector-effect="non-scaling-stroke"/>
+    {{- end}}
     <path class="chart-line" d="{{.Line}}" vector-effect="non-scaling-stroke"/>
   </svg>
   {{- range .YTicks}}
@@ -188,6 +191,9 @@
   <p class="row-meta">{{euros .Spent}} sur {{euros .Available}}{{if .Carry}} (report {{eurosSigned .Carry}}){{end}} · {{if lt .Remaining 0}}dépassement de {{euros (neg .Remaining)}}{{else}}reste {{euros .Remaining}}{{end}}</p>
 </div>
 {{- end}}
+
+{{/* Jauge de progression, de 0 à 100 ; la valeur figure aussi en texte. */}}
+{{define "progress"}}<svg class="gauge gauge-ok" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect class="gauge-track" width="100" height="4"/><rect class="gauge-fill" width="{{.}}" height="4"/></svg>{{end}}
 
 {{/* Diagramme en barres (barChart) ; la figure porte le titre <ID>-titre. */}}
 {{define "bar-chart"}}

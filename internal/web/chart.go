@@ -27,6 +27,7 @@ type balanceChart struct {
 	Desc        string  // description textuelle de la courbe
 	Top, Height float64 // cadre du tracé, en %
 	Line, Area  string  // tracés (attribut d), repère 1000 × 1000
+	Reference   string  // courbe de référence en pointillés (scénario), facultative
 	// Seuil, périodes sous le seuil et point bas : prévisionnel seulement.
 	HasThreshold bool
 	Threshold    float64
@@ -78,17 +79,7 @@ func lineChart(id string, points []forecast.Point, step bool, include ...int64) 
 		sc.hi = sc.lo + unit
 	}
 
-	c := balanceChart{ID: id, Top: plotTop, Height: plotHeight}
-	var b strings.Builder
-	b.WriteString("M0 " + coord(sc.y(points[0].Balance)))
-	for _, p := range points[1:] {
-		if step {
-			b.WriteString("H" + coord(sc.x(p.Date)) + "V" + coord(sc.y(p.Balance)))
-		} else {
-			b.WriteString("L" + coord(sc.x(p.Date)) + " " + coord(sc.y(p.Balance)))
-		}
-	}
-	c.Line = b.String()
+	c := balanceChart{ID: id, Top: plotTop, Height: plotHeight, Line: sc.path(points, step)}
 	c.Area = c.Line + "V1000H0Z"
 	for v := sc.hi; v >= sc.lo; v -= unit {
 		c.YTicks = append(c.YTicks, chartTick{Pos: sc.y(v), Pct: pct(sc.y(v)), Label: money.FormatEuros(v)})
@@ -97,10 +88,37 @@ func lineChart(id string, points []forecast.Point, step bool, include ...int64) 
 	return c, sc
 }
 
+// path trace une série de soldes datés dans le repère : en escalier ou en
+// ligne brisée.
+func (s chartScale) path(points []forecast.Point, step bool) string {
+	var b strings.Builder
+	b.WriteString("M" + coord(s.x(points[0].Date)) + " " + coord(s.y(points[0].Balance)))
+	for _, p := range points[1:] {
+		if step {
+			b.WriteString("H" + coord(s.x(p.Date)) + "V" + coord(s.y(p.Balance)))
+		} else {
+			b.WriteString("L" + coord(s.x(p.Date)) + " " + coord(s.y(p.Balance)))
+		}
+	}
+	return b.String()
+}
+
 // newBalanceChart trace le solde prévisionnel jour par jour, avec le seuil,
-// les périodes sous le seuil et le point bas.
-func newBalanceChart(r forecast.Result) balanceChart {
-	c, sc := lineChart("courbe", r.Days, true, r.Threshold)
+// les périodes sous le seuil et le point bas ; ref, facultatif, est le
+// prévisionnel de référence d'un scénario, tracé en pointillés.
+func newBalanceChart(r forecast.Result, ref *forecast.Result) balanceChart {
+	include := []int64{r.Threshold}
+	if ref != nil {
+		high := ref.Opening
+		for _, p := range ref.Days {
+			high = max(high, p.Balance)
+		}
+		include = append(include, ref.Low.Balance, high)
+	}
+	c, sc := lineChart("courbe", r.Days, true, include...)
+	if ref != nil {
+		c.Reference = sc.path(ref.Days, true)
+	}
 	c.Desc = "Point bas de " + money.Format(r.Low.Balance) + " le " + r.Low.Date.Format() + ". Le détail des échéances suit le graphique."
 	c.HasThreshold, c.Threshold = true, sc.y(r.Threshold)
 	halfDay := plotSize / sc.days / 2

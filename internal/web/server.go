@@ -21,8 +21,10 @@ import (
 	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
 	"github.com/codecolors/buddyget/internal/forecast"
+	"github.com/codecolors/buddyget/internal/goals"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
+	"github.com/codecolors/buddyget/internal/loans"
 	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/db"
 	"github.com/codecolors/buddyget/internal/platform/money"
@@ -30,6 +32,7 @@ import (
 	"github.com/codecolors/buddyget/internal/recurring"
 	"github.com/codecolors/buddyget/internal/reports"
 	"github.com/codecolors/buddyget/internal/savings"
+	"github.com/codecolors/buddyget/internal/scenarios"
 )
 
 const (
@@ -54,6 +57,9 @@ type Services struct {
 	Alerts      *alerts.Service
 	Reports     *reports.Service
 	Attachments *attachments.Service
+	Loans       *loans.Service
+	Goals       *goals.Service
+	Scenarios   *scenarios.Service
 }
 
 // Server regroupe les dépendances des handlers.
@@ -70,6 +76,9 @@ type Server struct {
 	alerts         *alerts.Service
 	reports        *reports.Service
 	attachments    *attachments.Service
+	loans          *loans.Service
+	goals          *goals.Service
+	scenarios      *scenarios.Service
 	maxUpload      int64
 	pages          *renderer
 	assets         assets
@@ -93,6 +102,7 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		"sub":          func(a, b int64) int64 { return a - b },
 		"yearMonth":    func(d calendar.Date) string { return string(d)[:7] },
 		"percent":      func(hundredths int) string { return money.FormatInput(int64(hundredths)) + "\u00a0%" },
+		"rate":         func(thousandths int) string { return formatRate(thousandths) + "\u00a0%" },
 		"navActive":    navActive,
 		"plural":       plural,
 		"datetime":     func(t time.Time) string { return t.In(time.Local).Format("02/01/2006 à 15h04") },
@@ -115,6 +125,9 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		alerts:         svc.Alerts,
 		reports:        svc.Reports,
 		attachments:    svc.Attachments,
+		loans:          svc.Loans,
+		goals:          svc.Goals,
+		scenarios:      svc.Scenarios,
 		maxUpload:      cfg.MaxUploadBytes(),
 		pages:          pages,
 		assets:         static,
@@ -131,90 +144,114 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 	mux.HandleFunc("POST /login", s.login)
 	mux.HandleFunc("POST /logout", s.logout)
 	for pattern, h := range map[string]http.HandlerFunc{
-		"GET /{$}":                             s.dashboard,
-		"POST /preferences/theme":              s.setTheme,
-		"GET /operations":                      s.operationsPage,
-		"GET /operations/nouvelle":             s.newOperationPage,
-		"POST /operations":                     s.createOperation,
-		"GET /operations/{id}":                 s.editOperationPage,
-		"POST /operations/{id}":                s.updateOperation,
-		"POST /operations/{id}/supprimer":      s.deleteOperation,
-		"POST /operations/lot":                 s.batchOperations,
-		"GET /comptes":                         s.accountsPage,
-		"GET /comptes/nouveau":                 s.newAccountPage,
-		"POST /comptes":                        s.createAccount,
-		"GET /comptes/{id}":                    s.editAccountPage,
-		"POST /comptes/{id}":                   s.updateAccount,
-		"POST /comptes/{id}/archiver":          s.archiveAccount,
-		"POST /comptes/{id}/supprimer":         s.deleteAccount,
-		"GET /categories":                      s.categoriesPage,
-		"GET /categories/nouvelle":             s.newCategoryPage,
-		"POST /categories":                     s.createCategory,
-		"GET /categories/{id}":                 s.editCategoryPage,
-		"POST /categories/{id}":                s.updateCategory,
-		"POST /categories/{id}/supprimer":      s.deleteCategory,
-		"GET /comptes/{id}/rapprochement":      s.reconcilePage,
-		"POST /comptes/{id}/rapprochement":     s.saveReconcile,
-		"GET /import":                          s.importPage,
-		"POST /import":                         s.uploadImport,
-		"GET /import/historique":               s.importHistory,
-		"POST /import/historique/{id}/annuler": s.undoImport,
-		"GET /import/{token}":                  s.draftPage,
-		"GET /import/{token}/colonnes":         s.mappingPage,
-		"POST /import/{token}/colonnes":        s.saveMapping,
-		"POST /import/{token}/selection":       s.selectLines,
-		"POST /import/{token}/valider":         s.commitImport,
-		"POST /import/{token}/abandonner":      s.cancelImport,
-		"GET /regles":                          s.rulesPage,
-		"GET /regles/nouvelle":                 s.newRulePage,
-		"POST /regles":                         s.createRule,
-		"POST /regles/appliquer":               s.applyRules,
-		"GET /regles/{id}":                     s.editRulePage,
-		"POST /regles/{id}":                    s.updateRule,
-		"POST /regles/{id}/supprimer":          s.deleteRule,
-		"GET /operations/virements":            s.transfersPage,
-		"POST /operations/virements/relier":    s.linkTransfer,
-		"POST /operations/virements/ignorer":   s.dismissTransfer,
-		"POST /operations/{id}/delier":         s.unlinkTransfer,
-		"GET /recurrences":                     s.recurrencesPage,
-		"GET /recurrences/detectees":           s.detectedPage,
-		"POST /recurrences/detectees/valider":  s.acceptDetected,
-		"POST /recurrences/detectees/rejeter":  s.dismissDetected,
-		"GET /recurrences/nouvelle":            s.newRecurrencePage,
-		"POST /recurrences":                    s.createRecurrence,
-		"GET /recurrences/{id}":                s.editRecurrencePage,
-		"POST /recurrences/{id}":               s.updateRecurrence,
-		"POST /recurrences/{id}/activer":       s.toggleRecurrence,
-		"POST /recurrences/{id}/supprimer":     s.deleteRecurrence,
-		"GET /previsionnel":                    s.forecastPage,
-		"POST /previsionnel/exclusions":        s.excludeOccurrence,
-		"POST /previsionnel/reglages":          s.saveForecastSettings,
-		"GET /epargne":                         s.savingsPage,
-		"POST /epargne/{id}/interets":          s.recordInterest,
-		"GET /budgets":                         s.budgetsPage,
-		"GET /budgets/nouveau":                 s.newBudgetPage,
-		"GET /budgets/{id}":                    s.editBudgetPage,
-		"POST /budgets":                        s.saveBudget,
-		"POST /budgets/{id}/supprimer":         s.deleteBudget,
-		"GET /alertes":                         s.alertsPage,
-		"POST /alertes/acquitter":              s.acknowledgeAlert,
-		"GET /alertes/reglages":                s.alertSettingsPage,
-		"POST /alertes/reglages":               s.saveAlertSettings,
-		"POST /alertes/canaux":                 s.saveChannels,
-		"POST /alertes/essai":                  s.testChannels,
-		"POST /operations/{id}/pointer":        s.toggleCleared,
-		"POST /operations/{id}/modele":         s.saveTemplate,
-		"POST /modeles/{id}/utiliser":          s.useTemplate,
-		"POST /modeles/{id}/supprimer":         s.deleteTemplate,
-		"POST /operations/{id}/pieces":         s.uploadAttachment,
-		"GET /pieces/{id}":                     s.serveAttachment,
-		"POST /pieces/{id}/supprimer":          s.deleteAttachment,
-		"GET /etiquettes":                      s.tagsPage,
-		"POST /etiquettes/{id}":                s.renameTag,
-		"POST /etiquettes/{id}/supprimer":      s.deleteTag,
-		"GET /abonnements":                     s.subscriptionsPage,
-		"GET /rapports":                        s.reportsPage,
-		"GET /plus":                            s.morePage,
+		"GET /{$}":                                            s.dashboard,
+		"POST /preferences/theme":                             s.setTheme,
+		"GET /operations":                                     s.operationsPage,
+		"GET /operations/nouvelle":                            s.newOperationPage,
+		"POST /operations":                                    s.createOperation,
+		"GET /operations/{id}":                                s.editOperationPage,
+		"POST /operations/{id}":                               s.updateOperation,
+		"POST /operations/{id}/supprimer":                     s.deleteOperation,
+		"POST /operations/lot":                                s.batchOperations,
+		"GET /comptes":                                        s.accountsPage,
+		"GET /comptes/nouveau":                                s.newAccountPage,
+		"POST /comptes":                                       s.createAccount,
+		"GET /comptes/{id}":                                   s.editAccountPage,
+		"POST /comptes/{id}":                                  s.updateAccount,
+		"POST /comptes/{id}/archiver":                         s.archiveAccount,
+		"POST /comptes/{id}/supprimer":                        s.deleteAccount,
+		"GET /categories":                                     s.categoriesPage,
+		"GET /categories/nouvelle":                            s.newCategoryPage,
+		"POST /categories":                                    s.createCategory,
+		"GET /categories/{id}":                                s.editCategoryPage,
+		"POST /categories/{id}":                               s.updateCategory,
+		"POST /categories/{id}/supprimer":                     s.deleteCategory,
+		"GET /comptes/{id}/rapprochement":                     s.reconcilePage,
+		"POST /comptes/{id}/rapprochement":                    s.saveReconcile,
+		"GET /import":                                         s.importPage,
+		"POST /import":                                        s.uploadImport,
+		"GET /import/historique":                              s.importHistory,
+		"POST /import/historique/{id}/annuler":                s.undoImport,
+		"GET /import/{token}":                                 s.draftPage,
+		"GET /import/{token}/colonnes":                        s.mappingPage,
+		"POST /import/{token}/colonnes":                       s.saveMapping,
+		"POST /import/{token}/selection":                      s.selectLines,
+		"POST /import/{token}/valider":                        s.commitImport,
+		"POST /import/{token}/abandonner":                     s.cancelImport,
+		"GET /regles":                                         s.rulesPage,
+		"GET /regles/nouvelle":                                s.newRulePage,
+		"POST /regles":                                        s.createRule,
+		"POST /regles/appliquer":                              s.applyRules,
+		"GET /regles/{id}":                                    s.editRulePage,
+		"POST /regles/{id}":                                   s.updateRule,
+		"POST /regles/{id}/supprimer":                         s.deleteRule,
+		"GET /operations/virements":                           s.transfersPage,
+		"POST /operations/virements/relier":                   s.linkTransfer,
+		"POST /operations/virements/ignorer":                  s.dismissTransfer,
+		"POST /operations/{id}/delier":                        s.unlinkTransfer,
+		"GET /recurrences":                                    s.recurrencesPage,
+		"GET /recurrences/detectees":                          s.detectedPage,
+		"POST /recurrences/detectees/valider":                 s.acceptDetected,
+		"POST /recurrences/detectees/rejeter":                 s.dismissDetected,
+		"GET /recurrences/nouvelle":                           s.newRecurrencePage,
+		"POST /recurrences":                                   s.createRecurrence,
+		"GET /recurrences/{id}":                               s.editRecurrencePage,
+		"POST /recurrences/{id}":                              s.updateRecurrence,
+		"POST /recurrences/{id}/activer":                      s.toggleRecurrence,
+		"POST /recurrences/{id}/supprimer":                    s.deleteRecurrence,
+		"GET /previsionnel":                                   s.forecastPage,
+		"POST /previsionnel/exclusions":                       s.excludeOccurrence,
+		"POST /previsionnel/reglages":                         s.saveForecastSettings,
+		"GET /epargne":                                        s.savingsPage,
+		"POST /epargne/{id}/interets":                         s.recordInterest,
+		"GET /budgets":                                        s.budgetsPage,
+		"GET /budgets/nouveau":                                s.newBudgetPage,
+		"GET /budgets/{id}":                                   s.editBudgetPage,
+		"POST /budgets":                                       s.saveBudget,
+		"POST /budgets/{id}/supprimer":                        s.deleteBudget,
+		"GET /alertes":                                        s.alertsPage,
+		"POST /alertes/acquitter":                             s.acknowledgeAlert,
+		"GET /alertes/reglages":                               s.alertSettingsPage,
+		"POST /alertes/reglages":                              s.saveAlertSettings,
+		"POST /alertes/canaux":                                s.saveChannels,
+		"POST /alertes/essai":                                 s.testChannels,
+		"POST /operations/{id}/pointer":                       s.toggleCleared,
+		"POST /operations/{id}/modele":                        s.saveTemplate,
+		"POST /modeles/{id}/utiliser":                         s.useTemplate,
+		"POST /modeles/{id}/supprimer":                        s.deleteTemplate,
+		"POST /operations/{id}/pieces":                        s.uploadAttachment,
+		"GET /pieces/{id}":                                    s.serveAttachment,
+		"POST /pieces/{id}/supprimer":                         s.deleteAttachment,
+		"GET /etiquettes":                                     s.tagsPage,
+		"POST /etiquettes/{id}":                               s.renameTag,
+		"POST /etiquettes/{id}/supprimer":                     s.deleteTag,
+		"GET /abonnements":                                    s.subscriptionsPage,
+		"GET /rapports":                                       s.reportsPage,
+		"GET /credits":                                        s.loansPage,
+		"GET /credits/nouveau":                                s.newLoanPage,
+		"POST /credits":                                       s.createLoan,
+		"GET /credits/{id}":                                   s.loanPage,
+		"GET /credits/{id}/modifier":                          s.editLoanPage,
+		"POST /credits/{id}":                                  s.updateLoan,
+		"POST /credits/{id}/anticipe":                         s.prepayLoan,
+		"POST /credits/{id}/supprimer":                        s.deleteLoan,
+		"GET /projets":                                        s.goalsPage,
+		"GET /projets/nouveau":                                s.newGoalPage,
+		"POST /projets":                                       s.createGoal,
+		"GET /projets/{id}":                                   s.editGoalPage,
+		"POST /projets/{id}":                                  s.updateGoal,
+		"POST /projets/{id}/cagnotte":                         s.allocateGoal,
+		"POST /projets/{id}/versement":                        s.scheduleGoal,
+		"POST /projets/{id}/supprimer":                        s.deleteGoal,
+		"GET /scenarios":                                      s.scenariosPage,
+		"POST /scenarios":                                     s.createScenario,
+		"GET /scenarios/{id}":                                 s.scenarioPage,
+		"POST /scenarios/{id}":                                s.renameScenario,
+		"POST /scenarios/{id}/modifications":                  s.addScenarioItem,
+		"POST /scenarios/{id}/modifications/{item}/supprimer": s.deleteScenarioItem,
+		"POST /scenarios/{id}/convertir":                      s.convertScenario,
+		"POST /scenarios/{id}/supprimer":                      s.deleteScenario,
+		"GET /plus":                                           s.morePage,
 	} {
 		var handler http.Handler = h
 		if strings.HasPrefix(pattern, "POST ") {
@@ -295,7 +332,8 @@ func (s *Server) inputError(w http.ResponseWriter, r *http.Request, err error) (
 		return msg, true
 	}
 	if errors.Is(err, ledger.ErrNotFound) || errors.Is(err, categorize.ErrNotFound) || errors.Is(err, importer.ErrNotFound) ||
-		errors.Is(err, recurring.ErrNotFound) || errors.Is(err, attachments.ErrNotFound) {
+		errors.Is(err, recurring.ErrNotFound) || errors.Is(err, attachments.ErrNotFound) || errors.Is(err, loans.ErrNotFound) ||
+		errors.Is(err, goals.ErrNotFound) || errors.Is(err, scenarios.ErrNotFound) {
 		s.notFound(w, r)
 	} else {
 		s.serverError(w, r, err)
