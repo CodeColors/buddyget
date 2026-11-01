@@ -27,8 +27,10 @@ import (
 	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
+	"github.com/codecolors/buddyget/internal/exports"
 	"github.com/codecolors/buddyget/internal/forecast"
 	"github.com/codecolors/buddyget/internal/goals"
+	"github.com/codecolors/buddyget/internal/household"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/loans"
@@ -120,6 +122,12 @@ func run() error {
 		Loans:       credits,
 		Goals:       goals.NewService(database, accounts, recurrences),
 		Scenarios:   whatIfs,
+		Household:   household.NewService(database, accounts),
+		Exports:     exports.NewService(accounts, files),
+		Backups:     backups,
+		// Après une restauration préparée : arrêt propre, la politique de
+		// redémarrage du conteneur relance BuddyGet.
+		Restart: stop,
 	})
 	if err != nil {
 		return err

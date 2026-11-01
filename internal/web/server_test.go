@@ -10,16 +10,20 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/codecolors/buddyget/internal/alerts"
 	"github.com/codecolors/buddyget/internal/attachments"
 	"github.com/codecolors/buddyget/internal/auth"
+	"github.com/codecolors/buddyget/internal/backup"
 	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
+	"github.com/codecolors/buddyget/internal/exports"
 	"github.com/codecolors/buddyget/internal/forecast"
 	"github.com/codecolors/buddyget/internal/goals"
+	"github.com/codecolors/buddyget/internal/household"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/loans"
@@ -38,6 +42,10 @@ type testEnv struct {
 	client *http.Client
 	auth   *auth.Service
 	alerts *alerts.Service // examen déclenché à la main : pas de tâche de fond
+	// dataDir est le dossier des données ; restarts compte les redémarrages
+	// demandés (restauration d'une sauvegarde).
+	dataDir  string
+	restarts atomic.Int32
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -57,13 +65,17 @@ func newTestEnv(t *testing.T) *testEnv {
 		Ledger: accounts, Recurring: recurrences, Savings: savingsAccounts, Budgets: budgets, Loans: credits, Scenarios: whatIfs,
 	})
 	alertCenter := alerts.NewService(d, accounts, recurrences, savingsAccounts, budgets, forecasts, "")
+	files := attachments.NewService(d, dataDir, 1<<20, 10<<20)
+	e := &testEnv{t: t, auth: svc, alerts: alertCenter, dataDir: dataDir}
 	h, err := New(config.Config{MaxUploadMB: 1}, d, Services{
 		Auth: svc, Ledger: accounts, Rules: rules,
 		Importer: importer.NewService(d, dataDir, 1<<20, rules), Recurring: recurrences,
 		Savings: savingsAccounts, Budgets: budgets, Forecast: forecasts,
 		Alerts: alertCenter, Reports: reports.NewService(d, accounts),
 		Loans: credits, Goals: goals.NewService(d, accounts, recurrences), Scenarios: whatIfs,
-		Attachments: attachments.NewService(d, dataDir, 1<<20, 10<<20),
+		Household: household.NewService(d, accounts), Exports: exports.NewService(accounts, files),
+		Backups: backup.NewService(d, dataDir, ""), Restart: func() { e.restarts.Add(1) },
+		Attachments: files,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +89,8 @@ func newTestEnv(t *testing.T) *testEnv {
 			return http.ErrUseLastResponse
 		},
 	}
-	return &testEnv{t: t, srv: srv, client: client, auth: svc, alerts: alertCenter}
+	e.srv, e.client = srv, client
+	return e
 }
 
 // result est une réponse déjà lue et fermée.

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/codecolors/buddyget/internal/attachments"
 	"github.com/codecolors/buddyget/internal/categorize"
+	"github.com/codecolors/buddyget/internal/household"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/platform/calendar"
 	"github.com/codecolors/buddyget/internal/platform/money"
@@ -75,6 +77,7 @@ func idParam(v string) int64 {
 type operationsView struct {
 	Q          url.Values // critères saisis, pour remplir le formulaire
 	Filter     string     // critères encodés, réutilisés par l'édition par lot
+	ExportURL  string     // export CSV des résultats
 	Problem    string
 	Transfers  int // virements internes à rapprocher
 	Page       ledger.Page
@@ -120,6 +123,7 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 	v := operationsView{Q: q, Problem: problem, Page: page, PageNumber: pageNumber, Today: calendar.Today()}
 	q.Del("page")
 	v.Filter = q.Encode()
+	v.ExportURL = "/exports/operations?" + v.Filter
 	if page.HasPrev() {
 		v.PrevURL = pageURL(q, pageNumber-1)
 	}
@@ -192,6 +196,12 @@ type operationForm struct {
 	// Warning signale un retrait sur des fonds d'épargne bloqués : la saisie
 	// n'est enregistrée qu'une fois confirmée.
 	Warning string
+	// Partage du foyer : payeur, règle, membres concernés et montants libres.
+	Shared       bool
+	PayerID      int64
+	SplitMode    household.Mode
+	SplitMembers []int64
+	SplitAmounts map[int64]string
 
 	Accounts   []ledger.AccountBalance
 	Categories []ledger.KindGroup
@@ -203,6 +213,60 @@ type operationForm struct {
 	// existante).
 	Templates   []ledger.QuickTemplate
 	Attachments []attachments.Attachment
+	Members     []household.Member // membres actifs, et ceux du partage
+}
+
+// SplitModes expose les règles de répartition au gabarit.
+func (operationForm) SplitModes() []household.Mode { return household.Modes }
+
+// InSplit indique un membre concerné par le partage (tous, par défaut).
+func (f operationForm) InSplit(id int64) bool {
+	return !f.Shared || slices.Contains(f.SplitMembers, id)
+}
+
+// split lit le partage saisi ; faux si l'opération n'est pas partagée.
+func (f operationForm) split() (household.Split, bool, error) {
+	if !f.Shared || f.Type == typeTransfer {
+		return household.Split{}, false, nil
+	}
+	sp := household.Split{PayerID: f.PayerID, Mode: f.SplitMode, Members: f.SplitMembers}
+	if sp.Mode == household.Free {
+		sp.Amounts = map[int64]int64{}
+		for _, id := range f.SplitMembers {
+			v, err := money.Parse(cmp.Or(strings.TrimSpace(f.SplitAmounts[id]), "0"))
+			if err != nil {
+				return sp, false, err
+			}
+			sp.Amounts[id] = max(v, -v)
+		}
+	}
+	return sp, true, nil
+}
+
+// readSplit lit les champs du partage d'un formulaire envoyé.
+func (f *operationForm) readSplit(r *http.Request) {
+	f.Shared, f.PayerID, f.SplitMode = r.PostFormValue("shared") != "", formID(r, "payer"), household.Mode(r.PostFormValue("split_mode"))
+	f.SplitAmounts = map[int64]string{}
+	for _, v := range r.PostForm["split_member"] {
+		if id := idParam(v); id > 0 {
+			f.SplitMembers = append(f.SplitMembers, id)
+			f.SplitAmounts[id] = r.PostFormValue("share_" + v)
+		}
+	}
+}
+
+// withSplit reprend le partage enregistré d'une opération.
+func (s *Server) withSplit(r *http.Request, f *operationForm, transactionID int64) error {
+	sh, ok, err := s.household.Split(r.Context(), transactionID)
+	if err != nil || !ok {
+		return err
+	}
+	f.Shared, f.PayerID, f.SplitMode, f.SplitAmounts = true, sh.PayerID, sh.Mode, map[int64]string{}
+	for _, share := range sh.Shares {
+		f.SplitMembers = append(f.SplitMembers, share.MemberID)
+		f.SplitAmounts[share.MemberID] = money.FormatInput(share.Amount)
+	}
+	return nil
 }
 
 func (f operationForm) title() string {
@@ -242,6 +306,18 @@ func (s *Server) withOptions(r *http.Request, f operationForm) (operationForm, e
 	}
 	if err != nil {
 		return f, err
+	}
+	members, err := s.household.Members(ctx)
+	if err != nil {
+		return f, err
+	}
+	for _, m := range members {
+		if !m.Archived || slices.Contains(f.SplitMembers, m.ID) || m.ID == f.PayerID {
+			f.Members = append(f.Members, m)
+		}
+	}
+	if f.SplitMode == "" {
+		f.SplitMode = household.Equal
 	}
 	if f.ID == 0 {
 		f.Templates, err = s.ledger.Templates(ctx)
@@ -286,6 +362,10 @@ func (s *Server) newOperationPage(w http.ResponseWriter, r *http.Request) {
 		}
 		if found {
 			f = formFromTransaction(t)
+			if err := s.withSplit(r, &f, t.ID); err != nil {
+				s.serverError(w, r, err)
+				return
+			}
 			f.ID, f.TransferID, f.Cleared, f.Date, f.RulePattern = 0, 0, false, "", ""
 		}
 	}
@@ -323,6 +403,10 @@ func (s *Server) editOperationPage(w http.ResponseWriter, r *http.Request) {
 	}
 	f := formFromTransaction(t)
 	f.Back = backFromReferer(r)
+	if err := s.withSplit(r, &f, id); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	s.renderOperationForm(w, r, http.StatusOK, f)
 }
 
@@ -388,6 +472,7 @@ func (s *Server) saveOperation(w http.ResponseWriter, r *http.Request, id int64)
 		Cleared:     r.PostFormValue("cleared") != "",
 		Back:        localPath(r.PostFormValue("back")),
 	}
+	f.readSplit(r)
 	// La nature d'une opération existante (simple ou virement) ne change pas.
 	if id != 0 {
 		t, err := s.ledger.Transaction(r.Context(), id)
@@ -491,11 +576,29 @@ func (s *Server) storeOperation(r *http.Request, f operationForm, amount int64, 
 		return err
 	}
 	in := ledger.TransactionInput{AccountID: f.AccountID, Date: date, Label: f.Label, Amount: amount, CategoryID: f.CategoryID, Note: f.Note, Cleared: f.Cleared, Tags: tags}
-	if f.ID == 0 {
-		_, err := s.ledger.CreateTransaction(ctx, in)
+	// Le partage est contrôlé avant tout enregistrement.
+	sp, shared, err := f.split()
+	if err != nil {
 		return err
 	}
-	return s.ledger.UpdateTransaction(ctx, f.ID, in)
+	if shared {
+		if _, err := s.household.Plan(ctx, amount, sp); err != nil {
+			return err
+		}
+	}
+	id := f.ID
+	if id == 0 {
+		id, err = s.ledger.CreateTransaction(ctx, in)
+	} else {
+		err = s.ledger.UpdateTransaction(ctx, id, in)
+	}
+	switch {
+	case err != nil:
+		return err
+	case shared:
+		return s.household.SetSplit(ctx, id, sp)
+	}
+	return s.household.ClearSplit(ctx, id)
 }
 
 func (s *Server) deleteOperation(w http.ResponseWriter, r *http.Request) {

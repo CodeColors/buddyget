@@ -1,0 +1,102 @@
+{{define "content"}}
+{{- with .Data}}
+<h1>Exports</h1>
+<p class="muted">Les fichiers sont produits à la demande et téléchargés directement ; rien n'est envoyé ailleurs.</p>
+
+<section class="card form-card" aria-labelledby="operations">
+  <h2 id="operations">Opérations (CSV)</h2>
+  <p class="hint">Pour un tableur : point-virgule, virgule décimale, UTF-8. La liste des opérations propose aussi l'export de sa recherche.</p>
+  <form class="form" method="get" action="/exports/operations">
+    {{template "export-filter" .}}
+    <div class="actions"><button class="btn btn-primary" type="submit">Télécharger le CSV</button></div>
+  </form>
+</section>
+
+<section class="card form-card" aria-labelledby="rapports">
+  <h2 id="rapports">Rapports (PDF ou CSV)</h2>
+  <form class="form" method="get" action="/exports/rapport">
+    <div class="field-row">
+      <div class="field">
+        <label for="mois">Mois</label>
+        <input id="mois" name="mois" type="month" value="{{.Month}}" required>
+      </div>
+      <div class="field">
+        <label for="format-mois">Format</label>
+        <select id="format-mois" name="format"><option value="pdf">PDF</option><option value="csv">CSV</option></select>
+      </div>
+    </div>
+    <div class="actions"><button class="btn" type="submit">Rapport du mois</button></div>
+  </form>
+  <form class="form" method="get" action="/exports/rapport">
+    <div class="field-row">
+      <div class="field">
+        <label for="annee">Année</label>
+        <input id="annee" name="annee" type="number" min="1900" max="9999" value="{{.Year}}" inputmode="numeric" required>
+      </div>
+      <div class="field">
+        <label for="format-annee">Format</label>
+        <select id="format-annee" name="format"><option value="pdf">PDF</option><option value="csv">CSV</option></select>
+      </div>
+    </div>
+    <div class="actions"><button class="btn" type="submit">Rapport annuel</button></div>
+  </form>
+</section>
+
+<section class="card form-card" aria-labelledby="dossier">
+  <h2 id="dossier">Dossier pour un comptable ou les impôts (ZIP)</h2>
+  <p class="hint">Les opérations choisies en CSV, une synthèse PDF (totaux par catégorie et par mois) et, si vous le souhaitez, leurs pièces jointes. Par exemple : l'étiquette « déductible » sur l'année.</p>
+  <form class="form" method="get" action="/exports/dossier">
+    {{template "export-filter" .}}
+    <label class="check"><input type="checkbox" name="pieces" value="1" checked> Joindre les photos et PDF des opérations</label>
+    <div class="actions"><button class="btn btn-primary" type="submit">Télécharger le dossier</button></div>
+  </form>
+</section>
+
+<section class="card" aria-labelledby="sauvegarde">
+  <h2 id="sauvegarde">Sauvegarde complète</h2>
+  <p class="muted">Pour tout conserver ou changer de NAS : la base et les pièces jointes, chiffrées si vous l'avez configuré.</p>
+  <a class="btn" href="/sauvegardes">Sauvegardes</a>
+</section>
+{{- end}}
+{{end}}
+
+{{define "export-filter"}}
+<div class="field-row">
+  <div class="field">
+    <label>Du <input name="du" type="date" value="{{.YearStart}}"></label>
+  </div>
+  <div class="field">
+    <label>Au <input name="au" type="date" value="{{.Today}}"></label>
+  </div>
+</div>
+<div class="field-row">
+  <div class="field">
+    <label>Compte
+      <select name="compte">
+        <option value="">Tous les comptes</option>
+        {{- range .Accounts}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+      </select>
+    </label>
+  </div>
+  <div class="field">
+    <label>Catégorie
+      <select name="categorie">
+        <option value="">Toutes</option>
+        {{- range .Categories}}
+        <optgroup label="{{.Kind.Label}}">
+          {{- range .Categories}}<option value="{{.ID}}">{{.FullName}}</option>{{end}}
+        </optgroup>
+        {{- end}}
+      </select>
+    </label>
+  </div>
+  <div class="field">
+    <label>Étiquette
+      <select name="etiquette">
+        <option value="">Toutes</option>
+        {{- range .Tags}}<option value="{{.Name}}">{{.Name}}</option>{{end}}
+      </select>
+    </label>
+  </div>
+</div>
+{{end}}

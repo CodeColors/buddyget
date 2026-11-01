@@ -17,11 +17,14 @@ import (
 	"github.com/codecolors/buddyget/internal/alerts"
 	"github.com/codecolors/buddyget/internal/attachments"
 	"github.com/codecolors/buddyget/internal/auth"
+	"github.com/codecolors/buddyget/internal/backup"
 	"github.com/codecolors/buddyget/internal/budget"
 	"github.com/codecolors/buddyget/internal/categorize"
 	"github.com/codecolors/buddyget/internal/config"
+	"github.com/codecolors/buddyget/internal/exports"
 	"github.com/codecolors/buddyget/internal/forecast"
 	"github.com/codecolors/buddyget/internal/goals"
+	"github.com/codecolors/buddyget/internal/household"
 	"github.com/codecolors/buddyget/internal/importer"
 	"github.com/codecolors/buddyget/internal/ledger"
 	"github.com/codecolors/buddyget/internal/loans"
@@ -60,6 +63,12 @@ type Services struct {
 	Loans       *loans.Service
 	Goals       *goals.Service
 	Scenarios   *scenarios.Service
+	Household   *household.Service
+	Exports     *exports.Service
+	Backups     *backup.Service
+	// Restart arrête proprement BuddyGet, que la politique de redémarrage
+	// du conteneur relance (restauration d'une sauvegarde).
+	Restart func()
 }
 
 // Server regroupe les dépendances des handlers.
@@ -79,6 +88,10 @@ type Server struct {
 	loans          *loans.Service
 	goals          *goals.Service
 	scenarios      *scenarios.Service
+	household      *household.Service
+	exports        *exports.Service
+	backups        *backup.Service
+	restart        func()
 	maxUpload      int64
 	pages          *renderer
 	assets         assets
@@ -103,6 +116,7 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		"yearMonth":    func(d calendar.Date) string { return string(d)[:7] },
 		"percent":      func(hundredths int) string { return money.FormatInput(int64(hundredths)) + "\u00a0%" },
 		"rate":         func(thousandths int) string { return formatRate(thousandths) + "\u00a0%" },
+		"fileSize":     fileSize,
 		"navActive":    navActive,
 		"plural":       plural,
 		"datetime":     func(t time.Time) string { return t.In(time.Local).Format("02/01/2006 à 15h04") },
@@ -128,6 +142,10 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		loans:          svc.Loans,
 		goals:          svc.Goals,
 		scenarios:      svc.Scenarios,
+		household:      svc.Household,
+		exports:        svc.Exports,
+		backups:        svc.Backups,
+		restart:        svc.Restart,
 		maxUpload:      cfg.MaxUploadBytes(),
 		pages:          pages,
 		assets:         static,
@@ -251,6 +269,24 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		"POST /scenarios/{id}/modifications/{item}/supprimer": s.deleteScenarioItem,
 		"POST /scenarios/{id}/convertir":                      s.convertScenario,
 		"POST /scenarios/{id}/supprimer":                      s.deleteScenario,
+		"GET /partage":                                        s.householdPage,
+		"POST /partage/membres":                               s.createMember,
+		"GET /partage/membres/{id}":                           s.editMemberPage,
+		"POST /partage/membres/{id}":                          s.updateMember,
+		"POST /partage/membres/{id}/archiver":                 s.archiveMember,
+		"POST /partage/membres/{id}/supprimer":                s.deleteMember,
+		"POST /partage/remboursements":                        s.settle,
+		"POST /partage/remboursements/{id}/supprimer":         s.deleteSettlement,
+		"GET /exports":                                        s.exportsPage,
+		"GET /exports/operations":                             s.exportOperations,
+		"GET /exports/rapport":                                s.exportReport,
+		"GET /exports/dossier":                                s.exportDossier,
+		"GET /sauvegardes":                                    s.backupsPage,
+		"POST /sauvegardes":                                   s.backupNow,
+		"POST /sauvegardes/reglages":                          s.saveBackupSettings,
+		"POST /sauvegardes/restaurer":                         s.restoreBackup,
+		"GET /sauvegardes/fichiers/{name}":                    s.downloadBackup,
+		"POST /sauvegardes/fichiers/{name}/supprimer":         s.deleteBackup,
 		"GET /plus":                                           s.morePage,
 	} {
 		var handler http.Handler = h
@@ -333,7 +369,8 @@ func (s *Server) inputError(w http.ResponseWriter, r *http.Request, err error) (
 	}
 	if errors.Is(err, ledger.ErrNotFound) || errors.Is(err, categorize.ErrNotFound) || errors.Is(err, importer.ErrNotFound) ||
 		errors.Is(err, recurring.ErrNotFound) || errors.Is(err, attachments.ErrNotFound) || errors.Is(err, loans.ErrNotFound) ||
-		errors.Is(err, goals.ErrNotFound) || errors.Is(err, scenarios.ErrNotFound) {
+		errors.Is(err, goals.ErrNotFound) || errors.Is(err, scenarios.ErrNotFound) || errors.Is(err, household.ErrNotFound) ||
+		errors.Is(err, backup.ErrNotFound) {
 		s.notFound(w, r)
 	} else {
 		s.serverError(w, r, err)

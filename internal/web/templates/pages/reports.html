@@ -1,6 +1,12 @@
 {{define "content"}}
 {{- with .Data}}
-<h1>Rapports</h1>
+<div class="page-head">
+  <h1>Rapports</h1>
+  <div class="actions">
+    <a class="btn" href="{{.PDFURL}}">PDF</a>
+    <a class="btn" href="{{.CSVURL}}">CSV</a>
+  </div>
+</div>
 <nav class="tabs" aria-label="Type de rapport">
   <a href="/rapports"{{if not .Annual}} aria-current="page"{{end}}>Mensuel</a>
   <a href="/rapports?annee={{slice (print .From) 0 4}}"{{if .Annual}} aria-current="page"{{end}}>Annuel</a>

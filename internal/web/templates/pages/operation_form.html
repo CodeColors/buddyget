@@ -103,6 +103,38 @@
       <p id="tags-aide" class="hint">Séparées par des virgules : vacances 2027, déductible…</p>
     </div>
 
+    {{- if and .Members (not .TransferID)}}
+    <details class="more if-not-transfer share-panel"{{if .Shared}} open{{end}}>
+      <summary>Partage du foyer{{if .Shared}} : opération partagée{{end}}</summary>
+      <label class="check"><input type="checkbox" name="shared" value="1"{{if .Shared}} checked{{end}}> Opération partagée entre membres du foyer</label>
+      <div class="if-shared">
+        <div class="field">
+          <label for="payer">Payée par</label>
+          <select id="payer" name="payer">
+            {{- range .Members}}<option value="{{.ID}}"{{if eq .ID $.Data.PayerID}} selected{{end}}>{{.Name}}</option>{{end}}
+          </select>
+        </div>
+        <fieldset class="field">
+          <legend>Répartition</legend>
+          <div class="segmented">
+            {{- range .SplitModes}}
+            <label><input type="radio" name="split_mode" value="{{.}}"{{if eq . $.Data.SplitMode}} checked{{end}}><span>{{.Label}}</span></label>
+            {{- end}}
+          </div>
+        </fieldset>
+        <fieldset class="field split-members">
+          <legend>Entre</legend>
+          {{- range .Members}}
+          <div class="split-member">
+            <label class="check"><input type="checkbox" name="split_member" value="{{.ID}}"{{if $.Data.InSplit .ID}} checked{{end}}> {{.Name}}</label>
+            <input class="if-free" name="share_{{.ID}}" value="{{index $.Data.SplitAmounts .ID}}" inputmode="decimal" autocomplete="off" placeholder="0,00" aria-label="Part de {{.Name}} (€)">
+          </div>
+          {{- end}}
+        </fieldset>
+      </div>
+    </details>
+    {{- end}}
+
     <details class="more"{{if or .Note .Cleared}} open{{end}}>
       <summary>Plus d'options</summary>
       <div class="field">

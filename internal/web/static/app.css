@@ -416,9 +416,10 @@ input[type="checkbox"], input[type="radio"] {
   align-items: center;
   justify-content: center;
   min-height: var(--tap);
-  padding: 0 .25rem;
+  padding: .25rem;
   color: var(--muted);
-  white-space: nowrap;
+  line-height: 1.2;
+  text-align: center;
   border-radius: 8px;
 }
 .segmented input:checked + span {
@@ -432,10 +433,16 @@ input[type="checkbox"], input[type="radio"] {
    catégorie principale ou sous-catégorie. */
 
 .operation-form:has(input[name="type"][value="virement"]:is(:checked, [type="hidden"])) .if-not-transfer,
+.operation-form:not(:has(input[name="shared"]:checked)) .if-shared,
+.operation-form:not(:has(input[name="split_mode"][value="libre"]:checked)) .if-free,
 .operation-form:not(:has(input[name="type"][value="virement"]:is(:checked, [type="hidden"]))) .if-transfer,
 .category-form:not(:has(#parent option[value="0"]:checked)) .if-top-level {
   display: none;
 }
+
+.split-member { display: flex; align-items: center; gap: .75rem; }
+.split-member .check { flex: 1; }
+.split-member input:not([type]) { max-width: 8rem; }
 
 /* Panneaux repliables */
 
@@ -731,6 +738,19 @@ details.more[open] { display: grid; grid-template-columns: minmax(0, 1fr); gap: 
 .scenario-form:not(:has(#kind option[value="anticipe"]:checked)) .if-prepay {
   display: none;
 }
+
+/* Sauvegardes */
+
+.backup-form:not(:has(input[name="copy"][value="dossier"]:checked)) .if-folder,
+.backup-form:not(:has(input[name="copy"][value="webdav"]:checked)) .if-webdav {
+  display: none;
+}
+.row-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.backup-row { flex-wrap: wrap; padding-block: .5rem; }
+
+/* Un libellé qui englobe son champ (formulaires répétés sur une page). */
+label:has(> input:not([type="checkbox"], [type="radio"]), > select) { display: grid; gap: .375rem; }
+label > input, label > select { font-weight: 400; }
 
 /* Épargne */
 

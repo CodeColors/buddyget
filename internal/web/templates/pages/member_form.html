@@ -1,0 +1,36 @@
+{{define "content"}}
+{{- with .Data}}
+<section class="card form-card" aria-labelledby="titre">
+  <h1 id="titre">{{$.Title}}</h1>
+  {{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+  <form class="form" method="post" action="/partage/membres/{{.ID}}">
+    <div class="field">
+      <label for="name">Prénom</label>
+      <input id="name" name="name" value="{{.Name}}" maxlength="40" autocomplete="off" required>
+    </div>
+    <div class="field">
+      <label for="income">Revenu mensuel (€) <span class="optional">(facultatif)</span></label>
+      <input id="income" name="income" value="{{.Income}}" inputmode="decimal" autocomplete="off" placeholder="0,00" aria-describedby="income-aide">
+      <p id="income-aide" class="hint">Pour les répartitions au prorata ; celles déjà enregistrées ne changent pas.</p>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Enregistrer</button>
+      <a class="btn" href="/partage">Annuler</a>
+    </div>
+  </form>
+</section>
+<section class="card danger-zone" aria-labelledby="gestion">
+  <h2 id="gestion">Archivage et suppression</h2>
+  <p class="muted">Un membre archivé n'est plus proposé dans les partages ; ses partages passés restent comptés. Seul un membre qui n'apparaît dans aucun partage peut être supprimé.</p>
+  <div class="actions">
+    <form method="post" action="/partage/membres/{{.ID}}/archiver">
+      <input type="hidden" name="archived" value="{{if .Archived}}0{{else}}1{{end}}">
+      <button class="btn" type="submit">{{if .Archived}}Réactiver{{else}}Archiver{{end}}</button>
+    </form>
+    <form method="post" action="/partage/membres/{{.ID}}/supprimer" data-confirm="Supprimer ce membre ?">
+      <button class="btn btn-danger" type="submit">Supprimer</button>
+    </form>
+  </div>
+</section>
+{{- end}}
+{{end}}

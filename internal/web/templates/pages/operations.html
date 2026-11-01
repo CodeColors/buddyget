@@ -135,7 +135,7 @@
 <div id="resultats" class="results">
   <input type="hidden" name="filtre" value="{{.Filter}}" form="lot">
   {{with .Problem}}<p class="alert" role="alert">{{.}}</p>{{end}}
-  <p class="summary" aria-live="polite">{{plural .Page.Count "opération" "opérations"}}{{if .Page.Count}} · total <strong class="amount{{if gt .Page.Sum 0}} positive{{end}}">{{eurosSigned .Page.Sum}}</strong>{{end}}</p>
+  <p class="summary" aria-live="polite">{{plural .Page.Count "opération" "opérations"}}{{if .Page.Count}} · total <strong class="amount{{if gt .Page.Sum 0}} positive{{end}}">{{eurosSigned .Page.Sum}}</strong> · <a href="{{.ExportURL}}">Exporter en CSV</a>{{end}}</p>
   {{- if .Page.Items}}
   <ul class="tx-list" aria-label="Opérations">
     {{- range .Page.Items}}
