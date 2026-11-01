@@ -82,12 +82,14 @@ jobs:
       - name: Taille, démarrage et mémoire au repos
         run: |
           size=$(docker image inspect -f '{{.Size}}' buddyget:ci)
-          docker run -d --name bg --memory 128m --cpus 0.5 buddyget:ci
+          docker run -d --name bg --memory 128m --cpus 0.5 -e TZ=Europe/Paris buddyget:ci
           for i in $(seq 1 30); do docker exec bg /buddyget healthcheck && break; sleep 0.2; done
           docker exec bg /buddyget healthcheck
           sleep 10
           mem=$(docker stats --no-stream --format '{{.MemUsage}}' bg)
-          docker logs bg
+          bytes=$(echo "$mem" | awk '{v=$1; u=v; gsub(/[0-9.]/,"",u); gsub(/[A-Za-z]/,"",v); m=(u=="GiB")?1073741824:(u=="MiB")?1048576:(u=="KiB")?1024:1; printf "%d", v*m}')
+          logs=$(docker logs bg 2>&1)
+          echo "$logs"
           docker rm -f bg
           {
             echo "### Mesures de l'image (linux/amd64)"
@@ -97,6 +99,28 @@ jobs:
             echo "| Mémoire au repos | ${mem%% /*} | < 64 Mo |"
           } >> "$GITHUB_STEP_SUMMARY"
           test "$size" -lt 50000000 || { echo "::error::image trop lourde : $size octets"; exit 1; }
+          test "$bytes" -lt 67108864 || { echo "::error::mémoire au repos trop élevée : $mem"; exit 1; }
+          grep -q 'fuseau=Europe/Paris' <<<"$logs" || { echo "::error::fuseau TZ non appliqué"; exit 1; }
+
+      # L'image arm64 (NAS ARM) démarre et répond, sous émulation.
+      - uses: docker/setup-qemu-action@v4
+      - name: Construction arm64 (contrôles)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/arm64
+          load: true
+          tags: buddyget:ci-arm64
+          build-args: VERSION=${{ github.ref_name }}
+          cache-from: type=gha
+      - name: Démarrage arm64
+        run: |
+          docker run -d --name bg-arm --platform linux/arm64 buddyget:ci-arm64
+          for i in $(seq 1 50); do docker exec bg-arm /buddyget healthcheck && break; sleep 0.5; done
+          docker exec bg-arm /buddyget healthcheck
+          docker logs bg-arm
+          docker rm -f bg-arm
+          echo "Démarrage de l'image linux/arm64 (émulée) : OK" >> "$GITHUB_STEP_SUMMARY"
 
       - if: env.PUBLISH == 'true'
         uses: docker/login-action@v4

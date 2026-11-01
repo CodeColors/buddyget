@@ -20,6 +20,11 @@ import (
 	"time"
 	_ "time/tzdata" // base des fuseaux embarquée : l'image scratch n'en a pas (TZ)
 
+	// Certificats racines embarqués, utilisés faute de magasin système (image
+	// scratch) : notifications SMTP chiffrées, webhook et copie WebDAV en
+	// HTTPS.
+	_ "golang.org/x/crypto/x509roots/fallback"
+
 	"github.com/codecolors/buddyget/internal/alerts"
 	"github.com/codecolors/buddyget/internal/attachments"
 	"github.com/codecolors/buddyget/internal/auth"
@@ -145,7 +150,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	slog.Info("BuddyGet démarré", "version", version, "adresse", cfg.Addr(), "démarrage", time.Since(start).Round(time.Millisecond))
+	slog.Info("BuddyGet démarré", "version", version, "adresse", cfg.Addr(), "fuseau", time.Local.String(),
+		"démarrage", time.Since(start).Round(time.Millisecond))
 
 	// Travaux de fond : examen des alertes à la demande, travaux quotidiens
 	// (intérêts, puis alertes). Arrêtés, et attendus, avant la fermeture de
