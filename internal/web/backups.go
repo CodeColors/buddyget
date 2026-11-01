@@ -65,6 +65,7 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, status in
 
 // backupNow fait une sauvegarde complète (copie externe comprise).
 func (s *Server) backupNow(w http.ResponseWriter, r *http.Request) {
+	allowLongTransfer(w)
 	st, err := s.backups.Settings(r.Context())
 	if err == nil {
 		_, err = s.backups.Run(r.Context(), st, false, time.Now())
@@ -113,6 +114,7 @@ func (s *Server) downloadBackup(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	allowLongTransfer(w)
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
 	w.Header().Set("Cache-Control", "no-store")
 	http.ServeContent(w, r, name, info.ModTime(), f)
@@ -130,6 +132,7 @@ func (s *Server) deleteBackup(w http.ResponseWriter, r *http.Request) {
 // déposée (champ fichier), puis redémarre BuddyGet, qui l'applique avant
 // d'ouvrir la base.
 func (s *Server) restoreBackup(w http.ResponseWriter, r *http.Request) {
+	allowLongTransfer(w)
 	var err error
 	if name := r.URL.Query().Get("nom"); name != "" {
 		err = s.backups.StageArchive(r.Context(), name)

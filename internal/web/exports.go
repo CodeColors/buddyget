@@ -51,6 +51,7 @@ func (s *Server) exportsPage(w http.ResponseWriter, r *http.Request) {
 // write. Une erreur survenue en cours d'écriture ne peut plus changer la
 // réponse : elle est journalisée, le fichier reçu est tronqué.
 func download(w http.ResponseWriter, r *http.Request, name, contentType string, write func(io.Writer) error) {
+	allowLongTransfer(w)
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name}))
 	w.Header().Set("Cache-Control", "no-store")

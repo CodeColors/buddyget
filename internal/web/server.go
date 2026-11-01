@@ -309,7 +309,7 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		s.renderError(w, r, http.StatusForbidden, "Requête refusée : elle ne provient pas de BuddyGet.")
 	}))
 
-	return securityHeaders(logRequests(csrf.Handler(mux))), nil
+	return securityHeaders(logRequests(csrf.Handler(mux)), s.secureCookies), nil
 }
 
 // render affiche une page dans la mise en page commune, avec le message
@@ -444,6 +444,23 @@ func (s *Server) writeCookie(w http.ResponseWriter, name, value string, expires 
 func parseForm(w http.ResponseWriter, r *http.Request) error {
 	r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
 	return r.ParseForm()
+}
+
+// longTransfer est le délai accordé à un transfert volumineux : fichier
+// déposé (relevé, pièce jointe, sauvegarde) ou produit (export, sauvegarde).
+// Les délais ordinaires du serveur (lecture 30 s, écriture 60 s) protègent
+// des clients lents mais couperaient ces requêtes sur une connexion modeste.
+const longTransfer = 30 * time.Minute
+
+// allowLongTransfer prolonge les délais de lecture et d'écriture de la
+// requête en cours.
+func allowLongTransfer(w http.ResponseWriter) {
+	rc := http.NewResponseController(w)
+	deadline := time.Now().Add(longTransfer)
+	// Sans prise en charge (serveur de test), les délais restent ceux du
+	// serveur : rien à faire.
+	_ = rc.SetReadDeadline(deadline)
+	_ = rc.SetWriteDeadline(deadline)
 }
 
 // pathID lit l'identifiant numérique {id} du chemin.

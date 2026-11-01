@@ -51,6 +51,7 @@ func (s *Server) renderImportForm(w http.ResponseWriter, r *http.Request, status
 // uploadImport lit le formulaire en flux : le compte d'abord, puis le
 // fichier, copié directement par le service sans fichier temporaire.
 func (s *Server) uploadImport(w http.ResponseWriter, r *http.Request) {
+	allowLongTransfer(w)
 	r.Body = http.MaxBytesReader(w, r.Body, s.maxUpload+64<<10)
 	f := importForm{}
 	token, err := func() (string, error) {

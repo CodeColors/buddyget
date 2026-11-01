@@ -21,6 +21,7 @@ func (s *Server) uploadAttachment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	back := "/operations/" + strconv.FormatInt(id, 10)
+	allowLongTransfer(w)
 	r.Body = http.MaxBytesReader(w, r.Body, s.maxUpload+maxFormBytes)
 	mr, err := r.MultipartReader()
 	if err != nil {

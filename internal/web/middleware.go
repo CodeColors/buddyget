@@ -17,13 +17,26 @@ import (
 const contentSecurityPolicy = "default-src 'self'; img-src 'self' data:; object-src 'none'; " +
 	"base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
-func securityHeaders(next http.Handler) http.Handler {
+// permissionsPolicy refuse les fonctions du navigateur inutiles ; le micro
+// reste permis au site pour la dictée de la saisie rapide.
+const permissionsPolicy = "camera=(), geolocation=(), payment=(), usb=(), microphone=(self)"
+
+// hstsPolicy impose HTTPS au navigateur une fois BuddyGet publié en HTTPS
+// (BASE_URL), sans engager les sous-domaines.
+const hstsPolicy = "max-age=15552000"
+
+// securityHeaders pose les en-têtes de sécurité ; https ajoute HSTS.
+func securityHeaders(next http.Handler, https bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("Content-Security-Policy", contentSecurityPolicy)
+		h.Set("Permissions-Policy", permissionsPolicy)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
 		h.Set("Cross-Origin-Opener-Policy", "same-origin")
+		if https {
+			h.Set("Strict-Transport-Security", hstsPolicy)
+		}
 		next.ServeHTTP(w, r)
 	})
 }

@@ -314,13 +314,20 @@ func TestSecurityHeadersAndNotFound(t *testing.T) {
 		t.Errorf("404 : %d", res.status)
 	}
 	for h, want := range map[string]string{
-		"Content-Security-Policy": contentSecurityPolicy,
-		"X-Content-Type-Options":  "nosniff",
-		"Referrer-Policy":         "same-origin",
+		"Content-Security-Policy":   contentSecurityPolicy,
+		"Permissions-Policy":        permissionsPolicy,
+		"X-Content-Type-Options":    "nosniff",
+		"Referrer-Policy":           "same-origin",
+		"Strict-Transport-Security": "", // HTTP : pas de HSTS
 	} {
 		if got := res.header.Get(h); got != want {
 			t.Errorf("%s = %q, attendu %q", h, got, want)
 		}
+	}
+	rec := httptest.NewRecorder()
+	securityHeaders(http.NotFoundHandler(), true).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), "GET", "/", nil))
+	if got := rec.Header().Get("Strict-Transport-Security"); got != hstsPolicy {
+		t.Errorf("HSTS en HTTPS : %q", got)
 	}
 }
 
