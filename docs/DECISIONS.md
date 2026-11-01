@@ -227,9 +227,12 @@ plutôt que JSON : il se commente et se modifie à la main.
   (sur-ensemble d'ISO-8859-1) ; séparateur deviné parmi `;` `,` tabulation
   `|` par la régularité du nombre de colonnes.
 - XLSX : `excelize`, lu en flux, valeurs brutes (dates en numéro de série,
-  montants sans format). XLS : `extrame/xls` (dernière version, 2020), qui
-  décode correctement les textes accentués contrairement à `xlsReader`
-  (essayé) ; une panique de la bibliothèque devient un message d'erreur.
+  montants sans format). XLS : lecteur BIFF8 maison (`xls.go`, conteneur
+  OLE par `mscfb`). `extrame/xls`, utilisé d'abord, plantait sur l'export
+  réel SG (format de nombre prédéfini absent de sa table) et prenait tout
+  nombre formaté pour une date ; le lecteur maison ne lit que textes,
+  nombres, dates et résultats de formules, et décide date ou nombre d'après
+  le format d'affichage. Un flux malformé devient un message d'erreur.
 - Les montants à la française sont lus par `money.Parse` ; un nombre à
   virgule flottante issu d'un classeur est arrondi au centime.
 - `golang.org/x/text` (déjà lié par excelize) fournit le décodage
