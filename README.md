@@ -60,6 +60,17 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
   pointer tombe à zéro
 - Abonnements (coût annuel, doublons, abonnements peut-être oubliés) et
   rapports mensuel et annuel (catégories, taux d'épargne, commerçants)
+- Crédits : tableau d'amortissement, capital restant dû, coût des intérêts
+  et de l'assurance, remboursements anticipés ; la mensualité entre d'elle-même
+  dans les récurrences et le prévisionnel
+- Projets (vacances, travaux…) : cagnotte sur un compte d'épargne, versement
+  mensuel suggéré et programmé en un clic, date d'atteinte, dépenses du
+  projet par étiquette
+- Dépenses annuelles lissées : provision mensuelle, mise de côté sur un
+  compte d'épargne ou non, dans le prévisionnel et le reste à vivre
+- Scénarios « et si » (achat, nouveau crédit, abonnement arrêté, hausse de
+  salaire, remboursement anticipé…) comparés à la réalité, puis convertis en
+  données réelles en un clic
 
 ## Avancement
 
@@ -74,7 +85,8 @@ Interface en français, modes clair et sombre, aucune requête vers l'extérieur
 | 7 | Épargne : modèles, intérêts, disponible et bloqué, versements programmés, vue Épargne | ✅ |
 | 8 | Budgets par enveloppe, reste à vivre, alertes et notifications facultatives | ✅ |
 | 9 | Abonnements, rapports, étiquettes, pièces jointes, saisie rapide, pointage | ✅ |
-| 10 – 12 | Scénarios, projets, crédits, partage, exports, sauvegardes | à venir |
+| 10 | Scénarios « et si », projets et cagnottes, lissage des dépenses annuelles, crédits | ✅ |
+| 11 – 12 | Partage, exports, sauvegardes, finitions | à venir |
 
 Le détail est dans [docs/PLAN.md](docs/PLAN.md) et le cahier des charges dans
 [docs/cahier-des-charges.md](docs/cahier-des-charges.md).

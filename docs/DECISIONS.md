@@ -661,3 +661,80 @@ libellés regroupés sans les mots à chiffres (dates, références) ni les
 mentions bancaires (CB, PRLV…). L'annuel ajoute les mois, dépenses face aux
 revenus mensuels moyens. La comparaison budget / réel reste la tendance de
 l'écran Budgets (lien depuis le rapport). Les exports arrivent au jalon 11.
+
+## Crédits, projets, lissage et scénarios (jalon 10)
+
+### Crédits
+- Crédit amortissable à mensualités constantes : capital, taux nominal
+  annuel (millièmes de point), durée (600 mois au plus), assurance mensuelle
+  fixe, première échéance. Mensualité = P·r / (1 − (1 + r)^−n), arrondie au
+  centime ; à taux nul, P / n arrondi au centime supérieur. Les intérêts de
+  chaque échéance sont arrondis au centime ; la dernière échéance solde le
+  capital restant (l'écart d'arrondi s'y concentre).
+- Un remboursement anticipé réduit le capital avant l'échéance qui le suit :
+  la mensualité reste, la durée raccourcit (le cas courant en France). S'il
+  solde le crédit, la ligne de clôture prend la date du remboursement et la
+  mensualité s'arrête ce jour-là.
+- La mensualité (assurance comprise) est une récurrence générée et tenue à
+  jour par le crédit : création, modification, remboursement anticipé et
+  suppression la mettent à jour, sans double saisie. Supprimée à la main,
+  elle est recréée à la modification suivante ; un crédit soldé avant sa
+  première échéance n'en a plus.
+
+### Projets
+- Un projet (montant, date, compte d'épargne de rattachement) suit une
+  cagnotte virtuelle : la part du compte affectée à la main, sans compte
+  bancaire supplémentaire. Les cagnottes d'un compte ne dépassent jamais son
+  solde ; un compte peut porter plusieurs projets.
+- Versement suggéré = reste à mettre de côté / mois restants (au moins un),
+  arrondi au centime supérieur. Date d'atteinte au rythme du versement
+  programmé (ramené au mois) ; sans versement, le projet est signalé en
+  retard.
+- « Créer le versement » ajoute une récurrence mensuelle (versement
+  programmé du jalon 7) du compte choisi vers le compte du projet, du mois
+  suivant à la date cible ; elle entre ainsi au prévisionnel. Les dépenses
+  du projet sont les opérations portant son étiquette (une seule).
+
+### Lissage
+- Option d'une récurrence de dépense espacée d'au moins deux mois : son
+  montant est provisionné en N parts mensuelles (N = mois entre deux
+  échéances), du jour de l'échéance précédente au mois qui précède la
+  suivante. Les parts sont calculées par différences de cumuls arrondis :
+  un cycle totalise exactement l'échéance.
+- La provision est mise de côté sur un compte d'épargne (virements prévus
+  vers ce compte, puis depuis lui à l'échéance) ou sans compte (simple mise
+  de côté dans le solde). À l'échéance, la « provision utilisée » compense
+  le paiement.
+- Prévisionnel : seules les parts datées de l'horizon sont mises de côté et
+  utilisées ; celles d'avant aujourd'hui, inconnues du solde de départ, ne
+  compensent rien (le calcul ne surestime jamais l'argent disponible). Les
+  provisions ont leur ligne dans le détail du calcul.
+- Reste à vivre : régime établi, chaque mois porte sa part et l'échéance du
+  mois est entièrement couverte ; les virements passés vers ou depuis le
+  compte de lissage sont déjà dans les opérations du mois.
+- Une échéance écartée n'est ni provisionnée ni compensée.
+
+### Scénarios « et si »
+- Un scénario est un calque nommé appliqué par le moteur unique du
+  prévisionnel ; il ne modifie aucune donnée. Six modifications :
+  opération ponctuelle, opération récurrente (tous les N mois), arrêt d'une
+  récurrence à une date, hausse ou baisse d'une récurrence (en euros ou en
+  %, sur la valeur absolue : une hausse augmente la dépense ou le revenu),
+  nouveau crédit, remboursement anticipé d'un crédit suivi.
+- Le moteur projette des « plans » : une récurrence et ses changements de
+  montant datés (un montant nul l'arrête, définitivement). Échéances,
+  lissage et intérêts estimés en découlent sans mécanisme parallèle. Une
+  variation prend effet à la première échéance au jour habituel de la série
+  (une série du 31 reprend un 31).
+- Nouveau crédit : ses mensualités seulement ; le capital finance
+  directement l'achat (un apport se saisit en opération ponctuelle).
+  Remboursement anticipé : le versement, borné au capital restant dû, puis
+  la suppression des mensualités devenues inutiles.
+- Comparaison avec la référence : solde à la date cible, point bas, écart
+  cumulé (différence des soldes à la date cible, effet de toutes les
+  modifications) ; la courbe de référence est tracée en pointillés.
+- Conversion en données réelles, dans l'ordre des dates : opération
+  planifiée, récurrence créée, récurrence arrêtée (fin la veille, ou
+  suspendue si elle n'a pas commencé), récurrence scindée (l'ancienne
+  s'arrête, une nouvelle reprend au nouveau montant), crédit créé,
+  remboursement anticipé enregistré ; puis le scénario est supprimé.

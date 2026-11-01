@@ -170,6 +170,21 @@ interpolation sans tampon ramène l'allocation à 38 Mo (la photo décodée,
 l'image intermédiaire et le résultat) et le temps de 470 à 260 ms ; une
 seule image est traitée à la fois.
 
+## Jalon 10 : 01/11/2026
+
+Même machine, même foyer chargé (cinq ans d'historique, 30 récurrences,
+moyenne sur 12 mois, solde pointé), horizon de 24 mois :
+
+| Opération | Durée | Mémoire allouée |
+|---|---|---|
+| Prévisionnel seul | 35 ms | 2,7 Mo |
+| Comparaison d'un scénario de six modifications avec la référence (trois dépenses lissées, un crédit) | 73 ms | 6 Mo |
+
+La comparaison calcule deux prévisionnels complets ; le scénario lui-même
+(changements datés des récurrences, mensualités simulées, tableau
+d'amortissement d'un remboursement anticipé) ne pèse presque rien à côté de
+la lecture en base. Un tableau d'amortissement compte 600 lignes au plus.
+
 ## Méthode
 
 ```bash

@@ -25,6 +25,7 @@ internal/
 ├── config/            variables d'environnement → Config validée
 ├── platform/
 │   ├── db/            ouverture SQLite (WAL, pools écriture/lecture), transactions,
+│   │                  lecture de lignes (Collect),
 │   │   └── migrations/ migrateur ; NNNN_description.sql embarqués
 │   ├── money/         montants en centimes : saisie et affichage à la française
 │   ├── calendar/      dates civiles AAAA-MM-JJ, périodicités et échéances,
@@ -40,10 +41,15 @@ internal/
 │                      détection avec score
 ├── forecast/          prévisionnel : moteur pur (Compute), service (réglages,
 │                      exclusions, dépenses variables, intérêts estimés,
-│                      reste à vivre)
+│                      lissage, scénarios et comparaison, reste à vivre)
 ├── savings/           épargne : modèles, réglages, intérêts (quinzaine, simple,
 │                      composé), disponible/bloqué, inscription des intérêts
 ├── budget/            enveloppes mensuelles : report, consommé, tendance
+├── loans/             crédits : tableau d'amortissement, remboursements
+│                      anticipés, récurrence de la mensualité
+├── goals/             projets : cagnotte, versement suggéré, date d'atteinte
+├── scenarios/         scénarios « et si » : modifications, conversion en
+│                      données réelles
 ├── reports/           rapports mensuel et annuel
 ├── attachments/       pièces jointes : réduction des images, PDF, quota
 ├── alerts/            alertes : examen (7 types), acquittement, notifications
@@ -59,8 +65,10 @@ e2e/                   tests Playwright (développement et CI uniquement)
 testdata/              relevés d'exemple (synthétiques, voir testdata/README.md)
 ```
 
-Les packages métier suivants (`goals`, `loans`, `household`…) s'ajoutent jalon par jalon sur ce
-modèle : un service par domaine, appelé par les handlers.
+Les packages métier suivants (`household`…) s'ajoutent jalon par jalon sur ce
+modèle : un service par domaine, appelé par les handlers. Le prévisionnel
+lit les autres domaines par ses dépendances (`forecast.Deps`) ; aucun
+domaine ne dépend du prévisionnel.
 
 ## Chemin d'une requête
 
@@ -104,7 +112,7 @@ peuvent pas créer deux premiers comptes.
 | `import_drafts`, `import_lines` | imports en cours : fichier déposé, correspondance, lignes interprétées, catégorie suggérée et sélection |
 | `category_rules` | règles : motif, « contient » ou expression régulière, catégorie, priorité |
 | `transfer_dismissals` | paires écartées de la détection des virements internes |
-| `recurring_rules` | récurrences : libellé, compte (et compte destinataire d'un versement programmé), montant (fixe ou estimé), périodicité, report au jour ouvré, première et dernière échéance, catégorie, origine, active, abonnement, signature de la série |
+| `recurring_rules` | récurrences : libellé, compte (et compte destinataire d'un versement programmé), montant (fixe ou estimé), périodicité, report au jour ouvré, première et dernière échéance, catégorie, origine, active, abonnement, lissage (et compte de lissage), signature de la série |
 | `recurring_dismissals` | séries rejetées à la détection |
 | `forecast_exclusions` | échéances écartées du prévisionnel (récurrence, date théorique) |
 | `forecast_settings` | réglages du prévisionnel (une ligne) : seuil, solde pointé, moyenne des dépenses variables |
@@ -116,6 +124,9 @@ peuvent pas créer deux premiers comptes.
 | `tags`, `transaction_tags` | étiquettes et leurs opérations |
 | `attachments` | pièces jointes : opération, nom d'origine, nature (image ou PDF), taille, fichier |
 | `quick_templates` | modèles de saisie : nom, compte, libellé, montant, catégorie |
+| `loans`, `loan_prepayments` | crédits : compte prélevé, capital, taux, durée, assurance, première échéance, récurrence de la mensualité ; remboursements anticipés |
+| `goals` | projets : montant et date visés, compte d'épargne, cagnotte, étiquette, versement programmé |
+| `scenarios`, `scenario_items` | scénarios et leurs modifications (nature, compte, récurrence ou crédit visé, montant, pourcentage, taux, durée, dates) |
 
 Une opération importée porte `import_id` (annulation) et `import_hash`
 (empreinte unique par compte, garde-fou contre les doublons). Une écriture
@@ -151,6 +162,9 @@ table des opérations.
 | `/etiquettes` | étiquettes : nombre d'opérations, renommage, retrait |
 | `/abonnements` | abonnements : coûts mensuel et annuel, doublons possibles, abonnements peut-être oubliés |
 | `/rapports` | rapport mensuel (`?mois=AAAA-MM`) ou annuel (`?annee=AAAA`) |
+| `/credits`, `/credits/nouveau`, `/credits/{id}` | crédits : situation, tableau d'amortissement par année, remboursement anticipé (`POST /credits/{id}/anticipe`), modification (`/credits/{id}/modifier`) |
+| `/projets`, `/projets/nouveau`, `/projets/{id}` | projets : progression, cagnotte (`POST /projets/{id}/cagnotte`), versement programmé (`POST /projets/{id}/versement`), saisie |
+| `/scenarios`, `/scenarios/{id}` | scénarios : création, comparaison (`?date=`), modifications (`POST /scenarios/{id}/modifications`), conversion (`POST /scenarios/{id}/convertir`) ; le prévisionnel applique un scénario avec `?scenario=` |
 | `/plus` | écrans secondaires |
 
 ### Chemin d'un import
