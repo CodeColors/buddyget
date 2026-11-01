@@ -7,10 +7,8 @@ import (
 	"errors"
 	"io"
 	"os"
-	"strings"
 	"unicode/utf8"
 
-	"github.com/extrame/xls"
 	"github.com/xuri/excelize/v2"
 	"golang.org/x/text/encoding/charmap"
 
@@ -199,39 +197,6 @@ func readXLSX(path string, fn rowFunc) error {
 		}
 	}
 	return rows.Error()
-}
-
-// readXLS lit la première feuille d'un classeur Excel 97-2003. La
-// bibliothèque peut paniquer sur un fichier corrompu : la panique devient
-// une erreur de saisie.
-func readXLS(path string, fn rowFunc) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = validation.Errorf("Classeur Excel (.xls) illisible (%v) : réexportez-le au format CSV ou XLSX.", r)
-		}
-	}()
-	wb, closer, err := xls.OpenWithCloser(path, "utf-8")
-	if err != nil {
-		return validation.Error("Classeur Excel (.xls) illisible : réexportez-le au format CSV ou XLSX.")
-	}
-	defer func() { _ = closer.Close() }()
-	sheet := wb.GetSheet(0)
-	if sheet == nil {
-		return validation.Error("Le classeur ne contient aucune feuille.")
-	}
-	var cells []string
-	for i := 0; i <= int(sheet.MaxRow); i++ {
-		cells = cells[:0]
-		if row := sheet.Row(i); row != nil {
-			for c := 0; c < row.LastCol(); c++ { // LastCol : dernière colonne + 1
-				cells = append(cells, strings.TrimSpace(row.Col(c)))
-			}
-		}
-		if err := fn(i+1, cells); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // Describe résume un format pour l'affichage.
