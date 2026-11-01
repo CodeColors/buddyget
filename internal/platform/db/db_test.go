@@ -181,3 +181,22 @@ func TestIsForeignKeyViolation(t *testing.T) {
 		t.Errorf("violation de clé étrangère non reconnue : %v", err)
 	}
 }
+
+func TestCollect(t *testing.T) {
+	conn := openTest(t)
+	square := func(row Scanner) (int, error) {
+		var n int
+		err := row.Scan(&n)
+		return n * n, err
+	}
+	got, err := Collect(t.Context(), conn, square, `SELECT value FROM json_each(?)`, "[1, 2, 3]")
+	if err != nil || len(got) != 3 || got[2] != 9 {
+		t.Errorf("lignes : %v, %v", got, err)
+	}
+	if _, err := Collect(t.Context(), conn, square, `SELECT 'x'`); err == nil {
+		t.Error("erreur de lecture ignorée")
+	}
+	if _, err := Collect(t.Context(), conn, square, `SELECT FROM`); err == nil {
+		t.Error("requête invalide acceptée")
+	}
+}
