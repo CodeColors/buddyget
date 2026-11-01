@@ -7,7 +7,7 @@
 
 <section class="card" aria-labelledby="apercu-brut">
   <h2 id="apercu-brut">Premières lignes</h2>
-  <div class="table-scroll" tabindex="0" aria-label="Premières lignes du fichier, défilables horizontalement">
+  <div class="table-scroll" tabindex="0" role="region" aria-label="Premières lignes du fichier, défilables horizontalement">
     <table class="raw">
       <thead><tr><th scope="col">Ligne</th>{{range $i, $c := .Columns}}<th scope="col">{{columnLetter $i}}</th>{{end}}</tr></thead>
       <tbody>

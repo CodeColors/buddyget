@@ -70,7 +70,7 @@
   {{- range .Years}}
   <details class="card more amortization"{{if .Current}} open{{end}}>
     <summary><span><strong>{{.Year}}</strong> · intérêts {{euros .Interest}} · capital {{euros .Capital}}{{if .Prepay}} + {{euros .Prepay}} anticipé{{end}} · reste {{euros .Remaining}}</span></summary>
-    <div class="table-scroll">
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Échéances {{.Year}}">
       <table class="raw">
         <thead><tr><th scope="col">N°</th><th scope="col">Date</th><th scope="col">Mensualité</th><th scope="col">Intérêts</th><th scope="col">Capital</th><th scope="col">Assurance</th><th scope="col">Restant dû</th></tr></thead>
         <tbody>
