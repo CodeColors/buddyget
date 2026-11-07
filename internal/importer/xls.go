@@ -117,7 +117,7 @@ func readWorkbook(stream []byte, fn rowFunc) (err error) {
 			wb.date1904 = len(r.data) >= 2 && binary.LittleEndian.Uint16(r.data) == 1
 		case recFormat:
 			if len(r.data) >= 2 {
-				s, _ := unicodeString(r.data[2:], true)
+				s := unicodeString(r.data[2:])
 				wb.formats[binary.LittleEndian.Uint16(r.data)] = s
 			}
 		case recXF:
@@ -200,7 +200,7 @@ func (wb *workbook) readSheet(recs []record, fn rowFunc) error {
 				}
 			}
 		case recLabel:
-			s, _ := unicodeString(d[6:], true)
+			s := unicodeString(d[6:])
 			set(row, col, s)
 		case recNumber:
 			if len(d) >= 14 {
@@ -236,7 +236,7 @@ func (wb *workbook) readSheet(recs []record, fn rowFunc) error {
 			set(row, col, wb.number(math.Float64frombits(binary.LittleEndian.Uint64(res)), xf))
 		case recString:
 			if pendingString {
-				s, _ := unicodeString(d, true)
+				s := unicodeString(d)
 				set(pending[0], pending[1], s)
 				pendingString = false
 			}
@@ -296,7 +296,12 @@ func isDateFormat(id uint16, custom string) bool {
 func rkValue(rk uint32) float64 {
 	var v float64
 	if rk&2 != 0 {
-		v = float64(int32(rk) >> 2)
+		// Entier signé sur les 30 bits de poids fort.
+		n := int64(rk >> 2)
+		if rk&(1<<31) != 0 {
+			n -= 1 << 30
+		}
+		v = float64(n)
 	} else {
 		v = math.Float64frombits(uint64(rk&^3) << 32)
 	}
@@ -306,32 +311,24 @@ func rkValue(rk uint32) float64 {
 	return v
 }
 
-// unicodeString lit une chaîne BIFF8 (longueur sur 16 bits si long16, sur
-// 8 sinon, puis options et caractères) et renvoie aussi les octets lus.
-func unicodeString(b []byte, long16 bool) (string, int) {
-	p, n := 0, 0
-	if long16 {
-		if len(b) < 3 {
-			return "", len(b)
-		}
-		n, p = int(binary.LittleEndian.Uint16(b)), 2
-	} else {
-		if len(b) < 2 {
-			return "", len(b)
-		}
-		n, p = int(b[0]), 1
+// unicodeString lit une chaîne BIFF8 : longueur sur 16 bits, options,
+// puis caractères.
+func unicodeString(b []byte) string {
+	if len(b) < 3 {
+		return ""
 	}
-	flags := b[p]
-	p++
-	rich, ext := 0, 0
-	if flags&8 != 0 && p+2 <= len(b) {
-		rich, p = int(binary.LittleEndian.Uint16(b[p:])), p+2
+	n, flags, p := int(binary.LittleEndian.Uint16(b)), b[2], 3
+	if flags&8 != 0 {
+		p += 2 // nombre de séquences de mise en forme
 	}
-	if flags&4 != 0 && p+4 <= len(b) {
-		ext, p = int(binary.LittleEndian.Uint32(b[p:])), p+4
+	if flags&4 != 0 {
+		p += 4 // taille des données étendues
 	}
-	s, read := chars(b[p:], n, flags&1 != 0)
-	return s, min(p+read+4*rich+ext, len(b))
+	if p > len(b) {
+		return ""
+	}
+	s, _ := chars(b[p:], n, flags&1 != 0)
+	return s
 }
 
 // chars décode n caractères, sur un octet (Latin-1) ou deux (UTF-16).
