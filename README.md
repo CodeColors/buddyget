@@ -89,7 +89,7 @@ vers un serveur WebDAV, si vous les activez).
 |---|---|---|
 | 1 | Socle : configuration, SQLite et migrations, authentification, gabarit d'interface, image Docker, CI | ✅ |
 | 2 | Comptes, catégories, saisie manuelle, virements, liste et recherche, édition par lot | ✅ |
-| 3 | Import CSV / XLSX / XLS, profils SG / BNP / générique, déduplication, annulation, rapprochement | ✅ (profil BNP à vérifier sur un export réel) |
+| 3 | Import CSV / XLSX / XLS, profils SG / BNP / générique, déduplication, annulation, rapprochement | ✅ |
 | 4 | Règles de catégorisation (en un clic, rétroactives, à l'import), virements internes détectés | ✅ |
 | 5 | Récurrences : détection avec score de confiance, validation, saisie manuelle | ✅ |
 | 6 | Prévisionnel : courbe, point bas, seuil, jours non ouvrés, dépenses variables, exclusion ponctuelle | ✅ |
@@ -277,9 +277,8 @@ format_date: JJ/MM/AAAA   # facultatif : JJ/MM/AA, AAAA-MM-JJ, JJ-MM-AAAA, JJ.MM
 # montants_inverses: true  # si les dépenses sont écrites en positif
 ```
 
-Le profil Société Générale est vérifié sur un export réel (.xls, en-tête en
-ligne 3) ; le profil BNP Paribas reste **provisoire**, établi sans export
-réel. Si votre export n'est pas reconnu,
+Les profils Société Générale et BNP Paribas sont vérifiés sur des exports
+réels (.xls, en-tête en ligne 3). Si votre export n'est pas reconnu,
 l'assistant propose le choix des colonnes ; signalez-le pour que le profil
 soit corrigé.
 

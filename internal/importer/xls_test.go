@@ -196,3 +196,52 @@ func TestRKValue(t *testing.T) {
 		}
 	}
 }
+
+// textWorkbook fabrique un classeur d'une feuille dont chaque cellule est un
+// texte en ligne (enregistrements LABEL).
+func textWorkbook(rows [][]string) []byte {
+	var g biff
+	g.rec(recBOF, u16(0x0600, 0x0005), make([]byte, 12))
+	g.rec(recXF, u16(0, 0), make([]byte, 16))
+	bound := len(g)
+	g.rec(recBoundSheet, u32(0), u16(0), str16("Feuille"))
+	g.rec(recEOF)
+	var s biff
+	s.rec(recBOF, u16(0x0600, 0x0010), make([]byte, 12))
+	for r, cells := range rows {
+		for c, v := range cells {
+			if v != "" {
+				s.rec(recLabel, u16(uint16(r), uint16(c), 0), str16(v))
+			}
+		}
+	}
+	s.rec(recEOF)
+	binary.LittleEndian.PutUint32(g[bound+4:], uint32(len(g)))
+	return slices.Concat(g, s)
+}
+
+// L'export BNP Paribas : synthèse, ligne vide, en-tête sans accents en
+// ligne 3, dates en texte JJ-MM-AAAA.
+func TestReadWorkbookBNPProfile(t *testing.T) {
+	stream := textWorkbook([][]string{
+		{"Compte de chèques ****1234", "Solde au 06/11/2026", "250.00", "EUR"},
+		{},
+		{"Date operation", "Categorie operation", "Sous Categorie operation", "Libelle operation", "Montant operation", "Pointage operation", "Commentaire operation"},
+		{"05-11-2026", "Vie Quotidienne", "Alimentation, supermarché", "PAIEMENT CB SUPERMARCHE DU 05/11/26", "-6.21"},
+	})
+	var head []HeadRow
+	if err := readWorkbook(stream, func(n int, c []string) error {
+		head = append(head, HeadRow{n, slices.Clone(c)})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	p, m, ok := detect(Profiles(t.TempDir()), head)
+	if !ok || p.Name != "BNP Paribas" || m.HeaderLine != 3 {
+		t.Fatalf("profil %q (ligne %d)", p.Name, m.HeaderLine)
+	}
+	l, ok := m.parse(4, head[3].Cells, true)
+	if !ok || l != (Line{4, "2026-11-05", "PAIEMENT CB SUPERMARCHE DU 05/11/26", -621, ""}) {
+		t.Errorf("ligne 4 : %v", l)
+	}
+}
