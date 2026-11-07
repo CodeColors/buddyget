@@ -1,6 +1,10 @@
 # Société Générale : export CSV ou Excel des opérations d'un compte.
 #
-# PROVISOIRE : établi sans export réel (aucun fichier fourni à ce jour).
+# Vérifié sur un export réel (.xls) : ligne de synthèse (compte, période,
+# solde), ligne vide, puis l'en-tête en ligne 3 ; colonnes « Date de
+# l'opération », « Libellé », « Détail de l'écriture », « Montant de
+# l'opération », « Devise » (ignorée : comptes en euros).
+#
 # Pour l'ajuster, copiez ce fichier dans /data/profiles/sg.yaml et modifiez
 # les intitulés : chaque donnée accepte plusieurs intitulés possibles, la
 # casse et les accents sont ignorés.
