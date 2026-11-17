@@ -69,7 +69,7 @@ internal/
 │   └── profiles/      sg.yaml, bnp.yaml, generique.yaml (embarqués)
 └── web/               routage, middlewares, handlers par écran, rendu
     ├── templates/     layout.html + pages/<page>.html
-    └── static/        CSS, app.js, HTMX (vendorisé), icône, manifeste PWA
+    └── static/        CSS, app.js, HTMX (vendorisé), icônes SVG, manifeste PWA
 e2e/                   tests Playwright (développement et CI uniquement)
 testdata/              relevés d'exemple (synthétiques, voir testdata/README.md)
 ```
@@ -204,13 +204,19 @@ des résultats (`renderBlock`).
 
 - Rendu serveur `html/template` ; une page = `templates/pages/<nom>.html`
   définissant le bloc `content`, insérée dans `layout.html`.
-- Mobile d'abord : barre d'onglets en bas sous 768 px, sous l'en-tête au-delà ;
-  cibles tactiles de 44 px, champs de 16 px.
+- Mobile d'abord : une seule liste de rubriques, en barre d'onglets en bas
+  sous 1 024 px, en barre latérale au-delà ; cibles tactiles de 44 px,
+  champs de 16 px.
 - Thème rendu côté serveur (`data-theme`), couleurs en `light-dark()`.
 - Fichiers statiques servis depuis la mémoire (compressés une fois au
   démarrage), URL versionnées par empreinte.
-- Opérations en cartes sur mobile, en colonnes alignées au-delà de 768 px ;
-  bouton flottant « + Opération » sur toutes les pages.
-- Graphiques en SVG calculé côté serveur (`chart.go`), stylés par classes CSS.
+- Opérations regroupées par jour, en cartes sur mobile, en colonnes alignées
+  au-delà de 768 px ; saisie au centre de la barre d'onglets (téléphone) ou
+  dans la barre d'application (ordinateur).
+- Tableau de bord (`dashboard.go`) : assemblage des services existants,
+  sans calcul propre.
+- Graphiques en SVG calculé côté serveur (`chart.go`, anneaux du tableau de
+  bord), stylés par classes CSS ; icônes en symboles SVG (`static/icons.svg`).
 - Amélioration progressive : chaque écran fonctionne sans JavaScript ; HTMX
-  rend la recherche instantanée, `app.js` ajoute confirmations et « tout cocher ».
+  rend la recherche instantanée, `app.js` ajoute confirmations, « tout cocher »,
+  fermeture des menus et raccourcis clavier.
