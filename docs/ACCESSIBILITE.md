@@ -4,13 +4,13 @@ Exigence du cahier des charges : audit Lighthouse, accessibilité ≥ 90,
 contrastes WCAG AA dans les deux thèmes, navigation au clavier, libellés de
 formulaires, focus visible.
 
-## Audit Lighthouse : 01/11/2026 (v1.0)
+## Audit Lighthouse : 17/11/2026 (v1.1, interface refondue)
 
 Lighthouse 12.8.2, catégorie accessibilité, profil mobile (412 px),
 Chromium sans interface, sur le binaire réel avec un foyer de démonstration
-(comptes courant et d'épargne, opérations, récurrences, enveloppe, membres,
-crédit, projet, scénario, sauvegarde). Chaque écran est audité deux fois :
-utilisateur réglé en thème clair, puis en thème sombre.
+(trois comptes, trois mois d'opérations catégorisées par des règles,
+récurrences validées, quatre enveloppes, alertes). Chaque écran est audité
+deux fois : utilisateur réglé en thème clair, puis en thème sombre.
 
 | Écran | Clair | Sombre |
 |---|---|---|
@@ -24,13 +24,20 @@ utilisateur réglé en thème clair, puis en thème sombre.
 | Budgets (`/budgets`) | 100 | 100 |
 | Rapports (`/rapports`) | 100 | 100 |
 | Récurrences (`/recurrences`) | 100 | 100 |
+| Abonnements (`/abonnements`) | 100 | 100 |
+| Alertes (`/alertes`) | 100 | 100 |
 | Partage du foyer (`/partage`) | 100 | 100 |
-| Crédit (`/credits/1`) | 100 | 100 |
+| Crédits (`/credits`) | 100 | 100 |
 | Projets (`/projets`) | 100 | 100 |
-| Scénario (`/scenarios/1`) | 100 | 100 |
+| Scénarios (`/scenarios`) | 100 | 100 |
 | Exports (`/exports`) | 100 | 100 |
 | Sauvegardes (`/sauvegardes`) | 100 | 100 |
+| Paramètres (`/parametres`) | 100 | 100 |
 | Plus (`/plus`) | 100 | 100 |
+
+L'audit de la v1.0 (01/11/2026, ancienne interface) donnait déjà 100 sur
+chaque écran ; les écrans de détail (crédit, scénario) restent couverts par
+le contrôle continu ci-dessous.
 
 ### Méthode
 
@@ -61,11 +68,16 @@ désormais focalisables et nommées (`role="region"`, `aria-label`).
 ## Choix de conception
 
 - Thèmes clair et sombre par variables CSS, contrastes AA vérifiés par axe
-  dans les deux thèmes ; le choix (Auto, Clair, Sombre) est appliqué sans
-  flash.
-- Lien « Aller au contenu », focus visible (contour de 3 px), libellé pour
-  chaque champ, messages d'erreur en `role="alert"`, confirmations en
-  `role="status"`.
+  dans les deux thèmes ; le choix (Automatique, Clair, Sombre), dans le menu
+  du compte, est appliqué sans flash.
+- Une seule navigation principale exposée à la fois (barre d'onglets ou
+  barre latérale selon la largeur) ; menu du compte en `<details>`,
+  utilisable au clavier et sans script, refermé par Échap.
+- Graphiques décoratifs (anneaux, pastilles, barres) masqués aux lecteurs
+  d'écran : chaque valeur figure aussi en texte (légende, montants).
+- Lien « Aller au contenu », focus visible (contour de 3 px, halo sur les
+  champs), libellé pour chaque champ, messages d'erreur en `role="alert"`,
+  confirmations en `role="status"`.
 - Cibles tactiles de 44 × 44 px au moins, champs de 16 px au moins (pas de
   zoom automatique sur iOS) ; vérifiés par les tests de bout en bout.
 - Graphiques en SVG avec description textuelle et tableau équivalent.

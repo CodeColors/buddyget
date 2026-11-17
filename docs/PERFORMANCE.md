@@ -3,6 +3,28 @@
 Cibles (cahier des charges, section 2) : RAM au repos < 64 Mo (objectif
 30 Mo), image < 50 Mo, démarrage < 3 s, pages < 150 Ko hors graphiques.
 
+## Refonte de l'interface (v1.1) : 17/11/2026
+
+Même machine, foyer de démonstration de l'audit d'accessibilité (trois
+comptes, 118 opérations sur trois mois, récurrences, quatre enveloppes).
+
+| Mesure | v1.0 | v1.1 | Cible |
+|---|---|---|---|
+| Tableau de bord : temps de réponse (médiane de 5) | — | 8 ms | — |
+| Tableau de bord (HTML non compressé) | 10 Ko | 26 Ko (5 Ko compressé) | < 150 Ko |
+| Opérations, page de 50 (HTML non compressé) | 51 Ko | 67 Ko | < 150 Ko |
+| Prévisionnel à 3 mois (HTML non compressé) | 42 Ko | 45 Ko | < 150 Ko |
+| Feuille de style (compressée, en cache un an) | 7,5 Ko | 11,7 Ko | — |
+| Icônes (`icons.svg`, compressé, en cache un an) | — | 1,8 Ko | — |
+| RAM au repos après démarrage | 30 Mo | 33 Mo | < 64 Mo |
+| RAM au repos après la visite de 11 écrans | 36 Mo | 39 Mo | < 64 Mo |
+
+Le tableau de bord rassemble désormais le prévisionnel des comptes courants
+à 45 jours, le rapport du mois et les dernières opérations : trois calculs
+déjà existants, de quelques millisecondes chacun. Le surcoût en HTML vient
+des icônes et des graphiques (pastilles d'opérations, anneaux), en
+attributs SVG pour respecter la politique de sécurité du contenu.
+
 ## Bilan v1.0 : 01/11/2026
 
 Binaire final (21 Mo, base des fuseaux et certificats racines embarqués),

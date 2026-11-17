@@ -39,7 +39,11 @@ func TestBudgetsAndDashboard(t *testing.T) {
 		}
 	}
 	dash := e.do("GET", "/", nil).body
-	for _, want := range []string{"Reste à vivre en " + today.MonthLabel(), "Dépenses déjà faites", "Enveloppes du mois", "Bientôt atteint"} {
+	for _, want := range []string{
+		"Reste à vivre", "fin de " + today.MonthLabel(), "Dépenses déjà faites", "Enveloppes du mois", "Bientôt atteint",
+		"Solde prévu des comptes courants", `id="courbe-titre"`, "Dépenses par catégorie", "<span>Loisirs</span></dt><dd>100 %</dd>",
+		"Dernières opérations", "Concert", "Plus fortes dépenses",
+	} {
 		if !strings.Contains(dash, want) {
 			t.Errorf("tableau de bord : %q absent", want)
 		}

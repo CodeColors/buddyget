@@ -227,9 +227,12 @@ plutôt que JSON : il se commente et se modifie à la main.
   (sur-ensemble d'ISO-8859-1) ; séparateur deviné parmi `;` `,` tabulation
   `|` par la régularité du nombre de colonnes.
 - XLSX : `excelize`, lu en flux, valeurs brutes (dates en numéro de série,
-  montants sans format). XLS : `extrame/xls` (dernière version, 2020), qui
-  décode correctement les textes accentués contrairement à `xlsReader`
-  (essayé) ; une panique de la bibliothèque devient un message d'erreur.
+  montants sans format). XLS : lecteur BIFF8 maison (`xls.go`, conteneur
+  OLE par `mscfb`). `extrame/xls`, utilisé d'abord, plantait sur l'export
+  réel SG (format de nombre prédéfini absent de sa table) et prenait tout
+  nombre formaté pour une date ; le lecteur maison ne lit que textes,
+  nombres, dates et résultats de formules, et décide date ou nombre d'après
+  le format d'affichage. Un flux malformé devient un message d'erreur.
 - Les montants à la française sont lus par `money.Parse` ; un nombre à
   virgule flottante issu d'un classeur est arrondi au centime.
 - `golang.org/x/text` (déjà lié par excelize) fournit le décodage
@@ -844,3 +847,57 @@ l'écran Budgets (lien depuis le rapport). Les rapports s'exportent en PDF ou en
   fait apparaître les zones de tableau défilantes non atteignables au
   clavier, corrigées.
 
+
+## Refonte de l'interface (v1.1)
+
+### Système visuel
+- Une seule feuille de style, réécrite autour de jetons (`:root`) définis
+  une fois pour les deux thèmes avec `light-dark()` : fond, surfaces,
+  textes, accent indigo, couleurs d'état ; contrastes AA vérifiés par axe et
+  Lighthouse dans les deux thèmes. Les classes des écrans sont conservées :
+  les 45 pages ont pris le nouveau style sans réécriture.
+- Police du système (aucun fichier de police à télécharger ni à servir),
+  chiffres tabulaires pour les montants.
+- Icônes en un seul fichier SVG (`static/icons.svg`, symboles appelés par
+  `<use>`), mis en cache un an comme les autres fichiers statiques : une
+  icône coûte une ligne de HTML, sans script ni style en ligne (CSP).
+- Couleur d'une donnée (catégorie, arc de l'anneau) toujours en attribut
+  SVG, jamais en style en ligne.
+
+### Navigation
+- Une seule liste de rubriques, mise en forme selon la largeur : barre
+  d'onglets sous 1 024 px (Accueil, Opérations, saisie au centre,
+  Prévisionnel, Plus), barre latérale complète au-delà (rubriques groupées
+  Suivre, Prévoir, Foyer et données). Aucun menu en double dans la page.
+- Barre d'application : recherche d'opérations (sauf sur la page des
+  opérations, qui a la sienne), cloche, « Nouvelle opération » sur
+  ordinateur, menu du compte (thème, paramètres, déconnexion). Le menu est un
+  `<details>` : il fonctionne sans script ; le script le referme d'un clic
+  ailleurs ou par Échap.
+- Raccourcis clavier hors saisie : « / » place le curseur dans la recherche,
+  « n » ouvre la saisie d'une opération.
+- Le bouton flottant « + Opération » disparaît : la saisie est au centre de
+  la barre d'onglets sur téléphone, dans la barre d'application sur
+  ordinateur.
+
+### Tableau de bord
+- Il n'ajoute aucun calcul : il réunit ce que les services établissent déjà
+  (soldes, reste à vivre, rapport du mois, prévisionnel des comptes courants
+  à 45 jours, recherche des dernières opérations, enveloppes, alertes).
+- Reste à vivre en anneau : part des entrées du mois (reçues et attendues)
+  qui reste ; sans entrée, seul le montant est affiché.
+- Mois en cours : revenus et dépenses en barres, avec un repère pour le mois
+  précédent entier (le mois en cours est partiel : pas de taux d'épargne
+  trompeur) et les trois plus fortes dépenses par commerçant.
+- Dépenses par catégorie en anneau : les cinq premières catégories, les
+  suivantes regroupées ; la légende donne les parts en texte, l'anneau est
+  décoratif pour les lecteurs d'écran.
+
+### Opérations
+- Regroupées par jour quand elles sont triées par date (un titre par jour,
+  la date n'est plus répétée), en une liste quand elles sont triées par
+  montant.
+- Pastille par opération : sens du mouvement (dépense, revenu, virement)
+  dans la couleur de sa catégorie.
+- Les cases à cocher n'apparaissent qu'avec le panneau « Modifier par lot »
+  ouvert (`:has()`, sans script) : la liste reste lisible au quotidien.

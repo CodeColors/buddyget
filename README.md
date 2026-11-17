@@ -9,7 +9,9 @@ de RAM au repos.
 - Budget prévisionnel à une date choisie, à partir des opérations récurrentes
 - Comptes d'épargne avec intérêts et durée de blocage
 
-Interface en français, modes clair et sombre, aucune requête vers l'extérieur
+Interface en français, moderne et visuelle (barre latérale sur ordinateur,
+barre d'onglets au pouce sur téléphone), modes clair et sombre, aucune
+requête vers l'extérieur
 (sauf les notifications par e-mail ou webhook et la copie des sauvegardes
 vers un serveur WebDAV, si vous les activez).
 
@@ -19,9 +21,16 @@ vers un serveur WebDAV, si vous les activez).
 - Catégories sur deux niveaux, avec un jeu par défaut modifiable
 - Saisie d'une opération en quelques secondes (montant, libellé, Entrée), y
   compris les virements entre comptes du foyer
-- Liste des opérations en cartes sur mobile, recherche instantanée
-  (sans accents ni majuscules), filtres par compte, catégorie, période,
-  montant et pointage, tri
+- Tableau de bord visuel : soldes, reste à vivre du mois en anneau, revenus
+  et dépenses face au mois précédent, courbe du solde prévu à 45 jours,
+  dépenses par catégorie, échéances à venir, dernières opérations,
+  enveloppes et alertes
+- Liste des opérations regroupée par jour, pastille de catégorie, recherche
+  instantanée (sans accents ni majuscules), filtres par compte, catégorie,
+  période, montant et pointage, tri ; recherche aussi depuis l'en-tête de
+  chaque page
+- Raccourcis clavier : « / » pour chercher une opération, « n » pour en
+  saisir une
 - Recatégorisation ou changement de compte par lot, sur une sélection ou sur
   tous les résultats d'une recherche
 - Import des relevés CSV, Excel (.xlsx) et Excel 97-2003 (.xls) en trois
@@ -89,7 +98,7 @@ vers un serveur WebDAV, si vous les activez).
 |---|---|---|
 | 1 | Socle : configuration, SQLite et migrations, authentification, gabarit d'interface, image Docker, CI | ✅ |
 | 2 | Comptes, catégories, saisie manuelle, virements, liste et recherche, édition par lot | ✅ |
-| 3 | Import CSV / XLSX / XLS, profils SG / BNP / générique, déduplication, annulation, rapprochement | ✅ (profils SG et BNP à vérifier sur des exports réels) |
+| 3 | Import CSV / XLSX / XLS, profils SG / BNP / générique, déduplication, annulation, rapprochement | ✅ |
 | 4 | Règles de catégorisation (en un clic, rétroactives, à l'import), virements internes détectés | ✅ |
 | 5 | Récurrences : détection avec score de confiance, validation, saisie manuelle | ✅ |
 | 6 | Prévisionnel : courbe, point bas, seuil, jours non ouvrés, dépenses variables, exclusion ponctuelle | ✅ |
@@ -99,6 +108,7 @@ vers un serveur WebDAV, si vous les activez).
 | 10 | Scénarios « et si », projets et cagnottes, lissage des dépenses annuelles, crédits | ✅ |
 | 11 | Partage du foyer, exports CSV / PDF / ZIP, sauvegardes chiffrées, copie externe, restauration | ✅ |
 | 12 | Durcissement, paramètres et utilisateurs, accessibilité, documentation finale | ✅ **v1.0** |
+| — | Refonte de l'interface : système visuel, barre latérale, tableau de bord visuel, opérations par jour | ✅ **v1.1** |
 
 Le détail est dans [docs/PLAN.md](docs/PLAN.md) et le cahier des charges dans
 [docs/cahier-des-charges.md](docs/cahier-des-charges.md).
@@ -157,17 +167,18 @@ version en cours de développement.
 ### 5. Premiers pas
 
 1. Créez le premier compte de connexion (identifiant et mot de passe de
-   12 caractères au moins), puis, dans **Plus → Paramètres → Utilisateurs**,
-   un compte pour chaque personne du foyer.
+   12 caractères au moins), puis, dans **Paramètres → Utilisateurs** (barre
+   latérale sur ordinateur, **Plus** sur téléphone), un compte pour chaque
+   personne du foyer.
 2. **Comptes** : ajoutez vos comptes courants et d'épargne avec leur solde à
    une date (le solde du relevé, par exemple) ; les modèles Livret A, LDDS,
    LEP, PEL… préremplissent taux et plafonds.
 3. **Importer** : déposez l'export de votre banque (CSV, XLS ou XLSX) ;
    vérifiez l'aperçu, validez, puis rapprochez le solde avec celui de la
    banque.
-4. **Plus → Récurrences** : validez les séries détectées (loyer, salaire,
+4. **Récurrences** : validez les séries détectées (loyer, salaire,
    abonnements) ; le **Prévisionnel** est alors complet.
-5. **Plus → Paramètres → Sauvegardes** : activez la sauvegarde de nuit et,
+5. **Paramètres → Sauvegardes** : activez la sauvegarde de nuit et,
    idéalement, `BACKUP_PASSPHRASE` et une copie hors du NAS.
 
 Sur le téléphone, ouvrez l'adresse dans le navigateur puis « Ajouter à
@@ -183,7 +194,7 @@ l'écran d'accueil » : BuddyGet s'ouvre comme une application.
 
 ### Sauvegarde et restauration
 
-Écran **Plus → Sauvegardes** :
+Écran **Paramètres → Sauvegardes** :
 
 - **Sauvegarder maintenant** crée une archive cohérente de la base et des
   pièces jointes dans `/volume1/docker/buddyget/backups/`, sans arrêter
@@ -233,8 +244,7 @@ sudo docker exec buddyget /buddyget reset-password <identifiant>
 ```
 
 La commande affiche un nouveau mot de passe aléatoire et ferme les sessions
-de ce compte ; changez-le après connexion (**Plus → Paramètres →
-Utilisateurs**).
+de ce compte ; changez-le après connexion (**Paramètres → Utilisateurs**).
 
 ### Dépannage
 
@@ -277,8 +287,8 @@ format_date: JJ/MM/AAAA   # facultatif : JJ/MM/AA, AAAA-MM-JJ, JJ-MM-AAAA, JJ.MM
 # montants_inverses: true  # si les dépenses sont écrites en positif
 ```
 
-Les profils Société Générale et BNP Paribas fournis sont **provisoires** :
-ils ont été établis sans export réel. Si votre export n'est pas reconnu,
+Les profils Société Générale et BNP Paribas sont vérifiés sur des exports
+réels (.xls, en-tête en ligne 3). Si votre export n'est pas reconnu,
 l'assistant propose le choix des colonnes ; signalez-le pour que le profil
 soit corrigé.
 

@@ -1,69 +1,201 @@
 {{define "content"}}
-<h1>Bonjour {{.User.Username}}</h1>
 {{- with .Data}}
+<div class="hello">
+  <div>
+    <h1>Bonjour {{$.User.Username}}</h1>
+    <p>{{.Today.DayLabel}}</p>
+  </div>
+  {{- if .Active}}
+  <div class="actions">
+    <a class="btn" href="/import">{{template "icon" "import"}}Importer un relevé</a>
+  </div>
+  {{- end}}
+</div>
 {{- if .Active}}
-<section aria-labelledby="soldes">
-  <div class="section-head">
-    <h2 id="soldes">Soldes au {{.Today.Format}}</h2>
-    <p class="total">Total <strong>{{euros .Total}}</strong></p>
-  </div>
-  <ul class="tiles">
-    {{- range .Active}}
-    <li>
-      <a class="tile" href="/operations?compte={{.ID}}">
-        <span class="tile-label">{{.Name}}</span>
-        <span class="tile-meta">{{.Kind.Label}} · {{.Bank.Label}}</span>
-        <span class="tile-value amount{{if lt .Balance 0}} negative{{end}}">{{euros .Balance}}</span>
-      </a>
-    </li>
-    {{- end}}
-  </ul>
-</section>
-{{- if .HasOutlook}}
-{{- with .Outlook}}
-<section class="card outlook" aria-labelledby="reste">
-  <div class="section-head">
-    <h2 id="reste">Reste à vivre en {{.Month.MonthLabel}}</h2>
-    <a href="/previsionnel">Prévisionnel</a>
-  </div>
-  <p class="forecast-closing amount{{if lt .Left 0}} negative{{end}}">{{euros .Left}}</p>
-  <dl class="breakdown">
-    <div><dt>Entrées reçues et attendues</dt><dd class="amount">{{eurosSigned (add .Received .Expected)}}</dd></div>
-    <div><dt>Charges et dépenses prévues à venir</dt><dd class="amount">{{eurosSigned .Upcoming}}</dd></div>
-    <div><dt>Versements vers l'épargne et vos autres comptes</dt><dd class="amount">{{eurosSigned .Savings}}</dd></div>
-    <div><dt>Dépenses déjà faites</dt><dd class="amount">{{eurosSigned .Spent}}</dd></div>
-    {{- if .Provisions}}
-    <div><dt>Dépenses lissées : provisions du mois, nettes de leur utilisation</dt><dd class="amount">{{eurosSigned .Provisions}}</dd></div>
-    {{- end}}
-  </dl>
-  <p class="hint">Ce qui reste ce mois-ci pour les dépenses courantes, d'après vos comptes courants, récurrences et opérations prévues.</p>
-</section>
-{{- end}}
-{{- end}}
-{{- if .Envelopes}}
-<section aria-labelledby="enveloppes">
-  <div class="section-head">
-    <h2 id="enveloppes">Enveloppes du mois</h2>
-    <a href="/budgets">Tous les budgets</a>
-  </div>
-  <ul class="rows envelopes">
-    {{- range .Envelopes}}<li class="row">{{template "envelope" .}}</li>{{end}}
-  </ul>
-</section>
-{{- end}}
 {{- if .Alerts}}
 <section aria-labelledby="dernieres-alertes">
-  <div class="section-head">
-    <h2 id="dernieres-alertes">Alertes</h2>
-    <a href="/alertes">Toutes les alertes</a>
-  </div>
-  <ul class="rows">
+  <h2 id="dernieres-alertes" class="sr-only">Alertes</h2>
+  <ul class="alert-strip">
     {{- range .Alerts}}
-    <li class="row"><a class="row-link" href="{{or .Link "/alertes"}}"><span class="row-title">{{.Title}}</span>{{with .Detail}}<span class="row-meta">{{.}}</span>{{end}}</a></li>
+    <li><a href="{{or .Link "/alertes"}}">{{template "icon" "attention"}}<span><strong>{{.Title}}</strong>{{with .Detail}}<small>{{.}}</small>{{end}}</span></a></li>
     {{- end}}
   </ul>
 </section>
 {{- end}}
+
+<div class="dash">
+  <section class="card wealth" aria-labelledby="soldes">
+    <div class="section-head">
+      <h2 id="soldes">Soldes au {{.Today.Format}}</h2>
+      <a href="/comptes">Comptes</a>
+    </div>
+    <p><span class="kpi-label">Total</span> <span class="kpi-value amount">{{euros .Total}}</span></p>
+    <ul class="wealth-accounts">
+      {{- range .Active}}
+      <li><a href="/operations?compte={{.ID}}">{{if eq .Kind "epargne"}}{{template "icon" "epargne"}}{{else}}{{template "icon" (print "compte-" .Kind)}}{{end}}<span class="name">{{.Name}}</span><span class="amount">{{euros .Balance}}</span></a></li>
+      {{- end}}
+    </ul>
+  </section>
+
+  {{- if .HasOutlook}}
+  {{- with .Outlook}}
+  <section class="card outlook" aria-labelledby="reste">
+    <div class="section-head">
+      <h2 id="reste">Reste à vivre</h2>
+      <a href="/previsionnel">Prévisionnel</a>
+    </div>
+    <div class="ring-wrap">
+      {{- if ge $.Data.LeftShare 0.0}}
+      <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="ring-track" cx="60" cy="60" r="50"/>
+        <circle class="ring-fill{{if lt .Left 0}} is-over{{else if lt $.Data.LeftShare 15.0}} is-low{{end}}" cx="60" cy="60" r="50" pathLength="100" stroke-dasharray="{{printf "%.1f" $.Data.LeftShare}} 100" transform="rotate(-90 60 60)"/>
+        <text class="ring-text" x="60" y="64">{{printf "%.0f" $.Data.LeftShare}} %</text>
+        <text class="ring-sub" x="60" y="82">des entrées</text>
+      </svg>
+      {{- end}}
+      <div>
+        <span class="forecast-closing amount{{if lt .Left 0}} negative{{end}}">{{euros .Left}}</span>
+        <p class="kpi-note">pour les dépenses courantes d'ici la fin de {{.Month.MonthLabel}}</p>
+      </div>
+    </div>
+    <dl class="breakdown">
+      <div><dt>Entrées reçues et attendues</dt><dd class="amount">{{eurosSigned (add .Received .Expected)}}</dd></div>
+      <div><dt>Charges et dépenses prévues à venir</dt><dd class="amount">{{eurosSigned .Upcoming}}</dd></div>
+      <div><dt>Versements vers l'épargne et vos autres comptes</dt><dd class="amount">{{eurosSigned .Savings}}</dd></div>
+      <div><dt>Dépenses déjà faites</dt><dd class="amount">{{eurosSigned .Spent}}</dd></div>
+      {{- if .Provisions}}
+      <div><dt>Dépenses lissées : provisions du mois, nettes de leur utilisation</dt><dd class="amount">{{eurosSigned .Provisions}}</dd></div>
+      {{- end}}
+    </dl>
+  </section>
+  {{- end}}
+  {{- end}}
+
+  {{- with .Flow}}
+  <section class="card" aria-labelledby="mois">
+    <div class="section-head">
+      <h2 id="mois">{{$.Data.Month.From.MonthLabel}}</h2>
+      <a href="/rapports">Rapport</a>
+    </div>
+    <dl class="flow">
+      <div>
+        <dt>Revenus</dt>
+        <dd class="amount positive">{{eurosSigned .Income}}</dd>
+        <dd class="flow-bar"><svg class="gauge" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="bar-track" width="100" height="10"/><rect class="bar-income" width="{{printf "%.1f" .IncomeW}}" height="10"/><rect class="bar-tick" x="{{printf "%.1f" .PrevIncomeW}}" width=".8" height="10"/></svg></dd>
+        <dd class="flow-prev">{{.Previous.MonthLabel}} : {{euros .PrevIncome}}</dd>
+      </div>
+      <div>
+        <dt>Dépenses</dt>
+        <dd class="amount">{{euros .Expenses}}</dd>
+        <dd class="flow-bar"><svg class="gauge" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect class="bar-track" width="100" height="10"/><rect class="bar-expense" width="{{printf "%.1f" .ExpensesW}}" height="10"/><rect class="bar-tick" x="{{printf "%.1f" .PrevExpensesW}}" width=".8" height="10"/></svg></dd>
+        <dd class="flow-prev">{{.Previous.MonthLabel}} : {{euros .PrevExpenses}}</dd>
+      </div>
+    </dl>
+    {{- with $.Data.Merchants}}
+    <h3 class="card-sub">Plus fortes dépenses</h3>
+    <ol class="top-list">
+      {{- range .}}
+      <li><span>{{.Name}}</span><span class="amount">{{euros .Amount}}</span></li>
+      {{- end}}
+    </ol>
+    {{- end}}
+  </section>
+  {{- end}}
+
+  {{- with .Forecast}}
+  <section class="card span-2" aria-labelledby="courbe-titre">
+    <div class="section-head">
+      <h2 id="courbe-titre">Solde prévu des comptes courants</h2>
+      <a href="/previsionnel">Prévisionnel</a>
+    </div>
+    <dl class="figures">
+      <div><dt>Le {{.Target.Format}}</dt><dd class="amount{{if lt .Closing .Threshold}} negative{{end}}">{{euros .Closing}}</dd></div>
+      <div><dt>Point bas, le {{.Low.Date.Format}}</dt><dd class="amount{{if lt .Low.Balance .Threshold}} negative{{end}}">{{euros .Low.Balance}}</dd></div>
+    </dl>
+    <figure class="chart">{{template "chart" $.Data.Chart}}</figure>
+  </section>
+  {{- end}}
+
+  <section class="card" aria-labelledby="categories-mois">
+    <div class="section-head">
+      <h2 id="categories-mois">Dépenses par catégorie</h2>
+      <a href="/rapports">Rapports</a>
+    </div>
+    {{- if .Donut}}
+    <div class="donut-wrap">
+      <svg class="donut" viewBox="0 0 42 42" aria-hidden="true">
+        <circle class="donut-track" cx="21" cy="21" r="16"/>
+        {{- range .Donut}}
+        <circle class="donut-seg" cx="21" cy="21" r="16" pathLength="100" stroke="{{.Color}}" stroke-dasharray="{{printf "%.2f" .Dash}} 100" stroke-dashoffset="{{printf "%.2f" .DashOffset}}" transform="rotate(-90 21 21)"/>
+        {{- end}}
+        <text class="donut-total" x="21" y="21.5">{{eurosRound .Month.Expenses}}</text>
+        <text class="donut-sub" x="21" y="26.5">ce mois-ci</text>
+      </svg>
+      <dl class="legend">
+        {{- range .Donut}}
+        <div><dt>{{template "dot" .Color}}<span>{{.Name}}</span></dt><dd>{{.Share}} %</dd></div>
+        {{- end}}
+      </dl>
+    </div>
+    {{- else}}
+    <p class="card-empty">Aucune dépense ce mois-ci.</p>
+    {{- end}}
+  </section>
+
+  {{- if .HasOutlook}}
+  <section class="card" aria-labelledby="a-venir">
+    <div class="section-head">
+      <h2 id="a-venir">À venir</h2>
+      <a href="/recurrences">Récurrences</a>
+    </div>
+    {{- if .Upcoming}}
+    <ul class="mini-list">
+      {{- range .Upcoming}}
+      <li>
+        <span class="date-chip" aria-hidden="true"><b>{{.Date.Time.Day}}</b><small>{{.Date.MonthShort}}</small></span>
+        <span class="mini-main"><span class="mini-title">{{.Label}}</span><span class="mini-meta">{{.Date.Format}}{{with .AccountName}} · {{.}}{{end}}{{if .Estimated}} · estimé{{end}}</span></span>
+        <span class="amount{{if gt .Amount 0}} positive{{end}}">{{eurosSigned .Amount}}</span>
+      </li>
+      {{- end}}
+    </ul>
+    {{- else}}
+    <p class="card-empty">Aucune échéance prévue d'ici le {{.Forecast.Target.Format}}.</p>
+    {{- end}}
+  </section>
+  {{- end}}
+
+  <section class="card" aria-labelledby="recentes">
+    <div class="section-head">
+      <h2 id="recentes">Dernières opérations</h2>
+      <a href="/operations">Toutes</a>
+    </div>
+    {{- if .Recent}}
+    <ul class="mini-list">
+      {{- range .Recent}}
+      <li><a class="mini-row" href="/operations/{{.ID}}">
+        {{template "tx-icon" .}}
+        <span class="mini-main"><span class="mini-title">{{.Label}}</span><span class="mini-meta">{{.Date.Format}} · {{if .IsTransfer}}Virement{{else}}{{or .CategoryName "Sans catégorie"}}{{end}}</span></span>
+        <span class="amount{{if gt .Amount 0}} positive{{end}}">{{eurosSigned .Amount}}</span>
+      </a></li>
+      {{- end}}
+    </ul>
+    {{- else}}
+    <p class="card-empty">Aucune opération pour l'instant.</p>
+    {{- end}}
+  </section>
+
+  {{- if .Envelopes}}
+  <section class="card" aria-labelledby="enveloppes">
+    <div class="section-head">
+      <h2 id="enveloppes">Enveloppes du mois</h2>
+      <a href="/budgets">Tous les budgets</a>
+    </div>
+    <ul class="rows envelopes">
+      {{- range .Envelopes}}<li class="row">{{template "envelope" .}}</li>{{end}}
+    </ul>
+  </section>
+  {{- end}}
+</div>
 {{- else}}
 <section class="card empty">
   <h2>Premiers pas</h2>

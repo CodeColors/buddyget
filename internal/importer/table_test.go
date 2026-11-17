@@ -57,7 +57,7 @@ func TestReadFixtures(t *testing.T) {
 		}},
 		{"../../testdata/generique/debit-credit.xls", FormatXLS, []string{
 			"1:Date|Libellé|Débit|Crédit",
-			"2:46310|Retrait DAB|40",
+			"2:15/10/2026|Retrait DAB|40",
 		}},
 		{"../../testdata/generique/sans-entete.csv", FormatCSV, []string{
 			"1:2026-10-01|Loyer octobre|-750.00",

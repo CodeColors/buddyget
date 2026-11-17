@@ -20,8 +20,8 @@ const USER = 'hugo';
 const PASSWORD = 'une phrase de passe solide';
 const WIDTHS = [360, 768, 1280];
 const SCHEMES = ['light', 'dark'];
-const BACKGROUND = { light: 'rgb(245, 246, 248)', dark: 'rgb(16, 18, 23)' };
-const TARGETS = 'button, input:not([type=hidden]), select, textarea, summary, a.btn, .tabbar a, .fab, .tile, .row-link, .tx-link';
+const BACKGROUND = { light: 'rgb(243, 244, 248)', dark: 'rgb(12, 14, 20)' };
+const TARGETS = 'button, input:not([type=hidden]), select, textarea, summary, a.btn, .nav-list a, .row-link, .tx-link, .hub a, .mini-row, .wealth-accounts a, .menu-item';
 
 let server;
 let dataDir;
@@ -102,6 +102,12 @@ async function checkLayout(page, label, scheme) {
   );
 }
 
+// Le thème et la déconnexion sont dans le menu du compte.
+async function openAccountMenu(page) {
+  await page.locator('.user-menu > summary').click();
+  await page.locator('.user-menu .menu-panel').waitFor();
+}
+
 async function login(page) {
   await page.getByLabel('Identifiant').fill(USER);
   await page.getByLabel('Mot de passe').fill(PASSWORD);
@@ -154,9 +160,12 @@ test('message clair en cas de mauvais mot de passe', async () => {
 test('choix manuel du thème mémorisé et appliqué sans flash', async () => {
   await withPage(360, 'light', async (page) => {
     await page.goto(`${BASE}/`);
+    await openAccountMenu(page);
+    await checkLayout(page, 'menu du compte ouvert', 'light');
     await page.getByRole('button', { name: 'Thème sombre' }).click();
     await page.waitForURL(`${BASE}/`);
     await checkLayout(page, 'thème sombre forcé', 'dark');
+    await openAccountMenu(page);
     assert.equal(await page.getByRole('button', { name: 'Thème sombre' }).getAttribute('aria-pressed'), 'true');
 
     // Le thème figure dans le HTML initial : aucun script n'intervient.
@@ -188,11 +197,25 @@ test('création des comptes depuis le tableau de bord', async () => {
   }, session);
 });
 
+test('raccourcis clavier : « / » cherche une opération, « n » en saisit une', async () => {
+  await withPage(1280, 'light', async (page) => {
+    await page.goto(`${BASE}/`);
+    await page.keyboard.press('/');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'recherche');
+    await page.keyboard.type('compte');
+    await page.keyboard.press('Enter');
+    await page.waitForURL(`${BASE}/operations?q=compte`);
+    await page.getByRole('heading', { name: 'Opérations', level: 1 }).click();
+    await page.keyboard.press('n');
+    await page.waitForURL(`${BASE}/operations/nouvelle`);
+  }, session);
+});
+
 test('saisie au clavier : bouton +, montant, Tab, libellé, Entrée', async () => {
   await withPage(360, 'light', async (page) => {
     await page.goto(`${BASE}/`);
     const start = performance.now();
-    await page.getByRole('link', { name: 'Opération : nouvelle saisie' }).click();
+    await page.getByRole('link', { name: 'Nouvelle opération' }).click();
     await page.waitForURL(/\/operations\/nouvelle/);
     await page.keyboard.type('12,50'); // le montant a le focus
     await page.keyboard.press('Tab');
@@ -545,7 +568,7 @@ test('partage du foyer, export et sauvegarde sur mobile', async () => {
     await page.goto(`${BASE}/operations/nouvelle`);
     await page.getByLabel('Montant (€)').fill('900');
     await page.getByLabel('Libellé').fill('Loyer partagé');
-    await page.getByText('Partage du foyer').click();
+    await page.locator('#contenu').getByText('Partage du foyer').click();
     await page.getByLabel('Opération partagée entre membres du foyer').check();
     await page.getByLabel('Payée par').selectOption({ label: 'Hugo' });
     await page.getByRole('radio', { name: 'Au prorata' }).check();
@@ -633,6 +656,7 @@ for (const scheme of SCHEMES) {
 test('déconnexion', async () => {
   await withPage(360, 'light', async (page) => {
     await page.goto(`${BASE}/`);
+    await openAccountMenu(page);
     await page.getByRole('button', { name: 'Se déconnecter' }).click();
     await page.waitForURL(`${BASE}/login`);
     await page.goto(`${BASE}/`);

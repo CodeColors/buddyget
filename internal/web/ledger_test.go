@@ -267,3 +267,19 @@ func TestStaticGzip(t *testing.T) {
 		t.Errorf("htmx compressé attendu : %q, %d octets", resp.Header.Get("Content-Encoding"), len(body))
 	}
 }
+
+func TestOperationGroups(t *testing.T) {
+	items := []ledger.Transaction{{ID: 1, Date: "2026-11-17"}, {ID: 2, Date: "2026-11-17"}, {ID: 3, Date: "2026-11-15"}}
+	v := operationsView{Q: url.Values{}, Page: ledger.Page{Items: items}}
+	g := v.Groups()
+	if len(g) != 2 || g[0].Day != "2026-11-17" || len(g[0].Items) != 2 || g[1].Day != "2026-11-15" || len(g[1].Items) != 1 {
+		t.Errorf("par jour : %+v", g)
+	}
+	v.Q.Set("tri", string(ledger.SortAmountAsc))
+	if g := v.Groups(); len(g) != 1 || g[0].Day != "" || len(g[0].Items) != 3 {
+		t.Errorf("par montant : %+v", g)
+	}
+	if g := (operationsView{Q: url.Values{}}).Groups(); len(g) != 0 {
+		t.Errorf("page vide : %+v", g)
+	}
+}
