@@ -1,6 +1,7 @@
 {{define "content"}}
 <section class="card auth-card" aria-labelledby="titre">
   <h1 id="titre">Connexion</h1>
+  <p class="muted">Le budget de votre foyer, hébergé chez vous.</p>
   {{with .Data.Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
   <form class="form" method="post" action="/login">
     <div class="field">

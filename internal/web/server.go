@@ -109,6 +109,7 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		"asset":        static.url,
 		"euros":        money.Format,
 		"eurosSigned":  money.FormatSigned,
+		"eurosRound":   money.FormatEuros,
 		"amountInput":  money.FormatInput,
 		"neg":          func(v int64) int64 { return -v },
 		"add":          func(a, b int64) int64 { return a + b },
@@ -119,6 +120,7 @@ func New(cfg config.Config, database *db.DB, svc Services) (http.Handler, error)
 		"fileSize":     fileSize,
 		"navActive":    navActive,
 		"plural":       plural,
+		"initial":      initial,
 		"datetime":     func(t time.Time) string { return t.In(time.Local).Format("02/01/2006 à 15h04") },
 		"columnLetter": columnLetter,
 		"columnChoice": columnChoice,
@@ -486,6 +488,15 @@ func navActive(path, section string) bool {
 		return path == "/"
 	}
 	return path == section || strings.HasPrefix(path, section+"/")
+}
+
+// initial renvoie la première lettre d'un nom, en capitale (pastille du
+// menu du compte).
+func initial(name string) string {
+	for _, r := range name {
+		return strings.ToUpper(string(r))
+	}
+	return "?"
 }
 
 // plural accorde un nom à la française : « 0 opération », « 3 opérations ».

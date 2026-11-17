@@ -11,6 +11,37 @@ document.addEventListener('submit', (event) => {
   }
 }, true);
 
+// Menus déroulants (<details class="menu">) : un clic ailleurs ou Échap les
+// referme.
+document.addEventListener('click', (event) => {
+  for (const menu of document.querySelectorAll('details.menu[open]')) {
+    if (!menu.contains(event.target)) menu.open = false;
+  }
+});
+
+// Raccourcis clavier, hors saisie : « / » cherche une opération, « n » en
+// saisit une nouvelle, Échap ferme un menu.
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    const menu = document.querySelector('details.menu[open]');
+    if (menu) {
+      menu.open = false;
+      menu.querySelector('summary').focus();
+    }
+    return;
+  }
+  if (event.ctrlKey || event.metaKey || event.altKey || event.target.closest('input, select, textarea, [contenteditable]')) return;
+  if (event.key === '/') {
+    const search = document.getElementById('recherche') ?? document.getElementById('q');
+    if (search && search.getClientRects().length) {
+      event.preventDefault();
+      search.focus();
+    }
+  } else if (event.key === 'n' && location.pathname !== '/operations/nouvelle') {
+    location.assign('/operations/nouvelle');
+  }
+});
+
 // Case « tout sélectionner » de la liste des opérations.
 document.addEventListener('change', (event) => {
   const all = event.target.closest('[data-select-all]');
