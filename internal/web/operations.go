@@ -100,6 +100,31 @@ func (v operationsView) Searching() bool {
 	return false
 }
 
+// txGroup est une suite d'opérations de la page : celles d'un même jour
+// (tri par date) ou toutes (Day vide, tri par montant).
+type txGroup struct {
+	Day   calendar.Date
+	Items []ledger.Transaction
+}
+
+// Groups regroupe la page par jour, sauf quand elle est triée par montant.
+func (v operationsView) Groups() []txGroup {
+	items := v.Page.Items
+	if s := ledger.Sort(v.Q.Get("tri")); s == ledger.SortAmountAsc || s == ledger.SortAmountDesc {
+		return []txGroup{{Items: items}}
+	}
+	var out []txGroup
+	for len(items) > 0 {
+		n := 1
+		for n < len(items) && items[n].Date == items[0].Date {
+			n++
+		}
+		out = append(out, txGroup{Day: items[0].Date, Items: items[:n]})
+		items = items[n:]
+	}
+	return out
+}
+
 // FiltersOpen indique qu'un critère du panneau de filtres est actif, pour
 // l'afficher déplié.
 func (v operationsView) FiltersOpen() bool {

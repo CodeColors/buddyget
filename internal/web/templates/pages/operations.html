@@ -1,6 +1,11 @@
 {{define "content"}}
 {{- with .Data}}
-<h1>Opérations</h1>
+<div class="page-head">
+  <h1>Opérations</h1>
+  <div class="actions">
+    <a class="btn" href="/import">{{template "icon" "import"}}Importer</a>
+  </div>
+</div>
 {{- if .Transfers}}
 <p class="notice"><a href="/operations/virements">{{plural .Transfers "virement interne possible" "virements internes possibles"}} à vérifier</a> : reliés, ils ne comptent plus ni en dépense ni en revenu.</p>
 {{- end}}
@@ -8,9 +13,12 @@
 <form class="filters" method="get" action="/operations" role="search"
       hx-get="/operations" hx-target="#resultats" hx-swap="outerHTML" hx-push-url="true"
       hx-trigger="input changed delay:300ms, change, submit">
-  <label for="q" class="sr-only">Rechercher</label>
-  <input id="q" name="q" type="search" value="{{.Q.Get "q"}}" placeholder="Rechercher un libellé, une note…" autocomplete="off">
-  <details class="panel"{{if .FiltersOpen}} open{{end}}>
+  <div class="search-field">
+    <label for="q" class="sr-only">Rechercher</label>
+    {{template "icon" "rechercher"}}
+    <input id="q" name="q" type="search" value="{{.Q.Get "q"}}" placeholder="Rechercher…" autocomplete="off" aria-keyshortcuts="/">
+  </div>
+  <details class="panel pill"{{if .FiltersOpen}} open{{end}}>
     <summary>Filtres et tri</summary>
     <div class="filter-grid">
       <div class="field">
@@ -82,7 +90,7 @@
   </details>
 </form>
 
-<details class="panel">
+<details class="panel pill lot">
   <summary>Modifier par lot</summary>
   <form id="lot" class="form" method="post" action="/operations/lot" data-confirm="Appliquer cette modification aux opérations choisies ?">
     <fieldset class="field">
@@ -136,30 +144,36 @@
   <input type="hidden" name="filtre" value="{{.Filter}}" form="lot">
   {{with .Problem}}<p class="alert" role="alert">{{.}}</p>{{end}}
   <p class="summary" aria-live="polite">{{plural .Page.Count "opération" "opérations"}}{{if .Page.Count}} · total <strong class="amount{{if gt .Page.Sum 0}} positive{{end}}">{{eurosSigned .Page.Sum}}</strong> · <a href="{{.ExportURL}}">Exporter en CSV</a>{{end}}</p>
-  {{- if .Page.Items}}
-  <ul class="tx-list" aria-label="Opérations">
-    {{- range .Page.Items}}
-    <li class="tx">
-      <label class="tx-check"><input type="checkbox" name="ids" value="{{.ID}}" form="lot"><span class="sr-only">Sélectionner « {{.Label}} »</span></label>
-      <a class="tx-link" href="/operations/{{.ID}}">
-        <span class="tx-label">{{.Label}}</span>
-        <span class="tx-cat">
-          {{- if .IsTransfer}}{{if lt .Amount 0}}Virement vers {{else}}Virement depuis {{end}}{{.CounterpartAccountName}}
-          {{- else if .CategoryName}}{{template "dot" .CategoryColor}}{{.CategoryName}}
-          {{- else}}Sans catégorie{{end -}}
+  {{- range $g := .Groups}}
+  <section class="tx-group"{{with .Day}} aria-labelledby="jour-{{.}}"{{end}}>
+    {{- with .Day}}<h2 class="tx-day" id="jour-{{.}}">{{.DayLabel}}</h2>{{end}}
+    <ul class="tx-list"{{if not .Day}} aria-label="Opérations"{{end}}>
+      {{- range .Items}}
+      <li class="tx tx-op">
+        <label class="tx-check"><input type="checkbox" name="ids" value="{{.ID}}" form="lot"><span class="sr-only">Sélectionner « {{.Label}} »</span></label>
+        <span class="tx-avatar">{{template "tx-icon" .}}</span>
+        <a class="tx-link" href="/operations/{{.ID}}">
+          <span class="tx-label">{{.Label}}</span>
+          <span class="tx-cat">
+            {{- if .IsTransfer}}{{if lt .Amount 0}}Virement vers {{else}}Virement depuis {{end}}{{.CounterpartAccountName}}
+            {{- else if .CategoryName}}{{.CategoryName}}
+            {{- else}}Sans catégorie{{end -}}
+          </span>
+        </a>
+        <span class="tx-meta">
+          {{- if not $g.Day}}<span class="tx-date">{{.Date.Format}}</span>{{end}}
+          <span class="tx-account">{{.AccountName}}</span>
+          {{- if gt .Date $.Data.Today}} <span class="badge">À venir</span>{{end}}{{if .InterestYear}} <span class="badge">Intérêts</span>{{end}}{{range .Tags}} <span class="badge badge-tag">{{.}}</span>{{end}}
         </span>
-      </a>
-      <span class="tx-meta">
-        <span class="tx-date">{{.Date.Format}}{{if gt .Date $.Data.Today}} <span class="badge">À venir</span>{{end}}{{if .InterestYear}} <span class="badge">Intérêts</span>{{end}}{{range .Tags}} <span class="badge badge-tag">{{.}}</span>{{end}}</span>
-        <span class="tx-account">{{.AccountName}}</span>
-      </span>
-      <span class="tx-amount">
-        <span class="amount{{if gt .Amount 0}} positive{{end}}">{{eurosSigned .Amount}}</span>
-        {{- if .Cleared}}<svg class="cleared" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4.5 4.5L19 7"/></svg><span class="sr-only">, pointée</span>{{end}}
-      </span>
-    </li>
-    {{- end}}
-  </ul>
+        <span class="tx-amount">
+          <span class="amount{{if gt .Amount 0}} positive{{end}}">{{eurosSigned .Amount}}</span>
+          {{- if .Cleared}}<svg class="cleared" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4.5 4.5L19 7"/></svg><span class="sr-only">, pointée</span>{{end}}
+        </span>
+      </li>
+      {{- end}}
+    </ul>
+  </section>
+  {{- end}}
   {{- if or .PrevURL .NextURL}}
   <nav class="pager" aria-label="Pages de résultats">
     {{- with .PrevURL}}<a class="btn" href="{{.}}" hx-get="{{.}}" hx-target="#resultats" hx-swap="outerHTML" hx-push-url="true">Précédentes</a>{{end}}
@@ -167,11 +181,11 @@
     {{- with .NextURL}}<a class="btn" href="{{.}}" hx-get="{{.}}" hx-target="#resultats" hx-swap="outerHTML" hx-push-url="true">Suivantes</a>{{end}}
   </nav>
   {{- end}}
-  {{- else if .Searching}}
+  {{- if not .Page.Items}}{{if .Searching}}
   <p class="card empty muted">Aucune opération ne correspond à la recherche.</p>
   {{- else}}
-  <p class="card empty muted">Aucune opération pour l'instant : le bouton « Opération » permet d'en saisir une.</p>
-  {{- end}}
+  <p class="card empty muted">Aucune opération pour l'instant : le bouton « Nouvelle opération » permet d'en saisir une.</p>
+  {{- end}}{{end}}
 </div>
 {{- end}}
 {{end}}
