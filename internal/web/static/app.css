@@ -1311,7 +1311,7 @@ label > input, label > select { font-weight: 400; }
 .flow-prev::first-letter { text-transform: uppercase; }
 .card-sub { margin: .25rem 0 0; color: var(--muted); font-size: .8125rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
 .top-list { display: grid; gap: .375rem; margin: 0; padding: 0; list-style: none; counter-reset: top; }
-.top-list li { display: flex; align-items: center; gap: .625rem; font-size: .9375rem; counter-increment: top; }
+.top-list li { display: flex; align-items: center; gap: .625rem; min-width: 0; font-size: .9375rem; counter-increment: top; }
 .top-list li::before {
   content: counter(top);
   display: inline-grid;
