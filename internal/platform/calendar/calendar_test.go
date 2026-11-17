@@ -36,11 +36,14 @@ func TestFormatAndFromTime(t *testing.T) {
 	}
 }
 
-func TestMonthLabels(t *testing.T) {
+func TestLabels(t *testing.T) {
 	if got := Date("2026-11-02").MonthLabel(); got != "novembre 2026" {
 		t.Errorf("MonthLabel = %q", got)
 	}
 	if got := Date("2027-02-28").MonthShort(); got != "févr." {
 		t.Errorf("MonthShort = %q", got)
+	}
+	if got := Date("2026-11-17").DayLabel(); got != "mardi 17 novembre 2026" {
+		t.Errorf("DayLabel = %q", got)
 	}
 }

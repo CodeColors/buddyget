@@ -53,6 +53,8 @@ func (d Date) DaysUntil(other Date) int {
 	return int(other.Time().Sub(d.Time()).Hours() / 24)
 }
 
+var weekdays = [...]string{"dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"}
+
 var months = [...]string{"janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"}
 
 // Abréviations usuelles (Imprimerie nationale) ; les mois courts restent
@@ -63,6 +65,12 @@ var monthsShort = [...]string{"janv.", "févr.", "mars", "avr.", "mai", "juin", 
 func (d Date) MonthLabel() string {
 	t := d.Time()
 	return months[t.Month()-1] + " " + strconv.Itoa(t.Year())
+}
+
+// DayLabel renvoie la date en toutes lettres : « mardi 17 novembre 2026 ».
+func (d Date) DayLabel() string {
+	t := d.Time()
+	return weekdays[t.Weekday()] + " " + strconv.Itoa(t.Day()) + " " + months[t.Month()-1] + " " + strconv.Itoa(t.Year())
 }
 
 // MonthShort renvoie le mois abrégé : « nov. ».
